@@ -1,0 +1,1399 @@
+/* YouTube New Order Styles */
+
+/* ============================================
+   Common Layout Styles
+   ============================================ */
+
+/* Base Flex Configuration for all custom layouts */
+body.yt-comments-swapped #columns,
+body.yt-comments-swapped-left #columns,
+body.yt-triple-column-left #columns,
+body.yt-triple-column-right #columns {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  gap: 24px !important;
+  margin: 0 auto !important;
+}
+
+/* Comments Section - Common Styles */
+body.yt-comments-swapped #comments,
+body.yt-comments-swapped-left #comments,
+body.yt-triple-column-left #comments,
+body.yt-triple-column-right #comments {
+  flex: 0 0 402px !important;
+  width: 402px !important;
+  max-width: 402px !important;
+  min-width: 402px !important;
+  margin: 0 !important;
+  padding: 0 12px !important;
+  box-sizing: border-box !important;
+  position: sticky !important;
+  top: 70px !important;
+  max-height: calc(100vh - 80px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Primary Section - Common Flex Behavior */
+body.yt-comments-swapped #primary,
+body.yt-comments-swapped-left #primary {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  max-width: calc(100% - 426px) !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Secondary (Related Videos) - Bottom Layout Common Styles */
+body.yt-comments-swapped #secondary,
+body.yt-comments-swapped-left #secondary {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-top: 24px !important;
+  padding: 0 !important;
+}
+
+/* Horizontal Grid for Bottom Related Videos */
+body.yt-comments-swapped #secondary #related,
+body.yt-comments-swapped-left #secondary #related {
+  display: block !important;
+}
+
+body.yt-comments-swapped #secondary ytd-compact-video-renderer,
+body.yt-comments-swapped-left #secondary ytd-compact-video-renderer,
+body.yt-comments-swapped #secondary ytd-compact-radio-renderer,
+body.yt-comments-swapped-left #secondary ytd-compact-radio-renderer,
+body.yt-comments-swapped #secondary ytd-compact-playlist-renderer,
+body.yt-comments-swapped-left #secondary ytd-compact-playlist-renderer {
+  display: inline-flex !important;
+  flex-direction: column !important;
+  width: calc(25% - 16px) !important;
+  margin: 0 8px 16px 8px !important;
+  vertical-align: top !important;
+}
+
+/* ============================================
+   Specific Layout Modes
+   ============================================ */
+
+/* Safety: Hide Secondary if it's still in #columns during Swapped modes */
+/* This prevents it from appearing on the left/top before JS moves it */
+body.yt-comments-swapped #columns>#secondary,
+body.yt-comments-swapped-left #columns>#secondary {
+  display: none !important;
+}
+
+/* 1. Swapped Right (Original) */
+body.yt-comments-swapped #primary {
+  order: 1 !important;
+}
+
+body.yt-comments-swapped #comments {
+  order: 2 !important;
+}
+
+/* 2. Swapped Left */
+body.yt-comments-swapped-left #comments {
+  order: 1 !important;
+}
+
+body.yt-comments-swapped-left #primary {
+  order: 2 !important;
+}
+
+/* 3. Triple Column (Left: Comments, Middle: Video, Right: Related) */
+body.yt-triple-column-left #columns {
+  justify-content: center !important;
+}
+
+body.yt-triple-column-left #comments {
+  order: 1 !important;
+}
+
+body.yt-triple-column-left #primary {
+  order: 2 !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+body.yt-triple-column-left #secondary {
+  order: 3 !important;
+  width: 402px !important;
+}
+
+/* 4. Triple Column (Left: Related, Middle: Video, Right: Comments) */
+body.yt-triple-column-right #columns {
+  justify-content: center !important;
+}
+
+body.yt-triple-column-right #secondary {
+  order: 1 !important;
+  width: 402px !important;
+}
+
+body.yt-triple-column-right #primary {
+  order: 2 !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+body.yt-triple-column-right #comments {
+  order: 3 !important;
+}
+
+/* Triple Column Secondary Styles (Vertical List) */
+body.yt-triple-column-left #secondary,
+body.yt-triple-column-right #secondary {
+  flex: 0 0 402px !important;
+  width: 402px !important;
+  max-width: 402px !important;
+  min-width: 402px !important;
+  margin: 0 !important;
+  padding: 0 12px !important;
+  box-sizing: border-box !important;
+  position: sticky !important;
+  top: 70px !important;
+  max-height: calc(100vh - 80px) !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Custom scrollbar for secondary in triple column */
+body.yt-triple-column-left #secondary::-webkit-scrollbar,
+body.yt-triple-column-right #secondary::-webkit-scrollbar {
+  width: 6px;
+}
+
+body.yt-triple-column-left #secondary::-webkit-scrollbar-track,
+body.yt-triple-column-right #secondary::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body.yt-triple-column-left #secondary::-webkit-scrollbar-thumb,
+body.yt-triple-column-right #secondary::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+body.yt-triple-column-left #secondary::-webkit-scrollbar-thumb:hover,
+body.yt-triple-column-right #secondary::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+body.yt-triple-column-left #secondary ytd-compact-video-renderer,
+body.yt-triple-column-right #secondary ytd-compact-video-renderer {
+  display: flex !important;
+  width: 100% !important;
+  margin-bottom: 8px !important;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1600px) {
+
+  body.yt-comments-swapped #secondary ytd-compact-video-renderer,
+  body.yt-comments-swapped-left #secondary ytd-compact-video-renderer {
+    width: calc(33.33% - 16px) !important;
+  }
+}
+
+@media (max-width: 1200px) {
+
+  body.yt-comments-swapped #secondary ytd-compact-video-renderer,
+  body.yt-comments-swapped #secondary ytd-compact-radio-renderer {
+    width: calc(50% - 16px) !important;
+  }
+
+  body.yt-comments-swapped #comments {
+    flex: 0 0 350px !important;
+    width: 350px !important;
+    max-width: 350px !important;
+    min-width: 350px !important;
+  }
+
+  body.yt-comments-swapped #primary {
+    max-width: calc(100% - 374px) !important;
+  }
+}
+
+@media (max-width: 1000px) {
+  body.yt-comments-swapped #columns {
+    flex-direction: column !important;
+  }
+
+  body.yt-comments-swapped #primary {
+    max-width: 100% !important;
+  }
+
+  body.yt-comments-swapped #comments {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    position: relative !important;
+    top: auto !important;
+    max-height: none !important;
+    margin-top: 24px !important;
+  }
+}
+
+/* Custom scrollbar for comments */
+body.yt-comments-swapped #comments::-webkit-scrollbar,
+body.yt-comments-swapped-left #comments::-webkit-scrollbar,
+body.yt-triple-column-left #comments::-webkit-scrollbar,
+body.yt-triple-column-right #comments::-webkit-scrollbar {
+  width: 6px;
+}
+
+body.yt-comments-swapped #comments::-webkit-scrollbar-track,
+body.yt-comments-swapped-left #comments::-webkit-scrollbar-track,
+body.yt-triple-column-left #comments::-webkit-scrollbar-track,
+body.yt-triple-column-right #comments::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+body.yt-comments-swapped #comments::-webkit-scrollbar-thumb,
+body.yt-comments-swapped-left #comments::-webkit-scrollbar-thumb,
+body.yt-triple-column-left #comments::-webkit-scrollbar-thumb,
+body.yt-triple-column-right #comments::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+body.yt-comments-swapped #comments::-webkit-scrollbar-thumb:hover,
+body.yt-comments-swapped-left #comments::-webkit-scrollbar-thumb:hover,
+body.yt-triple-column-left #comments::-webkit-scrollbar-thumb:hover,
+body.yt-triple-column-right #comments::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+/* ============================================
+   Layout Modes
+   ============================================ */
+
+/* Minimal Mode - No sidebar */
+body.yt-new-order-minimal #secondary {
+  display: none !important;
+}
+
+body.yt-new-order-minimal #primary {
+  max-width: 100% !important;
+}
+
+/* Focus Mode - Video only */
+body.yt-new-order-focus #secondary,
+body.yt-new-order-focus #comments,
+body.yt-new-order-focus #below {
+  display: none !important;
+}
+
+body.yt-new-order-focus #primary {
+  max-width: 100% !important;
+}
+
+body.yt-new-order-focus #player {
+  max-width: 100vw !important;
+}
+
+/* ============================================
+   Comment Search Feature
+   ============================================ */
+
+.yt-new-order-comment-search {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+.yt-new-order-search-input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.yt-new-order-search-input:focus {
+  border-color: #3ea6ff;
+  background: rgba(62, 166, 255, 0.1);
+}
+
+.yt-new-order-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.yt-new-order-search-btn,
+.yt-new-order-search-clear {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 20px;
+  background: #3ea6ff;
+  color: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.yt-new-order-search-btn:hover,
+.yt-new-order-search-clear:hover {
+  background: #1a8cff;
+}
+
+.yt-new-order-search-clear {
+  background: #ff4444;
+}
+
+/* ============================================
+   Comment Filters Feature
+   ============================================ */
+
+.yt-new-order-comment-filters {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+}
+
+.yt-new-order-filter-btn {
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  background: transparent;
+  color: #aaa;
+  cursor: pointer;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.yt-new-order-filter-btn:hover {
+  border-color: #3ea6ff;
+  color: #3ea6ff;
+}
+
+.yt-new-order-filter-btn.active {
+  background: #3ea6ff;
+  border-color: #3ea6ff;
+  color: #fff;
+}
+
+/* ============================================
+   Video Player Buttons
+   ============================================ */
+
+/* Screenshot, Timestamp, and PiP Buttons */
+.yt-new-order-screenshot-btn,
+.yt-new-order-timestamp-btn,
+.yt-new-order-pip-btn {
+  opacity: 0.9;
+  transition: opacity 0.1s;
+  cursor: pointer !important;
+  vertical-align: top !important;
+}
+
+.yt-new-order-screenshot-btn svg,
+.yt-new-order-timestamp-btn svg,
+.yt-new-order-pip-btn svg {
+  width: 100%;
+  height: 100%;
+  fill: #fff;
+  padding: 10px;
+  box-sizing: border-box;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
+}
+
+.yt-new-order-screenshot-btn:hover,
+.yt-new-order-timestamp-btn:hover,
+.yt-new-order-pip-btn:hover {
+  opacity: 1;
+}
+
+/* ============================================
+   Toast Notification
+   ============================================ */
+
+.yt-new-order-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: linear-gradient(135deg, #3ea6ff, #0066cc);
+  color: white;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  z-index: 99999;
+  opacity: 0;
+  transition: all 0.3s ease;
+  pointer-events: none;
+}
+
+.yt-new-order-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ============================================
+   Hide Elements Features
+   ============================================ */
+
+/* Hide Description */
+body.yt-hide-description #description,
+body.yt-hide-description #info-container #description {
+  display: none !important;
+}
+
+/* Hide Channel Info */
+body.yt-hide-channel-info #owner,
+body.yt-hide-channel-info ytd-video-owner-renderer {
+  display: none !important;
+}
+
+/* Hide Merch */
+body.yt-hide-merch ytd-merch-shelf-renderer,
+body.yt-hide-merch #merchandise-shelf {
+  display: none !important;
+}
+
+/* Hide End Screen */
+body.yt-hide-endscreen .ytp-ce-element,
+body.yt-hide-endscreen .ytp-endscreen-content,
+body.yt-hide-endscreen .ytp-ce-covering-overlay {
+  display: none !important;
+}
+
+/* ============================================
+   Compact Mode
+   ============================================ */
+
+body.yt-compact-mode ytd-comment-thread-renderer {
+  padding: 8px 0 !important;
+  margin-bottom: 4px !important;
+}
+
+body.yt-compact-mode #header.ytd-comments-header-renderer {
+  margin-bottom: 8px !important;
+}
+
+body.yt-compact-mode ytd-compact-video-renderer {
+  margin-bottom: 4px !important;
+}
+
+body.yt-compact-mode #content-text {
+  font-size: 13px !important;
+}
+
+/* ============================================
+   Highlight Special Comments
+   ============================================ */
+
+body.yt-highlight-comments ytd-comment-renderer[is-pinned] {
+  background: linear-gradient(135deg, rgba(62, 166, 255, 0.15), rgba(62, 166, 255, 0.05)) !important;
+  border-left: 3px solid #3ea6ff !important;
+  border-radius: 8px !important;
+  padding: 12px !important;
+  margin: 8px 0 !important;
+}
+
+body.yt-highlight-comments ytd-comment-renderer[author-is-channel-owner] {
+  background: linear-gradient(135deg, rgba(255, 0, 0, 0.15), rgba(255, 0, 0, 0.05)) !important;
+  border-left: 3px solid #ff0000 !important;
+  border-radius: 8px !important;
+  padding: 12px !important;
+  margin: 8px 0 !important;
+}
+
+/* ============================================
+   Content Filtering
+   ============================================ */
+
+/* Hide Shorts */
+body.yt-hide-shorts ytd-rich-shelf-renderer[is-shorts],
+body.yt-hide-shorts ytd-reel-shelf-renderer,
+body.yt-hide-shorts [is-shorts],
+body.yt-hide-shorts ytd-rich-item-renderer:has(ytd-thumbnail[href*="/shorts/"]),
+body.yt-hide-shorts ytd-grid-video-renderer:has(a[href*="/shorts/"]),
+body.yt-hide-shorts ytd-video-renderer:has(a[href*="/shorts/"]),
+body.yt-hide-shorts ytd-compact-video-renderer:has(a[href*="/shorts/"]) {
+  display: none !important;
+}
+
+/* Hide Promotional Content */
+body.yt-hide-promos ytd-ad-slot-renderer,
+body.yt-hide-promos ytd-promoted-video-renderer,
+body.yt-hide-promos ytd-display-ad-renderer,
+body.yt-hide-promos ytd-primetime-promo-renderer,
+body.yt-hide-promos ytd-statement-banner-renderer,
+body.yt-hide-promos ytd-brand-video-shelf-renderer,
+body.yt-hide-promos ytd-promoted-sparkles-web-renderer {
+  display: none !important;
+}
+
+/* ============================================
+   Custom Font
+   ============================================ */
+
+body.yt-custom-font,
+body.yt-custom-font * {
+  font-family: var(--yt-new-order-font, inherit) !important;
+}
+
+/* ============================================
+   Hide Comments on Non-Watch Pages
+   ============================================ */
+
+ytd-browse[page-subtype="home"] #comments,
+ytd-browse[page-subtype="subscriptions"] #comments,
+ytd-browse[page-subtype="trending"] #comments,
+ytd-search #comments {
+  display: none !important;
+}
+
+/* ============================================
+   Resizable Columns Feature
+   ============================================ */
+
+.yt-new-order-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  cursor: col-resize;
+  z-index: 9999;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  user-select: none;
+  touch-action: none;
+  transition: background-color 0.2s;
+}
+
+/* The visible handle line */
+.yt-new-order-resizer::after {
+  content: "";
+  display: block;
+  width: 4px;
+  height: 100%;
+  background-color: rgba(62, 166, 255, 0.4);
+  border-radius: 2px;
+  transition: all 0.2s;
+  opacity: 0.3;
+}
+
+.yt-new-order-resizer:hover::after,
+.yt-new-order-resizer.resizing::after {
+  background-color: #3ea6ff;
+  opacity: 1;
+  box-shadow: 0 0 10px rgba(62, 166, 255, 0.8);
+  width: 6px;
+}
+
+/* Position relative to the container */
+.yt-new-order-resizer.yt-resizer-left {
+  left: -12px;
+}
+
+.yt-new-order-resizer.yt-resizer-right {
+  right: -12px;
+}
+
+/* ============================================
+   Collapsible Sections Feature
+   ============================================ */
+
+.yt-new-order-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #aaa;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.25s ease;
+  margin-left: 12px;
+  white-space: nowrap;
+}
+
+.yt-new-order-collapse-btn:hover {
+  border-color: #3ea6ff;
+  color: #3ea6ff;
+  background: rgba(62, 166, 255, 0.1);
+}
+
+.yt-new-order-collapse-btn .collapse-icon {
+  transition: transform 0.3s ease;
+  display: inline-block;
+}
+
+.yt-new-order-collapse-btn.collapsed .collapse-icon {
+  transform: rotate(-90deg);
+}
+
+.yt-new-order-section-collapsed {
+  max-height: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  transition: max-height 0.4s ease, opacity 0.3s ease, padding 0.3s ease, margin 0.3s ease;
+}
+
+/* ============================================
+   Picture-in-Picture Comments Feature
+   ============================================ */
+
+.yt-new-order-pip-comments {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 380px;
+  max-height: 450px;
+  background: rgba(24, 24, 24, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  z-index: 99998;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  backdrop-filter: blur(20px);
+  animation: pipSlideIn 0.35s ease;
+}
+
+@keyframes pipSlideIn {
+  from {
+    transform: translateY(30px) scale(0.95);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.yt-new-order-pip-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: move;
+  user-select: none;
+}
+
+.yt-new-order-pip-header span {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e0e0e0;
+}
+
+.yt-new-order-pip-close {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #aaa;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.yt-new-order-pip-close:hover {
+  background: #ff4444;
+  color: #fff;
+}
+
+.yt-new-order-pip-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  max-height: 380px;
+}
+
+.yt-new-order-pip-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.yt-new-order-pip-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+}
+
+.yt-new-order-pip-comment {
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.2s;
+}
+
+.yt-new-order-pip-comment:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.yt-new-order-pip-author {
+  font-size: 12px;
+  font-weight: 600;
+  color: #3ea6ff;
+  margin-bottom: 4px;
+}
+
+.yt-new-order-pip-text {
+  font-size: 13px;
+  color: #ccc;
+  line-height: 1.4;
+}
+
+/* ============================================
+   Grid View for Related Videos
+   ============================================ */
+
+body.yt-grid-related #secondary #related #items,
+body.yt-grid-related #secondary #related ytd-item-section-renderer #contents {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
+  gap: 16px !important;
+}
+
+body.yt-grid-related #secondary #related ytd-compact-video-renderer,
+body.yt-grid-related #secondary #related ytd-compact-radio-renderer,
+body.yt-grid-related #secondary #related ytd-compact-playlist-renderer {
+  display: flex !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  margin: 0 !important;
+}
+
+body.yt-grid-related #secondary #related ytd-compact-video-renderer ytd-thumbnail,
+body.yt-grid-related #secondary #related ytd-compact-radio-renderer ytd-thumbnail {
+  width: 100% !important;
+  margin-right: 0 !important;
+}
+
+body.yt-grid-related #secondary #related ytd-compact-video-renderer .details,
+body.yt-grid-related #secondary #related ytd-compact-radio-renderer .details {
+  padding: 8px 0 0 0 !important;
+  width: 100% !important;
+}
+
+/* ============================================
+   Volume Boost UI
+   ============================================ */
+
+.yt-new-order-volume-boost-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.yt-new-order-volume-boost-btn {
+  opacity: 0.9;
+  transition: opacity 0.15s;
+  cursor: pointer !important;
+  vertical-align: top !important;
+  position: relative;
+}
+
+.yt-new-order-volume-boost-btn svg {
+  width: 100%;
+  height: 100%;
+  fill: #fff;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.yt-new-order-volume-boost-btn:hover {
+  opacity: 1;
+}
+
+.yt-new-order-volume-boost-btn.active {
+  opacity: 1;
+}
+
+.yt-new-order-volume-boost-btn.active svg path {
+  fill: #3ea6ff;
+}
+
+.yt-new-order-boost-badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  background: #3ea6ff;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 8px;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+.yt-new-order-volume-popup {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(28, 28, 28, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 16px 14px;
+  width: 52px;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 99999;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+}
+
+.yt-new-order-volume-popup.visible {
+  display: flex;
+}
+
+.yt-new-order-volume-popup label {
+  color: #aaa;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.yt-new-order-volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+  transform: rotate(-90deg);
+  margin: 50px -40px;
+  /* Negative margin to account for rotation width vs visual width */
+}
+
+.yt-new-order-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #3ea6ff;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(62, 166, 255, 0.5);
+}
+
+.yt-new-order-volume-boost-value {
+  color: #3ea6ff;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+/* ============================================
+   Watch Later Quick Add
+   ============================================ */
+
+.yt-new-order-watch-later-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.2s ease;
+  z-index: 100;
+  backdrop-filter: blur(4px);
+}
+
+ytd-rich-item-renderer:hover .yt-new-order-watch-later-btn,
+ytd-compact-video-renderer:hover .yt-new-order-watch-later-btn,
+ytd-video-renderer:hover .yt-new-order-watch-later-btn,
+ytd-grid-video-renderer:hover .yt-new-order-watch-later-btn {
+  opacity: 1;
+}
+
+.yt-new-order-watch-later-btn:hover {
+  background: #3ea6ff;
+  transform: scale(1.1);
+}
+
+.yt-new-order-watch-later-btn.added {
+  background: #00d26a;
+  opacity: 1;
+}
+
+/* ============================================
+   Enhanced Playlist Manager
+   ============================================ */
+
+.yt-new-order-playlist-panel {
+  position: fixed;
+  top: 70px;
+  right: 0;
+  width: 360px;
+  max-height: calc(100vh - 80px);
+  background: rgba(24, 24, 24, 0.98);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 99990;
+  display: none;
+  flex-direction: column;
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+  animation: panelSlideIn 0.3s ease;
+}
+
+@keyframes panelSlideIn {
+  from {
+    transform: translateX(100%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.yt-new-order-playlist-panel.visible {
+  display: flex;
+}
+
+.yt-new-order-playlist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.yt-new-order-playlist-header h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.yt-new-order-playlist-close {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  color: #aaa;
+  cursor: pointer;
+  font-size: 16px;
+  transition: all 0.2s;
+}
+
+.yt-new-order-playlist-close:hover {
+  background: #ff4444;
+  color: #fff;
+}
+
+.yt-new-order-playlist-search {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.yt-new-order-playlist-search input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.yt-new-order-playlist-search input:focus {
+  border-color: #3ea6ff;
+}
+
+.yt-new-order-playlist-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.yt-new-order-playlist-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.yt-new-order-playlist-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.yt-new-order-playlist-item .pl-icon {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.yt-new-order-playlist-item .pl-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.yt-new-order-playlist-item .pl-name {
+  font-size: 14px;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.yt-new-order-playlist-item .pl-count {
+  font-size: 12px;
+  color: #888;
+}
+
+.yt-new-order-playlist-actions {
+  padding: 12px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.yt-new-order-playlist-add-btn {
+  width: 100%;
+  padding: 10px;
+  border: 1px dashed rgba(62, 166, 255, 0.4);
+  border-radius: 10px;
+  background: transparent;
+  color: #3ea6ff;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.yt-new-order-playlist-add-btn:hover {
+  background: rgba(62, 166, 255, 0.1);
+  border-color: #3ea6ff;
+}
+
+.yt-new-order-playlist-toggle {
+  position: fixed;
+  top: 80px;
+  right: 16px;
+  width: 42px;
+  height: 42px;
+  border: none;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #3ea6ff, #0066cc);
+  color: #fff;
+  cursor: pointer;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99989;
+  box-shadow: 0 4px 16px rgba(62, 166, 255, 0.4);
+  transition: all 0.2s;
+}
+
+.yt-new-order-playlist-toggle:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 24px rgba(62, 166, 255, 0.6);
+}
+
+/* ============================================
+   Video Notes Feature
+   ============================================ */
+
+.yt-new-order-notes-container {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.yt-new-order-notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.yt-new-order-notes-header h4 {
+  margin: 0;
+  color: #e0e0e0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.yt-new-order-notes-header span {
+  color: #888;
+  font-size: 12px;
+}
+
+.yt-new-order-notes-textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e0e0e0;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.yt-new-order-notes-textarea:focus {
+  border-color: #3ea6ff;
+}
+
+.yt-new-order-notes-textarea::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.yt-new-order-notes-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+
+.yt-new-order-notes-save {
+  padding: 8px 18px;
+  border: none;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #3ea6ff, #0066cc);
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.yt-new-order-notes-save:hover {
+  box-shadow: 0 4px 16px rgba(62, 166, 255, 0.4);
+  transform: translateY(-1px);
+}
+
+/* ============================================
+   Timestamp Bookmarks Feature
+   ============================================ */
+
+.yt-new-order-bookmarks-container {
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.yt-new-order-bookmarks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.yt-new-order-bookmarks-header h4 {
+  margin: 0;
+  color: #e0e0e0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.yt-new-order-bookmark-add-btn {
+  padding: 6px 14px;
+  border: 1px solid rgba(62, 166, 255, 0.4);
+  border-radius: 20px;
+  background: rgba(62, 166, 255, 0.1);
+  color: #3ea6ff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.yt-new-order-bookmark-add-btn:hover {
+  background: rgba(62, 166, 255, 0.2);
+  border-color: #3ea6ff;
+}
+
+.yt-new-order-bookmarks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.yt-new-order-bookmark-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+
+.yt-new-order-bookmark-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.yt-new-order-bookmark-time {
+  padding: 4px 10px;
+  background: rgba(62, 166, 255, 0.15);
+  color: #3ea6ff;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: monospace;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+  border: none;
+}
+
+.yt-new-order-bookmark-time:hover {
+  background: rgba(62, 166, 255, 0.3);
+}
+
+.yt-new-order-bookmark-note {
+  flex: 1;
+  font-size: 13px;
+  color: #ccc;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.yt-new-order-bookmark-delete {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 68, 68, 0.15);
+  color: #ff4444;
+  cursor: pointer;
+  font-size: 12px;
+  flex-shrink: 0;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.yt-new-order-bookmark-delete:hover {
+  background: #ff4444;
+  color: #fff;
+}
+
+.yt-new-order-bookmark-empty {
+  text-align: center;
+  color: #666;
+  font-size: 13px;
+  padding: 20px;
+}
+
+/* ============================================
+   Enhanced History Search Feature
+   ============================================ */
+
+.yt-new-order-history-search {
+  margin-bottom: 20px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+}
+
+.yt-new-order-history-search-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.yt-new-order-history-input {
+  flex: 1;
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.yt-new-order-history-input:focus {
+  border-color: #3ea6ff;
+}
+
+.yt-new-order-history-input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.yt-new-order-history-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.yt-new-order-history-filter-btn {
+  padding: 5px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s;
+}
+
+.yt-new-order-history-filter-btn:hover {
+  border-color: #3ea6ff;
+  color: #3ea6ff;
+}
+
+.yt-new-order-history-filter-btn.active {
+  background: #3ea6ff;
+  border-color: #3ea6ff;
+  color: #fff;
+}

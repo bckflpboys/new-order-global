@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Order Global — AI Tool Builder</title>
+  <link rel="stylesheet" href="builder.css">
+</head>
+
+<body>
+  <div class="builder-app" id="builder-app">
+    <!-- Top Bar -->
+    <header class="builder-header">
+      <div class="header-left">
+        <img src="../icons/logo.png" alt="New Order" class="header-logo">
+        <div class="header-title">
+          <h1>New Order <span class="accent">Global</span></h1>
+          <span class="header-subtitle">AI Tool Builder</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="user-info" id="user-info" style="display:none;">
+          <span class="user-plan" id="user-plan">FREE</span>
+          <span class="user-name" id="user-name">User</span>
+        </div>
+        <button class="btn-icon" id="btn-my-tools" title="My Tools">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+          </svg>
+        </button>
+        <button class="btn-icon" id="btn-settings" title="Settings">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <div class="builder-body">
+      <!-- Sidebar: My Tools -->
+      <aside class="tools-sidebar" id="tools-sidebar">
+        <div class="sidebar-header">
+          <h3>My Tools</h3>
+          <button class="sidebar-close" id="sidebar-close">✕</button>
+        </div>
+
+        <!-- Built-in Tools -->
+        <div class="tools-section">
+          <div class="tools-section-title">🎁 Built-in Tools</div>
+          <div class="tool-card builtin">
+            <div class="tool-icon">📺</div>
+            <div class="tool-info">
+              <div class="tool-name">YouTube New Order</div>
+              <div class="tool-desc">Custom layouts, video tools, filters</div>
+            </div>
+            <div class="tool-status active">Active</div>
+          </div>
+        </div>
+
+        <!-- User's Custom Tools -->
+        <div class="tools-section">
+          <div class="tools-section-title">🛠️ My Custom Tools</div>
+          <div class="custom-tools-list" id="custom-tools-list">
+            <div class="empty-tools">
+              <div class="empty-icon">✨</div>
+              <p>No custom tools yet</p>
+              <span>Describe what you want below and AI will build it!</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Chat Area -->
+      <main class="chat-area">
+        <!-- Welcome Screen (shown when no conversation) -->
+        <div class="welcome-screen" id="welcome-screen">
+          <div class="welcome-content">
+            <div class="welcome-logo-glow">
+              <img src="../icons/logo.png" alt="" class="welcome-logo">
+            </div>
+            <h2>What do you want to create?</h2>
+            <p class="welcome-sub">Describe any tool and AI will build it as a Chrome extension feature.<br>
+              <em>"Like Star & Stripe — define a rule, and reality bends to it."</em></p>
+
+            <div class="example-prompts">
+              <button class="example-prompt" data-prompt="Create a tool that collects all email addresses visible on any webpage">
+                <span class="example-icon">📧</span>
+                <span>Collect emails from any webpage</span>
+              </button>
+              <button class="example-prompt" data-prompt="Build a dark mode toggle that works on any website">
+                <span class="example-icon">🌙</span>
+                <span>Universal dark mode toggle</span>
+              </button>
+              <button class="example-prompt" data-prompt="Create a tool that auto-saves form data before submission in case the page crashes">
+                <span class="example-icon">💾</span>
+                <span>Auto-save form data</span>
+              </button>
+              <button class="example-prompt" data-prompt="Build a tool that tracks price changes on Amazon product pages">
+                <span class="example-icon">💰</span>
+                <span>Amazon price tracker</span>
+              </button>
+              <button class="example-prompt" data-prompt="Create a reading mode that strips all distractions from article pages">
+                <span class="example-icon">📖</span>
+                <span>Distraction-free reader</span>
+              </button>
+              <button class="example-prompt" data-prompt="Build a tool that downloads all images from a webpage in one click">
+                <span class="example-icon">🖼️</span>
+                <span>Bulk image downloader</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Messages -->
+        <div class="chat-messages" id="chat-messages" style="display:none;">
+          <!-- Messages will be inserted here dynamically -->
+        </div>
+
+        <!-- Tool Preview Panel -->
+        <div class="tool-preview" id="tool-preview" style="display:none;">
+          <div class="preview-header">
+            <h3 id="preview-tool-name">Generated Tool</h3>
+            <div class="preview-actions">
+              <button class="btn-preview" id="btn-test-tool" title="Test this tool">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                Test
+              </button>
+              <button class="btn-preview btn-iterate" id="btn-iterate-tool" title="Ask AI to modify">
+                ✏️ Iterate
+              </button>
+              <button class="btn-preview btn-accept" id="btn-accept-tool" title="Accept & Save">
+                ✓ Accept & Save
+              </button>
+              <button class="btn-preview btn-reject" id="btn-reject-tool" title="Discard">
+                ✕ Discard
+              </button>
+            </div>
+          </div>
+          <div class="preview-body">
+            <div class="preview-meta" id="preview-meta"></div>
+            <div class="preview-code">
+              <div class="code-tabs">
+                <button class="code-tab active" data-tab="js">JavaScript</button>
+                <button class="code-tab" data-tab="css">CSS</button>
+                <button class="code-tab" data-tab="config">Config</button>
+              </div>
+              <pre class="code-block" id="preview-code-js"></pre>
+              <pre class="code-block" id="preview-code-css" style="display:none;"></pre>
+              <pre class="code-block" id="preview-code-config" style="display:none;"></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="chat-input-area">
+          <div class="input-wrapper">
+            <div class="input-context" id="input-context" style="display:none;">
+              <span class="context-badge" id="context-badge"></span>
+              <button class="context-remove" id="context-remove">✕</button>
+            </div>
+            <textarea id="chat-input" placeholder="Describe what you want to build..." rows="1"></textarea>
+            <button class="btn-send" id="btn-send" title="Send">
+              <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+              </svg>
+            </button>
+          </div>
+          <div class="input-footer">
+            <span class="input-hint">Press Enter to send · Shift+Enter for new line</span>
+            <span class="ai-credits" id="ai-credits" style="display:none;">
+              <span class="credits-count" id="credits-count">0</span> AI requests remaining
+            </span>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Auth Modal -->
+    <div class="modal-overlay" id="auth-modal" style="display:none;">
+      <div class="modal">
+        <div class="modal-header">
+          <img src="../icons/logo.png" alt="" class="modal-logo">
+          <h2>Sign In to New Order</h2>
+          <p>Create AI-powered tools for any website</p>
+        </div>
+        <div class="modal-body">
+          <div class="auth-tabs">
+            <button class="auth-tab active" data-tab="login">Sign In</button>
+            <button class="auth-tab" data-tab="register">Create Account</button>
+          </div>
+          <form class="auth-form" id="login-form">
+            <div class="form-group">
+              <label for="login-email">Email</label>
+              <input type="email" id="login-email" placeholder="your@email.com" required>
+            </div>
+            <div class="form-group">
+              <label for="login-password">Password</label>
+              <input type="password" id="login-password" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="btn-auth-submit">Sign In</button>
+            <div class="auth-error" id="login-error" style="display:none;"></div>
+          </form>
+          <form class="auth-form" id="register-form" style="display:none;">
+            <div class="form-group">
+              <label for="register-name">Display Name</label>
+              <input type="text" id="register-name" placeholder="Your name" required>
+            </div>
+            <div class="form-group">
+              <label for="register-email">Email</label>
+              <input type="email" id="register-email" placeholder="your@email.com" required>
+            </div>
+            <div class="form-group">
+              <label for="register-password">Password</label>
+              <input type="password" id="register-password" placeholder="••••••••" minlength="8" required>
+            </div>
+            <button type="submit" class="btn-auth-submit">Create Account</button>
+            <div class="auth-error" id="register-error" style="display:none;"></div>
+          </form>
+        </div>
+        <button class="modal-close" id="auth-modal-close">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="../core/api-client.js"></script>
+  <script src="../core/auth.js"></script>
+  <script src="../core/tool-manager.js"></script>
+  <script src="builder.js"></script>
+</body>
+
+</html>

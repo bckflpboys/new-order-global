@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Order Global</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 380px;
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #0a0a0f;
+            color: #f0f0f5;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        /* Background glow */
+        .popup-container {
+            padding: 20px;
+            position: relative;
+            background:
+                radial-gradient(ellipse at 30% 20%, rgba(124, 92, 252, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 80%, rgba(0, 212, 170, 0.06) 0%, transparent 50%),
+                #0a0a0f;
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 18px;
+        }
+
+        .logo-wrapper {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+
+        .logo-wrapper::before {
+            content: '';
+            position: absolute;
+            inset: -14px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #7c5cfc, #5e9cff, #00d4aa);
+            opacity: 0.12;
+            filter: blur(16px);
+            animation: logoGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes logoGlow {
+            0%, 100% { opacity: 0.08; transform: scale(0.92); }
+            50% { opacity: 0.18; transform: scale(1.05); }
+        }
+
+        .logo {
+            width: 64px;
+            height: 64px;
+            border-radius: 14px;
+            object-fit: contain;
+            display: block;
+            position: relative;
+            z-index: 1;
+        }
+
+        h1 {
+            font-size: 17px;
+            font-weight: 700;
+            margin-bottom: 2px;
+        }
+
+        h1 .accent {
+            background: linear-gradient(135deg, #7c5cfc, #5e9cff, #00d4aa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 11px;
+            color: #5a6070;
+        }
+
+        /* AI Builder CTA */
+        .ai-builder-cta {
+            background: linear-gradient(135deg, rgba(124, 92, 252, 0.12), rgba(94, 156, 255, 0.08));
+            border: 1px solid rgba(124, 92, 252, 0.25);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 14px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+
+        .ai-builder-cta:hover {
+            border-color: rgba(124, 92, 252, 0.5);
+            transform: translateY(-1px);
+            box-shadow: 0 8px 24px rgba(124, 92, 252, 0.15);
+        }
+
+        .cta-top {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+
+        .cta-icon {
+            font-size: 22px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(124, 92, 252, 0.2);
+            border-radius: 10px;
+        }
+
+        .cta-title {
+            font-size: 14px;
+            font-weight: 700;
+        }
+
+        .cta-arrow {
+            margin-left: auto;
+            color: #7c5cfc;
+            font-size: 18px;
+        }
+
+        .cta-desc {
+            font-size: 12px;
+            color: #9ca3b0;
+            line-height: 1.5;
+        }
+
+        /* Section Divider */
+        .section-divider {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+
+        .section-divider span {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: #5a6070;
+            white-space: nowrap;
+        }
+
+        .section-divider::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(255,255,255,0.06);
+        }
+
+        /* Quick Toggle */
+        .quick-toggle {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .toggle-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle-icon {
+            font-size: 18px;
+        }
+
+        .toggle-label {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .toggle-sub {
+            font-size: 10px;
+            color: #5a6070;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.12);
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background: linear-gradient(135deg, #7c5cfc, #5e9cff);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+        }
+
+        /* Status */
+        .status-bar {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .status-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .status-label {
+            font-size: 11px;
+            color: #5a6070;
+        }
+
+        .status-value {
+            font-size: 11px;
+            font-weight: 600;
+            color: #00d4aa;
+        }
+
+        .status-value.highlight {
+            color: #5e9cff;
+        }
+
+        .status-value.inactive {
+            color: #ff5757;
+        }
+
+        /* Tools Grid */
+        .tools-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+
+        .tool-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            font-size: 11px;
+            color: #5a6070;
+            transition: all 0.2s;
+        }
+
+        .tool-chip.active {
+            border-color: rgba(124, 92, 252, 0.25);
+            color: #c0c0cc;
+            background: rgba(124, 92, 252, 0.06);
+        }
+
+        .tool-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.12);
+            flex-shrink: 0;
+        }
+
+        .tool-chip.active .tool-dot {
+            background: #7c5cfc;
+            box-shadow: 0 0 6px rgba(124, 92, 252, 0.5);
+        }
+
+        /* Buttons */
+        .btn {
+            width: 100%;
+            padding: 11px;
+            border: none;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            letter-spacing: 0.3px;
+            margin-bottom: 8px;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #7c5cfc, #5e9cff);
+            color: white;
+            box-shadow: 0 4px 16px rgba(124, 92, 252, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 24px rgba(124, 92, 252, 0.4);
+        }
+
+        .btn-yt {
+            background: linear-gradient(135deg, #FF0000, #cc0000);
+            color: white;
+            box-shadow: 0 4px 12px rgba(255, 0, 0, 0.2);
+        }
+
+        .btn-yt:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(255, 0, 0, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.04);
+            color: #f0f0f5;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.07);
+            border-color: rgba(124, 92, 252, 0.3);
+        }
+
+        /* Custom tools counter */
+        .custom-tools-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: rgba(124, 92, 252, 0.1);
+            border-radius: 99px;
+            font-size: 11px;
+            color: #7c5cfc;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            font-size: 10px;
+            color: #3a3e4a;
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .footer img {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="popup-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo-wrapper">
+                <img src="icons/logo.png" alt="New Order Global" class="logo">
+            </div>
+            <h1>New Order <span class="accent">Global</span></h1>
+            <p class="subtitle">AI-Powered Extension Builder</p>
+        </div>
+
+        <!-- AI Builder CTA -->
+        <div class="ai-builder-cta" id="open-builder">
+            <div class="cta-top">
+                <div class="cta-icon">⚡</div>
+                <span class="cta-title">Create a New Tool</span>
+                <span class="cta-arrow">→</span>
+            </div>
+            <p class="cta-desc">Describe what you want in plain English — AI builds it instantly.</p>
+        </div>
+
+        <!-- Custom Tools Counter -->
+        <div class="custom-tools-badge" id="custom-tools-badge" style="display:none;">
+            <span>🛠️</span>
+            <span id="custom-tools-count">0</span> custom tools active
+        </div>
+
+        <!-- YouTube Section -->
+        <div class="section-divider">
+            <span>📺 YouTube Tool</span>
+        </div>
+
+        <!-- YouTube Quick Toggle -->
+        <div class="quick-toggle">
+            <div class="toggle-info">
+                <span class="toggle-icon">📺</span>
+                <div>
+                    <div class="toggle-label">YouTube New Order</div>
+                    <div class="toggle-sub">Free built-in tool</div>
+                </div>
+            </div>
+            <label class="toggle-switch">
+                <input type="checkbox" id="quick-toggle" checked>
+                <span class="slider"></span>
+            </label>
+        </div>
+
+        <!-- YouTube Status -->
+        <div class="status-bar">
+            <div class="status-row">
+                <span class="status-label">YouTube Status</span>
+                <span class="status-value status-text">Active</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Layout</span>
+                <span class="status-value highlight" id="layout-display">Swapped</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Active Features</span>
+                <span class="status-value highlight" id="feature-count">0</span>
+            </div>
+        </div>
+
+        <!-- YouTube Features -->
+        <div class="section-divider">
+            <span>Active Features</span>
+        </div>
+        <div class="tools-grid" id="features-grid">
+            <!-- Dynamically populated -->
+        </div>
+
+        <!-- Buttons -->
+        <button class="btn btn-primary" id="open-builder-btn">⚡ AI Tool Builder</button>
+        <button class="btn btn-yt" id="open-settings">⚙️ YouTube Settings</button>
+        <button class="btn btn-secondary" id="reload-page">🔄 Reload Page</button>
+
+        <!-- Footer -->
+        <div class="footer">
+            <img src="icons/logo.png" alt="">
+            v2.0.0 · New Order Global
+        </div>
+    </div>
+
+    <script src="core/api-client.js"></script>
+    <script src="core/auth.js"></script>
+    <script src="core/tool-manager.js"></script>
+    <script src="popup.js"></script>
+</body>
+
+</html>

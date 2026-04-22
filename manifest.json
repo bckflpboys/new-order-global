@@ -1,0 +1,45 @@
+{
+    "manifest_version": 3,
+    "name": "New Order Global",
+    "version": "2.0.0",
+    "description": "AI-powered Chrome extension builder. Describe what you want, and AI creates custom tools for any website. Includes built-in YouTube enhancements.",
+    "permissions": [
+        "storage",
+        "tabs",
+        "scripting",
+        "activeTab"
+    ],
+    "optional_host_permissions": [
+        "https://www.youtube.com/*",
+        "<all_urls>"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "icons/logo.png",
+                "core/tool-runtime.js"
+            ],
+            "matches": [
+                "<all_urls>"
+            ]
+        }
+    ],
+    "options_page": "settings.html",
+    "action": {
+        "default_popup": "popup.html",
+        "default_icon": {
+            "16": "icons/icon-blue-16.png",
+            "48": "icons/icon-blue-48.png",
+            "128": "icons/icon-blue-128.png"
+        },
+        "default_title": "New Order Global"
+    },
+    "icons": {
+        "16": "icons/icon-blue-16.png",
+        "48": "icons/icon-blue-48.png",
+        "128": "icons/icon-blue-128.png"
+    }
+}

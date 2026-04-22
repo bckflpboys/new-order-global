@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube New Order - Settings</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-content">
+        <div class="logo-section">
+          <img src="icons/logo.png" alt="YouTube New Order" class="logo">
+          <div>
+            <h1>YouTube New Order</h1>
+            <p class="subtitle">Customize your YouTube experience</p>
+          </div>
+        </div>
+        <div class="version">v1.0.0</div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+
+      <!-- Layout & Reordering Section -->
+      <section class="settings-section">
+        <div class="section-header">
+          <h2>🔄 Layout & Reordering</h2>
+          <p>Control how YouTube's layout is organized</p>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Toggle Button -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="toggle-reorder">Enable Layout Reordering</label>
+              <span class="setting-description">Swap comments to right, videos to bottom</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-reorder" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Show Comments on Homepage -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="show-comments-homepage">Show Comments on Homepage</label>
+              <span class="setting-description">Display comments section on the YouTube homepage</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="show-comments-homepage">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Different Layout Modes -->
+          <div class="setting-item full-width">
+            <div class="setting-info">
+              <label for="layout-mode">Layout Template</label>
+              <span class="setting-description">Choose your preferred layout style</span>
+            </div>
+            <select id="layout-mode" class="select-input">
+              <option value="swapped">Swapped (Comments Right, Videos Bottom)</option>
+              <option value="swapped_left">Swapped Left (Comments Left, Videos Bottom)</option>
+              <option value="triple_left">Triple Column (Comments Left, Video Middle, Videos Right)</option>
+              <option value="triple_right">Triple Column (Videos Left, Video Middle, Comments Right)</option>
+              <option value="original">Original YouTube Layout</option>
+              <option value="theater">Theater Mode Optimized</option>
+              <option value="minimal">Minimal (Hide Sidebar)</option>
+              <option value="focus">Focus Mode (Video Only)</option>
+            </select>
+          </div>
+
+          <!-- Resizable Columns -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="resizable-columns">Resizable Columns</label>
+              <span class="setting-description">Drag to resize comments and video sections</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="resizable-columns">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Collapsible Sections -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="collapsible-sections">Collapsible Sections</label>
+              <span class="setting-description">Add collapse/expand buttons to sections</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="collapsible-sections">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Picture-in-Picture Comments -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="pip-comments">Picture-in-Picture Comments</label>
+              <span class="setting-description">Float comments as overlay while watching</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="pip-comments">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Grid View for Related Videos -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="grid-view">Grid View for Related Videos</label>
+              <span class="setting-description">Display related videos in a grid layout</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="grid-view">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Visual Enhancements Section -->
+      <section class="settings-section">
+        <div class="section-header">
+          <h2>🎨 Visual Enhancements</h2>
+          <p>Customize the look and feel</p>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Hide Elements -->
+          <div class="setting-item full-width">
+            <div class="setting-info">
+              <label>Hide Elements</label>
+              <span class="setting-description">Choose which elements to hide</span>
+            </div>
+            <div class="checkbox-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="hide-description">
+                <span>Video Description</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="hide-channel-info">
+                <span>Channel Info</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="hide-merch">
+                <span>Merch Shelf</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="hide-end-screen">
+                <span>End Screen</span>
+              </label>
+            </div>
+          </div>
+
+        </div>
+        <!-- Navbar Logo -->
+        <div class="setting-item">
+          <div class="setting-info">
+            <label for="navbar-logo-mode">Navbar Logo</label>
+            <span class="setting-description">Custom logo in the top navbar</span>
+          </div>
+          <select id="navbar-logo-mode" class="select-input">
+            <optgroup label="Select Logo">
+              <option value="youtube">Default (YouTube)</option>
+              <option value="extension">My Logo (Extension)</option>
+              <option value="custom">Your Own Logo (Custom)</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="setting-item full-width" id="custom-logo-options"
+          style="display: none; padding-top: 0; border: none; margin-top: -10px;">
+          <div class="setting-info" style="display: flex; flex-direction: column; width: 100%; gap: 10px;">
+            <input type="text" id="custom-logo-url" class="text-input" placeholder="Paste image URL here..."
+              style="width: 100%;">
+            <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
+              <label for="custom-logo-upload" class="primary-btn"
+                style="cursor: pointer; display: inline-flex; align-items: center; gap: 6px;">
+                <span>📂 Upload Image</span>
+                <input type="file" id="custom-logo-upload" accept="image/*" style="display: none;">
+              </label>
+              <span id="custom-logo-filename" style="color: #aaa; font-size: 13px;">No file chosen</span>
+            </div>
+            <div id="custom-logo-preview"
+              style="width: 100px; height: 30px; border: 1px dashed rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; overflow: hidden; margin-top: 5px;">
+              <span style="font-size: 11px; color: #666;">Preview</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Custom Fonts -->
+        <div class="setting-item">
+          <div class="setting-info">
+            <label for="custom-font">Custom Font</label>
+            <span class="setting-description">Change YouTube's font family</span>
+          </div>
+          <select id="custom-font" class="select-input">
+            <optgroup label="Default">
+              <option value="default">Default (Roboto)</option>
+            </optgroup>
+            <optgroup label="Modern Sans-Serif">
+              <option value="inter" style="font-family: 'Inter', sans-serif;">Inter</option>
+              <option value="system" style="font-family: system-ui;">System UI</option>
+              <option value="arial" style="font-family: Arial, sans-serif;">Arial</option>
+              <option value="helvetica" style="font-family: Helvetica, sans-serif;">Helvetica</option>
+              <option value="verdana" style="font-family: Verdana, sans-serif;">Verdana</option>
+              <option value="tahoma" style="font-family: Tahoma, sans-serif;">Tahoma</option>
+              <option value="trebuchet" style="font-family: 'Trebuchet MS', sans-serif;">Trebuchet MS</option>
+            </optgroup>
+            <optgroup label="Serif">
+              <option value="georgia" style="font-family: Georgia, serif;">Georgia</option>
+              <option value="times" style="font-family: 'Times New Roman', serif;">Times New Roman</option>
+              <option value="garamond" style="font-family: Garamond, serif;">Garamond</option>
+            </optgroup>
+            <optgroup label="Monospace">
+              <option value="monospace" style="font-family: monospace;">Monospace</option>
+              <option value="console" style="font-family: Consolas, monospace;">Console</option>
+            </optgroup>
+            <optgroup label="Fun">
+              <option value="comic" style="font-family: 'Comic Sans MS', cursive;">Comic Sans</option>
+              <option value="impact" style="font-family: Impact, sans-serif;">Impact</option>
+            </optgroup>
+            <optgroup label="User Fonts" id="user-fonts-group">
+              <!-- User added fonts will appear here -->
+            </optgroup>
+          </select>
+        </div>
+
+        <!-- Add Custom Font -->
+        <div class="setting-item full-width" id="add-font-section">
+          <div class="setting-info">
+            <label>Add Custom Font</label>
+            <span class="setting-description">Add a font from a URL (e.g., Google Fonts) or upload a file.</span>
+          </div>
+
+          <div class="font-adder-container"
+            style="margin-top: 10px; padding: 15px; background: rgba(255,255,255,0.05); border-radius: 8px;">
+            <div class="font-type-selector" style="margin-bottom: 10px; display: flex; gap: 15px;">
+              <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="font-source" value="url" checked>
+                <span style="margin-left: 5px;">From URL</span>
+              </label>
+              <label style="display: flex; align-items: center; cursor: pointer;">
+                <input type="radio" name="font-source" value="upload">
+                <span style="margin-left: 5px;">Upload File</span>
+              </label>
+            </div>
+
+            <div id="font-url-input-group">
+              <input type="text" id="new-font-name-url" class="text-input" placeholder="Font Name (e.g. 'Open Sans')"
+                style="margin-bottom: 8px; width: 100%;">
+              <input type="text" id="new-font-url" class="text-input"
+                placeholder="Paste URL, <link> tag, or @import code here" style="width: 100%;">
+              <p style="font-size: 12px; color: #aaa; margin-top: 5px;">Supported: Direct URL, Google Fonts
+                &lt;link&gt; tag, or CSS @import</p>
+            </div>
+
+            <div id="font-upload-input-group" style="display: none;">
+              <input type="text" id="new-font-name-file" class="text-input" placeholder="Font Name"
+                style="margin-bottom: 8px; width: 100%;">
+              <input type="file" id="new-font-file" accept=".woff2,.woff,.ttf,.otf"
+                style="width: 100%; color: var(--text-primary);">
+            </div>
+
+            <button id="btn-add-font" class="btn btn-secondary" style="margin-top: 10px; width: 100%;">+ Add
+              Font</button>
+          </div>
+
+          <!-- Compact Mode -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="compact-mode">Compact Mode</label>
+              <span class="setting-description">Reduce spacing for more content</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="compact-mode">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Highlight Comments -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="highlight-comments">Highlight Special Comments</label>
+              <span class="setting-description">Highlight pinned and creator comments</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="highlight-comments" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Comments Features Section -->
+      <section class="settings-section">
+        <div class="section-header">
+          <h2>💬 Comments Features</h2>
+          <p>Enhance your commenting experience</p>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Comment Search -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="comment-search">Comment Search</label>
+              <span class="setting-description">Add search box to find comments</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="comment-search">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Filter Comments -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="filter-comments">Advanced Comment Filters</label>
+              <span class="setting-description">Filter by newest, most liked, etc.</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="filter-comments">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Auto-load Comments -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="autoload-comments">Auto-load More Comments</label>
+              <span class="setting-description">Automatically load all comments</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="autoload-comments">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Video Player Features Section -->
+      <section class="settings-section">
+        <div class="section-header">
+          <h2>🎬 Video Player Features</h2>
+          <p>Enhance video playback controls</p>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Video Picture-in-Picture -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="video-pip">Video Picture-in-Picture</label>
+              <span class="setting-description">Play video in floating window outside browser</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="video-pip">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <!-- Keyboard Shortcuts -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="keyboard-shortcuts">Custom Keyboard Shortcuts</label>
+              <span class="setting-description">Enable additional keyboard controls</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="keyboard-shortcuts">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Copy Timestamp -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="copy-timestamp">Copy Timestamp Button</label>
+              <span class="setting-description">Quick button to copy current timestamp</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="copy-timestamp">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Skip Intro/Outro -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="skip-intro">Skip Intro/Outro</label>
+              <span class="setting-description">Auto-skip intros and outros</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="skip-intro">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Skip Ads -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="skip-ads">Skip Ads Button</label>
+              <span class="setting-description">Add quick skip button for ads</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="skip-ads">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Screenshot -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="screenshot">Screenshot Button</label>
+              <span class="setting-description">Capture video frames easily</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="screenshot">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Volume Boost -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="volume-boost">Volume Boost</label>
+              <span class="setting-description">Increase volume beyond 100%</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="volume-boost">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Content Filtering Section -->
+      <section class="settings-section">
+        <div class="section-header">
+          <h2>🚫 Content Filtering</h2>
+          <p>Hide unwanted content</p>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Hide Shorts -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="hide-shorts">Hide YouTube Shorts</label>
+              <span class="setting-description">Remove Shorts from recommendations</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="hide-shorts">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Block Channels -->
+          <div class="setting-item full-width">
+            <div class="setting-info">
+              <label for="block-channels">Block Channels</label>
+              <span class="setting-description">Hide videos from specific channels (comma-separated)</span>
+            </div>
+            <input type="text" id="block-channels" class="text-input" placeholder="Channel Name 1, Channel Name 2...">
+          </div>
+
+          <!-- Hide Clickbait -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="hide-clickbait">Hide Clickbait</label>
+              <span class="setting-description">Filter excessive caps/emojis in titles</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="hide-clickbait">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Keyword Filter -->
+          <div class="setting-item full-width">
+            <div class="setting-info">
+              <label for="keyword-filter">Keyword Filter</label>
+              <span class="setting-description">Hide videos with certain keywords (comma-separated)</span>
+            </div>
+            <input type="text" id="keyword-filter" class="text-input" placeholder="keyword1, keyword2, keyword3...">
+          </div>
+
+          <!-- Hide Ads -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="hide-ads">Hide Promotional Content</label>
+              <span class="setting-description">Remove promotional content from feed</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="hide-ads">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+      <!-- Productivity Features Section -->
+      <section class="settings-section">
+        <div class="section-header">
+          <h2>💾 Productivity Features</h2>
+          <p>Manage and organize your content</p>
+        </div>
+
+        <div class="settings-grid">
+          <!-- Watch Later Quick Add -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="watch-later">Watch Later Quick Add</label>
+              <span class="setting-description">One-click add to watch later</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="watch-later">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Playlist Manager -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="playlist-manager">Enhanced Playlist Manager</label>
+              <span class="setting-description">Better playlist organization tools</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="playlist-manager">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Notes Section -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="notes-section">Video Notes</label>
+              <span class="setting-description">Add personal notes to videos</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="notes-section">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- Bookmarks -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="bookmarks">Timestamp Bookmarks</label>
+              <span class="setting-description">Save specific timestamps with notes</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="bookmarks">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <!-- History Search -->
+          <div class="setting-item">
+            <div class="setting-info">
+              <label for="history-search">Enhanced History Search</label>
+              <span class="setting-description">Better search through watch history</span>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="history-search">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-content">
+        <button id="save-settings" class="btn btn-primary">💾 Save Settings</button>
+        <button id="reset-settings" class="btn btn-secondary">Reset to Default</button>
+        <button id="export-settings" class="btn btn-secondary">Export Settings</button>
+        <button id="import-settings" class="btn btn-secondary">Import Settings</button>
+      </div>
+      <p class="footer-text">
+        <img src="icons/logo.png" alt="" style="vertical-align: middle; margin-right: 6px; width: 20px; height: 20px;">
+        YouTube New Order © 2025 | Made with ❤️
+      </p>
+    </footer>
+
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+
+</html>
