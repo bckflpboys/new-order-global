@@ -210,7 +210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Check plan
     if (!NewOrderAuth.canUseAI()) {
-      addMessage('ai', '⚠️ You need a Pro or Unlimited plan to use the AI tool builder. Visit neworderglobal.com to upgrade your plan.');
+      addMessage('ai', '⚠️ You need a Pro or Unlimited plan to use the AI tool builder. Visit global-order.32d.one to upgrade your plan.');
       return;
     }
 

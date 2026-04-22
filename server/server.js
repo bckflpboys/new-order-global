@@ -20,7 +20,7 @@ const PORT = process.env.PORT || 3001;
 // ============================================
 app.use(cors({
   origin: [
-    process.env.FRONTEND_URL || 'https://neworderglobal.com',
+    process.env.FRONTEND_URL || 'https://global-order.32d.one',
     'chrome-extension://*',
     'http://localhost:3000',
     'http://localhost:5173'

@@ -163,7 +163,7 @@ router.post('/checkout', requireAuth, async (req, res) => {
               }
             },
             product_options: {
-              redirect_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard/billing?success=true`,
+              redirect_url: `${process.env.FRONTEND_URL || 'https://global-order.32d.one'}/dashboard/billing?success=true`,
               receipt_button_text: 'Go to Dashboard'
             }
           },

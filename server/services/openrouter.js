@@ -110,7 +110,7 @@ async function generateToolFromPrompt(prompt, context = {}) {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': process.env.FRONTEND_URL || 'https://neworderglobal.com',
+      'HTTP-Referer': process.env.FRONTEND_URL || 'https://global-order.32d.one',
       'X-Title': 'New Order Global'
     },
     body: JSON.stringify({
@@ -209,7 +209,7 @@ async function iterateToolFromFeedback(existingTool, feedback, chatHistory = [])
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': process.env.FRONTEND_URL || 'https://neworderglobal.com',
+      'HTTP-Referer': process.env.FRONTEND_URL || 'https://global-order.32d.one',
       'X-Title': 'New Order Global'
     },
     body: JSON.stringify({
