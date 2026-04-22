@@ -35,7 +35,11 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: () => getNextResetDate()
   },
-  stripeCustomerId: {
+  lemonSqueezyCustomerId: {
+    type: String,
+    default: null
+  },
+  lemonSqueezySubscriptionId: {
     type: String,
     default: null
   },
