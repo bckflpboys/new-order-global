@@ -16,12 +16,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  document.getElementById('tool-name').textContent = tool.icon + ' ' + tool.name;
+  document.getElementById('tool-name').innerHTML = `
+    <span style="display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; background:rgba(124,92,252,0.1); border-radius:8px; margin-right:12px; color:var(--accent-primary); vertical-align: middle;">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+    </span>
+    ${tool.name}
+  `;
   document.getElementById('tool-desc').textContent = tool.description || 'Custom AI Tool running on ' + (tool.targetSites?.join(', ') || 'all sites');
 
   document.getElementById('btn-edit').addEventListener('click', () => {
     window.location.href = '../builder/builder.html?loadTool=' + tool.id;
   });
+
+  // Populate Code
+  document.getElementById('code-js').textContent = tool.contentScript || '// No JavaScript';
+  document.getElementById('code-css').textContent = tool.styles || '/* No CSS */';
+  document.getElementById('code-config').textContent = JSON.stringify(tool.config || {}, null, 2);
+
+  // Tab switching logic
+  const tabs = {
+    'js': document.getElementById('code-js'),
+    'css': document.getElementById('code-css'),
+    'config': document.getElementById('code-config')
+  };
+  const btns = {
+    'js': document.getElementById('tab-js'),
+    'css': document.getElementById('tab-css'),
+    'config': document.getElementById('tab-config')
+  };
+
+  function switchTab(active) {
+    Object.keys(tabs).forEach(key => {
+      tabs[key].style.display = key === active ? 'block' : 'none';
+      btns[key].style.background = key === active ? 'var(--accent-primary)' : 'transparent';
+      btns[key].style.color = key === active ? 'white' : 'var(--text-secondary)';
+    });
+  }
+
+  btns['js'].addEventListener('click', () => switchTab('js'));
+  btns['css'].addEventListener('click', () => switchTab('css'));
+  btns['config'].addEventListener('click', () => switchTab('config'));
 
   // Load tool data
   chrome.storage.local.get(null, (result) => {

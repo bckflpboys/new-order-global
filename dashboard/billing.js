@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', async () => {
-  const isAuth = await NewOrderAuth.isAuthenticated();
-  if (!isAuth) {
+  const user = await NewOrderAuth.init();
+  if (!user) {
     window.location.href = '../builder/builder.html';
     return;
   }

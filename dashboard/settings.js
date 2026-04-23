@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', async () => {
-  const user = await NewOrderAuth.checkAuth();
+  const user = await NewOrderAuth.init();
   if (user) {
     document.getElementById('user-email').value = user.email;
   } else {
