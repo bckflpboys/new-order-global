@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let selectedModelId = 'gemini-2-5-flash';
   let totalCreditsUsed = 0;
   let messageQueue = [];
+  let conversationId = null;
+  let conversations = [];
 
   // DOM References
   const welcomeScreen = document.getElementById('welcome-screen');
@@ -21,6 +23,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const toolPreview = document.getElementById('tool-preview');
   const toolsSidebar = document.getElementById('tools-sidebar');
   const authModal = document.getElementById('auth-modal');
+  const historySidebar = document.getElementById('chat-history-sidebar');
+  const historyList = document.getElementById('history-list');
 
   // ============================================
   // Initialize
@@ -29,6 +33,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadInstalledTools();
   await loadModels();
   renderSessionCredits();
+  if (NewOrderAuth.isAuthenticated()) {
+    await loadConversations();
+  }
 
   // ============================================
   // Auth Setup
@@ -199,11 +206,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.runtime.openOptionsPage();
   });
 
+  document.getElementById('btn-toggle-history').addEventListener('click', () => {
+    historySidebar.classList.toggle('open');
+    if (historySidebar.classList.contains('open')) {
+      loadConversations();
+    }
+  });
+
+  document.getElementById('history-close').addEventListener('click', () => {
+    historySidebar.classList.remove('open');
+  });
+
+  document.getElementById('btn-new-conversation').addEventListener('click', () => {
+    startNewConversation();
+    historySidebar.classList.remove('open');
+  });
+
   // ============================================
   // Load Installed Tools
   // ============================================
   async function loadInstalledTools() {
-    const tools = await ToolManager.getInstalledTools();
+    let tools = await ToolManager.getInstalledTools();
+    
+    // Sync with cloud tools if authenticated
+    if (NewOrderAuth.isAuthenticated()) {
+      try {
+        const cloudTools = await NewOrderAPI.getUserTools();
+        let changed = false;
+        for (const ct of cloudTools) {
+          const toolId = ct._id || ct.id;
+          const exists = tools.find(t => t.id === toolId);
+          if (!exists) {
+            await ToolManager.installTool({
+              id: toolId,
+              name: ct.name,
+              description: ct.description,
+              icon: ct.icon,
+              targetSites: ct.targetSites,
+              contentScript: ct.contentScript,
+              styles: ct.styles,
+              config: ct.config
+            });
+            changed = true;
+          }
+        }
+        if (changed) {
+          tools = await ToolManager.getInstalledTools();
+        }
+      } catch (err) {
+        console.log('Failed to sync cloud tools:', err);
+      }
+    }
+
     const container = document.getElementById('custom-tools-list');
 
     if (tools.length === 0) {
@@ -241,6 +295,86 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
 
       container.appendChild(card);
+    }
+  }
+
+  // ============================================
+  // Conversations
+  // ============================================
+  async function loadConversations() {
+    try {
+      conversations = await NewOrderAPI.getConversations();
+      renderConversations();
+    } catch (err) {
+      console.error('Failed to load conversations:', err);
+    }
+  }
+
+  function renderConversations() {
+    if (conversations.length === 0) {
+      historyList.innerHTML = '<div class="empty-history" style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">No conversations yet</div>';
+      return;
+    }
+
+    historyList.innerHTML = '';
+    conversations.forEach(c => {
+      const btn = document.createElement('button');
+      btn.className = `convo-item ${c.id === conversationId ? 'active' : ''}`;
+      btn.innerHTML = `
+        <div class="convo-title">${escapeHtml(c.title || 'New Conversation')}</div>
+        <div class="convo-meta">
+          ${c.toolName ? `<span>🔧 ${escapeHtml(c.toolName)}</span>` : ''}
+          <span>💰 ${(c.totalCreditsUsed || 0).toFixed(2)}</span>
+          <span>${c.messageCount || 0} msgs</span>
+        </div>
+      `;
+      btn.addEventListener('click', () => selectConversation(c.id));
+      historyList.appendChild(btn);
+    });
+  }
+
+  function startNewConversation() {
+    conversationId = null;
+    chatHistory = [];
+    currentTool = null;
+    totalCreditsUsed = 0;
+    
+    chatMessages.innerHTML = '';
+    chatMessages.style.display = 'none';
+    welcomeScreen.style.display = 'flex';
+    toolPreview.style.display = 'none';
+    updateSessionCredits();
+    renderConversations();
+  }
+
+  async function selectConversation(id) {
+    try {
+      const convo = await NewOrderAPI.getConversationById(id);
+      conversationId = convo._id;
+      chatHistory = convo.messages.map(m => ({ role: m.role, content: m.content }));
+      totalCreditsUsed = convo.totalCreditsUsed || 0;
+      currentTool = null; // Don't auto load the tool code for now unless we fetched it
+      
+      welcomeScreen.style.display = 'none';
+      chatMessages.style.display = 'flex';
+      toolPreview.style.display = 'none';
+      
+      chatMessages.innerHTML = '';
+      convo.messages.forEach(m => {
+        addMessage(m.role, m.content, {
+          creditsUsed: m.creditsUsed,
+          model: m.model
+        });
+      });
+      
+      updateSessionCredits();
+      renderConversations();
+      historySidebar.classList.remove('open');
+      
+      // Scroll to bottom
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    } catch (err) {
+      console.error('Failed to load conversation details:', err);
     }
   }
 
@@ -320,9 +454,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
       const context = await getCurrentTabContext();
-      const result = await NewOrderAPI.generateTool(text, context, selectedModelId);
+      const result = await NewOrderAPI.generateTool(text, context, selectedModelId, conversationId);
 
       typingEl.remove();
+      
+      if (result.conversationId) {
+        conversationId = result.conversationId;
+      }
 
       if (result.tool) {
         currentTool = result.tool;
@@ -341,6 +479,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       updateCreditsDisplay();
       updateSessionCredits();
+      loadConversations(); // refresh sidebar
 
     } catch (err) {
       typingEl.remove();

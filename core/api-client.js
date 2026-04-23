@@ -243,6 +243,19 @@ const NewOrderAPI = (() => {
   }
 
   // ============================================
+  // Conversations
+  // ============================================
+  async function getConversations() {
+    const data = await request('/api/conversations');
+    return data.conversations || [];
+  }
+
+  async function getConversationById(id) {
+    const data = await request(`/api/conversations/${id}`);
+    return data.conversation;
+  }
+
+  // ============================================
   // Public API
   // ============================================
   return {
@@ -265,6 +278,10 @@ const NewOrderAPI = (() => {
     getToolById,
     updateTool,
     deleteTool,
+
+    // Conversations
+    getConversations,
+    getConversationById,
 
     // Billing
     getCredits,
