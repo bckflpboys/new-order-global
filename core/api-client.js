@@ -144,7 +144,7 @@ const NewOrderAPI = (() => {
   // ============================================
   // AI Tool Generation
   // ============================================
-  async function generateTool(prompt, context = {}, modelId = 'gemini-2-5-flash') {
+  async function generateTool(prompt, context = {}, modelId = 'gemini-2-5-flash', conversationId = null) {
     const data = await request('/api/ai/generate', {
       method: 'POST',
       body: JSON.stringify({
@@ -152,7 +152,8 @@ const NewOrderAPI = (() => {
         currentUrl: context.currentUrl || '',
         currentSite: context.currentSite || '',
         pageTitle: context.pageTitle || '',
-        modelId
+        modelId,
+        conversationId
       })
     });
 
@@ -168,14 +169,15 @@ const NewOrderAPI = (() => {
     return data;
   }
 
-  async function iterateTool(toolId, feedback, currentCode, modelId = 'gemini-2-5-flash') {
+  async function iterateTool(toolId, feedback, currentCode, modelId = 'gemini-2-5-flash', conversationId = null) {
     const data = await request('/api/ai/iterate', {
       method: 'POST',
       body: JSON.stringify({
         toolId,
         feedback,
         currentCode,
-        modelId
+        modelId,
+        conversationId
       })
     });
 

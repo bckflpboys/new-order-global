@@ -38,7 +38,8 @@
         <p id="tool-desc">...</p>
       </div>
       <div>
-        <button id="btn-edit" class="btn-primary" style="background: rgba(255,255,255,0.1);">Edit Tool</button>
+        <button id="btn-save" class="btn-primary" style="background: rgba(0, 212, 170, 0.2); color: var(--success); margin-right: 8px; display: none;">💾 Save Code</button>
+        <button id="btn-edit" class="btn-primary" style="background: rgba(255,255,255,0.1);">AI Edit Tool</button>
       </div>
     </div>
 
@@ -50,9 +51,9 @@
         <button id="tab-config" style="background: transparent; border: none; padding: 6px 12px; border-radius: 6px; color: var(--text-secondary); cursor: pointer; font-size: 13px;">Config</button>
       </div>
       
-      <pre id="code-js" style="background: #000; padding: 16px; border-radius: 8px; font-size: 13px; color: #a6accd; overflow-x: auto; max-height: 400px;"></pre>
-      <pre id="code-css" style="background: #000; padding: 16px; border-radius: 8px; font-size: 13px; color: #a6accd; overflow-x: auto; max-height: 400px; display: none;"></pre>
-      <pre id="code-config" style="background: #000; padding: 16px; border-radius: 8px; font-size: 13px; color: #a6accd; overflow-x: auto; max-height: 400px; display: none;"></pre>
+      <textarea id="code-js" style="width: 100%; height: 300px; background: #000; padding: 16px; border-radius: 8px; font-size: 13px; color: #a6accd; font-family: monospace; border: 1px solid var(--border-color); resize: vertical;" spellcheck="false"></textarea>
+      <textarea id="code-css" style="width: 100%; height: 300px; background: #000; padding: 16px; border-radius: 8px; font-size: 13px; color: #a6accd; font-family: monospace; border: 1px solid var(--border-color); resize: vertical; display: none;" spellcheck="false"></textarea>
+      <textarea id="code-config" style="width: 100%; height: 300px; background: #000; padding: 16px; border-radius: 8px; font-size: 13px; color: #a6accd; font-family: monospace; border: 1px solid var(--border-color); resize: vertical; display: none;" spellcheck="false"></textarea>
     </div>
 
     <div class="card">

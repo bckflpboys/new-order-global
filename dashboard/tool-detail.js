@@ -29,9 +29,51 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Populate Code
-  document.getElementById('code-js').textContent = tool.contentScript || '// No JavaScript';
-  document.getElementById('code-css').textContent = tool.styles || '/* No CSS */';
-  document.getElementById('code-config').textContent = JSON.stringify(tool.config || {}, null, 2);
+  document.getElementById('code-js').value = tool.contentScript || '// No JavaScript';
+  document.getElementById('code-css').value = tool.styles || '/* No CSS */';
+  document.getElementById('code-config').value = JSON.stringify(tool.config || {}, null, 2);
+
+  // Show save button if user types
+  const btnSave = document.getElementById('btn-save');
+  const markChanged = () => { btnSave.style.display = 'inline-block'; };
+  document.getElementById('code-js').addEventListener('input', markChanged);
+  document.getElementById('code-css').addEventListener('input', markChanged);
+  document.getElementById('code-config').addEventListener('input', markChanged);
+
+  // Save Code Logic
+  btnSave.addEventListener('click', async () => {
+    try {
+      btnSave.textContent = 'Saving...';
+      tool.contentScript = document.getElementById('code-js').value;
+      tool.styles = document.getElementById('code-css').value;
+      
+      try {
+        tool.config = JSON.parse(document.getElementById('code-config').value);
+      } catch (e) {
+        alert('Invalid JSON in Config tab!');
+        btnSave.textContent = '💾 Save Code';
+        return;
+      }
+
+      await ToolManager.installTool(tool);
+      if (NewOrderAuth.isAuthenticated()) {
+        try {
+          await window.NewOrderAPI.saveToolToCloud(tool);
+        } catch (e) {
+          console.log('Failed to sync to cloud:', e);
+        }
+      }
+      
+      btnSave.textContent = '✅ Saved!';
+      setTimeout(() => {
+        btnSave.style.display = 'none';
+        btnSave.textContent = '💾 Save Code';
+      }, 2000);
+    } catch (err) {
+      alert('Error saving code: ' + err.message);
+      btnSave.textContent = '💾 Save Code';
+    }
+  });
 
   // Tab switching logic
   const tabs = {

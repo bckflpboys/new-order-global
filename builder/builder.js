@@ -37,6 +37,46 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadConversations();
   }
 
+  // Handle URL parameters (loadTool)
+  const urlParams = new URLSearchParams(window.location.search);
+  const loadToolId = urlParams.get('loadTool');
+  if (loadToolId) {
+    const tools = await ToolManager.getInstalledTools();
+    const toolToEdit = tools.find(t => t.id === loadToolId);
+    if (toolToEdit) {
+      currentTool = toolToEdit;
+      showToolPreview(toolToEdit);
+      
+      // Look for linked conversation
+      if (NewOrderAuth.isAuthenticated()) {
+        try {
+          const userTools = await NewOrderAPI.getUserTools();
+          const cloudT = userTools.find(t => t._id === loadToolId || t.id === loadToolId);
+          if (cloudT && cloudT.conversationId) {
+            await selectConversation(cloudT.conversationId);
+          }
+        } catch (e) {}
+      }
+      
+      // Update context badge
+      const contextEl = document.getElementById('input-context');
+      const badge = document.getElementById('context-badge');
+      if (contextEl && badge) {
+        contextEl.style.display = 'flex';
+        badge.innerHTML = `🔧 Editing: <strong>${toolToEdit.name}</strong>`;
+        document.getElementById('context-remove').onclick = () => {
+          contextEl.style.display = 'none';
+          currentTool = null;
+          chatInput.placeholder = 'Describe what you want to build...';
+        };
+      }
+      
+      chatInput.placeholder = `How should I change "${toolToEdit.name}"?`;
+      welcomeScreen.style.display = 'none';
+      chatMessages.style.display = 'flex';
+    }
+  }
+
   // ============================================
   // Auth Setup
   // ============================================
@@ -454,7 +494,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
       const context = await getCurrentTabContext();
-      const result = await NewOrderAPI.generateTool(text, context, selectedModelId, conversationId);
+      let result;
+      
+      if (currentTool) {
+        result = await NewOrderAPI.iterateTool(currentTool.id || currentTool._id, text, currentTool.contentScript, selectedModelId, conversationId);
+      } else {
+        result = await NewOrderAPI.generateTool(text, context, selectedModelId, conversationId);
+      }
 
       typingEl.remove();
       
