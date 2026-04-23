@@ -3,7 +3,7 @@
 
 const NewOrderAPI = (() => {
   // Backend API server URL (deployed on Render)
-  const BASE_URL = 'https://api.global-order.32d.one';
+  const BASE_URL = 'https://new-order-global-api.onrender.com';
   // For local development:
   // const BASE_URL = 'http://localhost:3001';
 

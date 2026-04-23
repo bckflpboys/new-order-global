@@ -5,11 +5,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   console.log('New Order Builder: Loaded');
 
   // State
-  let currentTool = null; // The tool currently being built/previewed
+  let currentTool = null;
   let chatHistory = [];
   let isGenerating = false;
   let availableModels = [];
   let selectedModelId = 'gemini-2-5-flash';
+  let totalCreditsUsed = 0;
+  let messageQueue = [];
 
   // DOM References
   const welcomeScreen = document.getElementById('welcome-screen');
@@ -26,6 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await initializeAuth();
   await loadInstalledTools();
   await loadModels();
+  renderSessionCredits();
 
   // ============================================
   // Auth Setup
@@ -60,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ============================================
   async function loadModels() {
     try {
-      const result = await NewOrderAPI.request('/models');
+      const result = await NewOrderAPI.request('/api/models');
       if (result.models) {
         availableModels = result.models;
         const defaultModel = availableModels.find(m => m.isDefault) || availableModels[0];
@@ -82,12 +85,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (inputArea) inputArea.parentNode.insertBefore(selector, inputArea);
     }
 
-    const tierColors = { free: '#00d4aa', standard: '#5e9cff', premium: '#7c5cfc' };
-
     selector.innerHTML = `
       <span style="font-size:11px;color:#5a6070;white-space:nowrap;">Model:</span>
       <select id="model-select" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:white;font-size:12px;padding:6px 10px;outline:none;cursor:pointer;">
-        ${availableModels.map(m => `<option value="${m.id}" ${m.id === selectedModelId ? 'selected' : ''} style="background:#1a1a25;">${m.name} — ~${m.estimatedToolCost.toFixed(2)} credits/tool</option>`).join('')}
+        ${availableModels.map(m => `<option value="${m.id}" ${m.id === selectedModelId ? 'selected' : ''} style="background:#1a1a25;">${m.name} — ~${m.estimatedToolCost.toFixed(2)} cr</option>`).join('')}
       </select>
       <span id="model-cost" style="font-size:11px;color:#7c5cfc;white-space:nowrap;font-weight:600;"></span>
     `;
@@ -103,11 +104,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     const model = availableModels.find(m => m.id === selectedModelId);
     const costEl = document.getElementById('model-cost');
     if (model && costEl) {
-      costEl.textContent = `~${model.estimatedToolCost.toFixed(2)} credits`;
+      costEl.textContent = `~${model.estimatedToolCost.toFixed(2)} cr`;
     }
   }
 
+  // ============================================
+  // Session Credits Display
+  // ============================================
+  function renderSessionCredits() {
+    let el = document.getElementById('session-credits');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'session-credits';
+      el.style.cssText = 'display:none;font-size:11px;padding:4px 12px;background:rgba(255,179,71,0.05);border:1px solid rgba(255,179,71,0.15);border-radius:8px;color:#ffb347;margin-left:8px;';
+      const header = document.querySelector('.builder-header');
+      if (header) header.appendChild(el);
+    }
+  }
+
+  function updateSessionCredits() {
+    const el = document.getElementById('session-credits');
+    if (el && totalCreditsUsed > 0) {
+      el.style.display = 'inline';
+      el.textContent = `-${totalCreditsUsed.toFixed(4)} session`;
+    }
+  }
+
+  // ============================================
   // Auth modal
+  // ============================================
   document.querySelectorAll('.auth-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
@@ -170,13 +195,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     toolsSidebar.classList.remove('open');
   });
 
-  // Settings button → opens extension settings page
   document.getElementById('btn-settings').addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });
 
   // ============================================
-  // Load Installed Tools into Sidebar
+  // Load Installed Tools
   // ============================================
   async function loadInstalledTools() {
     const tools = await ToolManager.getInstalledTools();
@@ -207,7 +231,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="tool-status ${isActive ? 'active' : 'inactive'}">${isActive ? 'Active' : 'Off'}</div>
       `;
 
-      // Toggle activation on click
       card.addEventListener('click', async () => {
         if (isActive) {
           await ToolManager.deactivateTool(tool.id);
@@ -242,7 +265,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Auto-resize textarea
   chatInput.addEventListener('input', () => {
     chatInput.style.height = 'auto';
     chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
@@ -251,11 +273,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   btnSend.addEventListener('click', sendMessage);
 
   // ============================================
-  // Send Message
+  // Send Message (with queue support)
   // ============================================
-  async function sendMessage() {
+  function sendMessage() {
     const text = chatInput.value.trim();
-    if (!text || isGenerating) return;
+    if (!text) return;
 
     // Check auth
     if (!NewOrderAuth.isAuthenticated()) {
@@ -266,7 +288,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check credits
     const user = NewOrderAuth.getCurrentUser();
     if (!user || (user.credits || 0) <= 0) {
-      addMessage('ai', '⚠️ You have no credits remaining. Visit global-order.32d.one/pricing to buy more credits.');
+      addMessage('ai', '⚠️ You have no credits remaining. Visit global-order.32d.one/dashboard/billing to buy more.');
+      return;
+    }
+
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+
+    // If AI is busy, queue the message
+    if (isGenerating) {
+      messageQueue.push(text);
+      addMessage('user', text, { queued: true });
+      updateSendButton();
       return;
     }
 
@@ -274,50 +307,76 @@ document.addEventListener('DOMContentLoaded', async () => {
     welcomeScreen.style.display = 'none';
     chatMessages.style.display = 'flex';
 
-    // Add user message
     addMessage('user', text);
-    chatInput.value = '';
-    chatInput.style.height = 'auto';
-
-    // Add to history
     chatHistory.push({ role: 'user', content: text });
 
-    // Show typing indicator
+    doGenerate(text);
+  }
+
+  async function doGenerate(text) {
     isGenerating = true;
-    btnSend.disabled = true;
+    updateSendButton();
     const typingEl = addTypingIndicator();
 
     try {
-      // Get current tab context
       const context = await getCurrentTabContext();
-
-      // Call AI
       const result = await NewOrderAPI.generateTool(text, context, selectedModelId);
 
-      // Remove typing indicator
       typingEl.remove();
 
       if (result.tool) {
         currentTool = result.tool;
+        const creditsUsed = result.usage?.creditsUsed || 0;
+        totalCreditsUsed += creditsUsed;
 
-        // Add AI response
-        addMessage('ai', `✅ I've created **"${result.tool.name}"** for you!\n\n${result.tool.description}\n\n📍 **Target sites:** ${result.tool.targetSites?.join(', ') || 'All websites'}\n\nCheck the preview below to test it, iterate, or accept it.`);
+        addMessage('ai', `✅ I've created **"${result.tool.name}"** for you!\n\n${result.tool.description}\n\n📍 **Target:** ${result.tool.targetSites?.join(', ') || 'All websites'}\n\nCheck the preview below.`, {
+          creditsUsed,
+          model: result.usage?.model || selectedModelId,
+        });
 
-        // Show tool preview
         showToolPreview(result.tool);
       } else if (result.message) {
         addMessage('ai', result.message);
       }
 
-      // Update AI credits
       updateCreditsDisplay();
+      updateSessionCredits();
 
     } catch (err) {
       typingEl.remove();
       addMessage('ai', `❌ Error: ${err.message}`);
     } finally {
       isGenerating = false;
-      btnSend.disabled = false;
+      updateSendButton();
+
+      // Process queued messages
+      if (messageQueue.length > 0) {
+        const next = messageQueue.shift();
+        // Remove the queued styling
+        const queuedMsgs = chatMessages.querySelectorAll('.message-queued');
+        if (queuedMsgs.length > 0) {
+          queuedMsgs[0].classList.remove('message-queued');
+          const queueLabel = queuedMsgs[0].querySelector('.queue-label');
+          if (queueLabel) queueLabel.remove();
+        }
+
+        welcomeScreen.style.display = 'none';
+        chatMessages.style.display = 'flex';
+        chatHistory.push({ role: 'user', content: next });
+        doGenerate(next);
+      }
+    }
+  }
+
+  function updateSendButton() {
+    if (isGenerating) {
+      btnSend.classList.add('queuing');
+      btnSend.title = 'Message will be queued';
+      chatInput.placeholder = 'Type to queue next message...';
+    } else {
+      btnSend.classList.remove('queuing');
+      btnSend.title = 'Send';
+      chatInput.placeholder = currentTool ? `How should I change "${currentTool.name}"?` : 'Describe what you want to build...';
     }
   }
 
@@ -344,9 +403,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ============================================
   // Chat UI Helpers
   // ============================================
-  function addMessage(type, text) {
+  function addMessage(type, text, opts = {}) {
     const msg = document.createElement('div');
     msg.className = `message ${type}`;
+    if (opts.queued) msg.classList.add('message-queued');
 
     const avatar = document.createElement('div');
     avatar.className = 'message-avatar';
@@ -360,13 +420,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
-    bubble.innerHTML = formatMessage(text);
+
+    // Queue label
+    if (opts.queued) {
+      const queueLabel = document.createElement('div');
+      queueLabel.className = 'queue-label';
+      queueLabel.textContent = '⏳ Queued — will send when AI is ready';
+      bubble.appendChild(queueLabel);
+    }
+
+    const content = document.createElement('div');
+    content.className = 'message-content';
+    content.innerHTML = formatMessage(text);
+    bubble.appendChild(content);
+
+    // Credits + model info
+    if (opts.creditsUsed && opts.creditsUsed > 0) {
+      const meta = document.createElement('div');
+      meta.className = 'message-meta';
+      meta.innerHTML = `💰 <span class="meta-credits">${opts.creditsUsed.toFixed(4)}</span> credits`;
+      if (opts.model) meta.innerHTML += ` · 🤖 ${opts.model}`;
+      bubble.appendChild(meta);
+    }
 
     msg.appendChild(avatar);
     msg.appendChild(bubble);
     chatMessages.appendChild(msg);
-
-    // Scroll to bottom
     chatMessages.scrollTop = chatMessages.scrollHeight;
     return msg;
   }
@@ -390,7 +469,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function formatMessage(text) {
-    // Simple markdown-like formatting
     return text
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
       .replace(/\*(.*?)\*/g, '<em>$1</em>')
@@ -406,7 +484,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('preview-tool-name').textContent = tool.name;
 
-    // Meta tags
     const metaEl = document.getElementById('preview-meta');
     metaEl.innerHTML = '';
     if (tool.targetSites) {
@@ -418,12 +495,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
-    // Code tabs
     document.getElementById('preview-code-js').textContent = tool.contentScript || '// No JavaScript generated';
     document.getElementById('preview-code-css').textContent = tool.styles || '/* No CSS generated */';
     document.getElementById('preview-code-config').textContent = JSON.stringify(tool.config || {}, null, 2);
 
-    // Tab switching
     document.querySelectorAll('.code-tab').forEach(tab => {
       tab.addEventListener('click', () => {
         document.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
@@ -441,17 +516,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!currentTool) return;
 
     try {
-      // Install locally
       await ToolManager.installTool(currentTool);
 
-      // Save to cloud
       try {
         await NewOrderAPI.saveToolToCloud(currentTool);
       } catch (err) {
         console.log('Cloud save failed (will sync later):', err.message);
       }
 
-      addMessage('ai', `🎉 **"${currentTool.name}"** has been saved and activated! It will run automatically when you visit the target site(s).`);
+      addMessage('ai', `🎉 **"${currentTool.name}"** has been saved and activated! It will run on the target site(s).`);
 
       toolPreview.style.display = 'none';
       currentTool = null;
@@ -465,7 +538,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-reject-tool').addEventListener('click', () => {
     toolPreview.style.display = 'none';
     currentTool = null;
-    addMessage('ai', '🗑️ Tool discarded. Tell me if you want to try again or build something different!');
+    addMessage('ai', '🗑️ Tool discarded. Tell me what to build next!');
   });
 
   // Test tool
@@ -476,7 +549,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tabs[0]) {
         await ToolManager.injectToolIntoTab(tabs[0].id, currentTool);
-        addMessage('ai', `🧪 Testing **"${currentTool.name}"** on the current tab. Switch to the tab to see it in action!`);
+        addMessage('ai', `🧪 Testing **"${currentTool.name}"** on the current tab. Switch to the tab to see it!`);
       }
     } catch (err) {
       addMessage('ai', `❌ Test failed: ${err.message}`);
@@ -497,12 +570,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       const profile = await NewOrderAuth.refreshProfile();
       if (profile) {
         updateUserUI(profile);
-        const creditsEl = document.getElementById('ai-credits');
-        const countEl = document.getElementById('credits-count');
-        if (creditsEl && countEl) {
-          creditsEl.style.display = 'inline';
-          countEl.textContent = (profile.credits || 0).toFixed(2);
-        }
       }
     } catch {
       // Ignore

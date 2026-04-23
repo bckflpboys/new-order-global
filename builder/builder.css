@@ -1005,6 +1005,65 @@ body {
 }
 
 /* ============================================
+   Message Meta (credits + model)
+   ============================================ */
+.message-meta {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+  font-size: 10px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.meta-credits {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+/* ============================================
+   Queued Messages
+   ============================================ */
+.message-queued .message-bubble {
+  opacity: 0.5;
+  border-style: dashed;
+}
+
+.message-queued .message-content {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.queue-label {
+  font-size: 10px;
+  color: var(--warning);
+  margin-bottom: 4px;
+  font-style: normal;
+}
+
+/* ============================================
+   Send Button Queuing State
+   ============================================ */
+.btn-send.queuing {
+  background: rgba(255, 179, 71, 0.2);
+  border: 1px solid rgba(255, 179, 71, 0.3);
+}
+
+.btn-send.queuing svg {
+  color: var(--warning);
+}
+
+/* ============================================
+   Session Credits Badge
+   ============================================ */
+#session-credits {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ============================================
    Responsive
    ============================================ */
 @media (max-width: 600px) {
