@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>New Order Global - Settings</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <img src="../icons/logo.png" alt="Logo" class="sidebar-logo">
+      <div class="sidebar-title">New Order <span>Global</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Dashboard</div>
+      <a href="../builder/builder.html" class="nav-link"><span>⚡</span> AI Builder</a>
+      <a href="tools.html" class="nav-link"><span>🛠️</span> My Tools</a>
+      <div class="nav-section">Account</div>
+      <a href="billing.html" class="nav-link"><span>💳</span> Credits & Billing</a>
+      <a href="settings.html" class="nav-link active"><span>⚙️</span> Settings</a>
+      <a href="../youtube.html" class="nav-link"><span>▶️</span> YouTube Settings</a>
+    </nav>
+  </aside>
+
+  <main class="main-content">
+    <div class="page-header">
+      <h1>Account Settings</h1>
+      <p>Manage your profile and preferences.</p>
+    </div>
+
+    <div class="card">
+      <h3>Profile Information</h3>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="text" id="user-email" class="input-text" disabled value="Loading...">
+      </div>
+      <div class="form-group">
+        <label>Extension Status</label>
+        <div style="padding: 10px; background: rgba(0, 212, 170, 0.1); border: 1px solid rgba(0, 212, 170, 0.2); border-radius: 8px; color: var(--success); font-size: 13px;">
+          ✅ Connected to local extension runtime
+        </div>
+      </div>
+      <button class="btn-primary" id="btn-logout" style="background: var(--danger); margin-top: 10px;">Sign Out</button>
+    </div>
+  </main>
+  
+  <script src="../core/api-client.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const user = await NewOrderAuth.checkAuth();
+      if (user) {
+        document.getElementById('user-email').value = user.email;
+      } else {
+        window.location.href = '../builder/builder.html'; // redirect to builder to login
+      }
+      document.getElementById('btn-logout').addEventListener('click', () => {
+        NewOrderAuth.logout();
+        window.location.href = '../builder/builder.html';
+      });
+    });
+  </script>
+</body>
+</html>

@@ -27,7 +27,7 @@
             ]
         }
     ],
-    "options_page": "settings.html",
+    "options_page": "youtube.html",
     "action": {
         "default_popup": "popup.html",
         "default_icon": {

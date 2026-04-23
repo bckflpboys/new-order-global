@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>New Order Global - My Tools</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <img src="../icons/logo.png" alt="Logo" class="sidebar-logo">
+      <div class="sidebar-title">New Order <span>Global</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Dashboard</div>
+      <a href="../builder/builder.html" class="nav-link"><span>⚡</span> AI Builder</a>
+      <a href="tools.html" class="nav-link active"><span>🛠️</span> My Tools</a>
+      <div class="nav-section">Account</div>
+      <a href="billing.html" class="nav-link"><span>💳</span> Credits & Billing</a>
+      <a href="settings.html" class="nav-link"><span>⚙️</span> Settings</a>
+      <a href="../youtube.html" class="nav-link"><span>▶️</span> YouTube Settings</a>
+    </nav>
+  </aside>
+
+  <main class="main-content">
+    <div class="page-header">
+      <h1>My Tools</h1>
+      <p>Manage the AI tools you've created and access their saved data.</p>
+    </div>
+
+    <div class="grid-cards" id="tools-container">
+      <div style="color: var(--text-muted);">Loading tools...</div>
+    </div>
+  </main>
+  
+  <script src="../core/tool-manager.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const tools = await ToolManager.getInstalledTools();
+      const container = document.getElementById('tools-container');
+      
+      if (!tools || tools.length === 0) {
+        container.innerHTML = '<div style="color: var(--text-muted); padding: 20px;">No tools created yet. Go to the AI Builder to make one!</div>';
+        return;
+      }
+
+      container.innerHTML = '';
+      tools.forEach(tool => {
+        const card = document.createElement('div');
+        card.className = 'tool-card';
+        card.innerHTML = `
+          <div class="tool-card-header">
+            <div class="tool-icon">${tool.icon || '🔧'}</div>
+            <div>
+              <div class="tool-title">${tool.name}</div>
+              <div style="font-size: 11px; color: var(--success); margin-top: 4px;">Active</div>
+            </div>
+          </div>
+          <div class="tool-desc">${tool.description || 'Custom AI Tool'}</div>
+        `;
+        card.addEventListener('click', () => {
+          window.location.href = 'tool-detail.html?id=' + tool.id;
+        });
+        container.appendChild(card);
+      });
+    });
+  </script>
+</body>
+</html>

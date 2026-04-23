@@ -203,7 +203,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   document.getElementById('btn-settings').addEventListener('click', () => {
-    chrome.runtime.openOptionsPage();
+    window.location.href = '../dashboard/settings.html';
   });
 
   document.getElementById('btn-toggle-history').addEventListener('click', () => {

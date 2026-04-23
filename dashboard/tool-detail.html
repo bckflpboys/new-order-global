@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>New Order Global - Tool Details</title>
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <img src="../icons/logo.png" alt="Logo" class="sidebar-logo">
+      <div class="sidebar-title">New Order <span>Global</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Dashboard</div>
+      <a href="../builder/builder.html" class="nav-link"><span>⚡</span> AI Builder</a>
+      <a href="tools.html" class="nav-link active"><span>🛠️</span> My Tools</a>
+      <div class="nav-section">Account</div>
+      <a href="billing.html" class="nav-link"><span>💳</span> Credits & Billing</a>
+      <a href="settings.html" class="nav-link"><span>⚙️</span> Settings</a>
+      <a href="../youtube.html" class="nav-link"><span>▶️</span> YouTube Settings</a>
+    </nav>
+  </aside>
+
+  <main class="main-content">
+    <div class="page-header" style="display: flex; justify-content: space-between; align-items: flex-start;">
+      <div>
+        <a href="tools.html" style="color: var(--accent-primary); text-decoration: none; font-size: 13px; margin-bottom: 8px; display: inline-block;">← Back to Tools</a>
+        <h1 id="tool-name">Loading Tool...</h1>
+        <p id="tool-desc">...</p>
+      </div>
+      <div>
+        <button id="btn-edit" class="btn-primary" style="background: rgba(255,255,255,0.1);">Edit Tool</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h3>Saved Data / Outputs</h3>
+        <button id="btn-download" class="btn-primary" style="padding: 6px 12px; font-size: 12px; display: none;">📥 Download JSON</button>
+      </div>
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">
+        Any data saved by this tool (e.g. scraped emails, generated content) will appear here.
+      </p>
+      
+      <div id="data-container" style="background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; overflow-x: auto; max-height: 400px;">
+        <span style="color: var(--text-muted); font-size: 12px;">Loading data...</span>
+      </div>
+    </div>
+  </main>
+  
+  <script src="../core/tool-manager.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const toolId = urlParams.get('id');
+      
+      if (!toolId) {
+        window.location.href = 'tools.html';
+        return;
+      }
+
+      const tools = await ToolManager.getInstalledTools();
+      const tool = tools.find(t => t.id === toolId);
+      
+      if (!tool) {
+        document.getElementById('tool-name').textContent = 'Tool Not Found';
+        document.getElementById('tool-desc').textContent = 'This tool could not be found locally.';
+        return;
+      }
+
+      document.getElementById('tool-name').textContent = tool.icon + ' ' + tool.name;
+      document.getElementById('tool-desc').textContent = tool.description || 'Custom AI Tool running on ' + (tool.targetSites?.join(', ') || 'all sites');
+
+      document.getElementById('btn-edit').addEventListener('click', () => {
+        window.location.href = '../builder/builder.html?loadTool=' + tool.id;
+      });
+
+      // Load tool data
+      chrome.storage.local.get(null, (result) => {
+        const prefix = 'toolData_' + tool.id + '_';
+        const data = {};
+        let hasData = false;
+        
+        Object.keys(result).forEach(key => {
+          if (key.startsWith(prefix)) {
+            data[key.replace(prefix, '')] = result[key];
+            hasData = true;
+          }
+        });
+
+        const dataContainer = document.getElementById('data-container');
+        if (hasData) {
+          document.getElementById('btn-download').style.display = 'block';
+          document.getElementById('btn-download').addEventListener('click', () => {
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = tool.name.replace(/\\s+/g, '_').toLowerCase() + '_data.json';
+            a.click();
+            URL.revokeObjectURL(url);
+          });
+          
+          dataContainer.innerHTML = '<pre style="font-size: 12px; color: var(--text-secondary);">' + JSON.stringify(data, null, 2) + '</pre>';
+        } else {
+          dataContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">No data has been saved by this tool yet.</span>';
+        }
+      });
+    });
+  </script>
+</body>
+</html>
