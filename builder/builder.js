@@ -8,6 +8,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let currentTool = null; // The tool currently being built/previewed
   let chatHistory = [];
   let isGenerating = false;
+  let availableModels = [];
+  let selectedModelId = 'gemini-2-5-flash';
 
   // DOM References
   const welcomeScreen = document.getElementById('welcome-screen');
@@ -23,6 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ============================================
   await initializeAuth();
   await loadInstalledTools();
+  await loadModels();
 
   // ============================================
   // Auth Setup
@@ -46,9 +49,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (user) {
       userInfo.style.display = 'flex';
       userName.textContent = user.displayName || user.email;
-      userPlan.textContent = (user.plan || 'free').toUpperCase();
+      userPlan.textContent = `${(user.credits || 0).toFixed(2)} credits`;
     } else {
       userInfo.style.display = 'none';
+    }
+  }
+
+  // ============================================
+  // Load AI Models
+  // ============================================
+  async function loadModels() {
+    try {
+      const result = await NewOrderAPI.request('/models');
+      if (result.models) {
+        availableModels = result.models;
+        const defaultModel = availableModels.find(m => m.isDefault) || availableModels[0];
+        if (defaultModel) selectedModelId = defaultModel.id;
+        renderModelSelector();
+      }
+    } catch (err) {
+      console.log('Failed to load models:', err);
+    }
+  }
+
+  function renderModelSelector() {
+    let selector = document.getElementById('model-selector');
+    if (!selector) {
+      selector = document.createElement('div');
+      selector.id = 'model-selector';
+      selector.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 16px;border-top:1px solid rgba(255,255,255,0.05);background:rgba(255,255,255,0.02);';
+      const inputArea = document.querySelector('.chat-input-area');
+      if (inputArea) inputArea.parentNode.insertBefore(selector, inputArea);
+    }
+
+    const tierColors = { free: '#00d4aa', standard: '#5e9cff', premium: '#7c5cfc' };
+
+    selector.innerHTML = `
+      <span style="font-size:11px;color:#5a6070;white-space:nowrap;">Model:</span>
+      <select id="model-select" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:white;font-size:12px;padding:6px 10px;outline:none;cursor:pointer;">
+        ${availableModels.map(m => `<option value="${m.id}" ${m.id === selectedModelId ? 'selected' : ''} style="background:#1a1a25;">${m.name} — ~${m.estimatedToolCost.toFixed(2)} credits/tool</option>`).join('')}
+      </select>
+      <span id="model-cost" style="font-size:11px;color:#7c5cfc;white-space:nowrap;font-weight:600;"></span>
+    `;
+
+    document.getElementById('model-select')?.addEventListener('change', (e) => {
+      selectedModelId = e.target.value;
+      updateModelCost();
+    });
+    updateModelCost();
+  }
+
+  function updateModelCost() {
+    const model = availableModels.find(m => m.id === selectedModelId);
+    const costEl = document.getElementById('model-cost');
+    if (model && costEl) {
+      costEl.textContent = `~${model.estimatedToolCost.toFixed(2)} credits`;
     }
   }
 
@@ -208,9 +263,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
 
-    // Check plan
-    if (!NewOrderAuth.canUseAI()) {
-      addMessage('ai', '⚠️ You need a Pro or Unlimited plan to use the AI tool builder. Visit global-order.32d.one to upgrade your plan.');
+    // Check credits
+    const user = NewOrderAuth.getCurrentUser();
+    if (!user || (user.credits || 0) <= 0) {
+      addMessage('ai', '⚠️ You have no credits remaining. Visit global-order.32d.one/pricing to buy more credits.');
       return;
     }
 
@@ -236,7 +292,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const context = await getCurrentTabContext();
 
       // Call AI
-      const result = await NewOrderAPI.generateTool(text, context);
+      const result = await NewOrderAPI.generateTool(text, context, selectedModelId);
 
       // Remove typing indicator
       typingEl.remove();
@@ -438,13 +494,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ============================================
   async function updateCreditsDisplay() {
     try {
-      const remaining = NewOrderAuth.getAIRequestsRemaining();
-      const creditsEl = document.getElementById('ai-credits');
-      const countEl = document.getElementById('credits-count');
-
-      if (NewOrderAuth.isAuthenticated() && NewOrderAuth.getPlan() !== 'unlimited') {
-        creditsEl.style.display = 'inline';
-        countEl.textContent = remaining;
+      const profile = await NewOrderAuth.refreshProfile();
+      if (profile) {
+        updateUserUI(profile);
+        const creditsEl = document.getElementById('ai-credits');
+        const countEl = document.getElementById('credits-count');
+        if (creditsEl && countEl) {
+          creditsEl.style.display = 'inline';
+          countEl.textContent = (profile.credits || 0).toFixed(2);
+        }
       }
     } catch {
       // Ignore

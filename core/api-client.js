@@ -2,8 +2,8 @@
 // Handles all communication with the backend server
 
 const NewOrderAPI = (() => {
-  // TODO: Replace with your actual backend URL once deployed
-  const BASE_URL = 'https://global-order.32d.one/api';
+  // Backend API server URL (deployed on Render)
+  const BASE_URL = 'https://api.global-order.32d.one';
   // For local development:
   // const BASE_URL = 'http://localhost:3001';
 
@@ -144,28 +144,49 @@ const NewOrderAPI = (() => {
   // ============================================
   // AI Tool Generation
   // ============================================
-  async function generateTool(prompt, context = {}) {
+  async function generateTool(prompt, context = {}, modelId = 'gemini-2-5-flash') {
     const data = await request('/api/ai/generate', {
       method: 'POST',
       body: JSON.stringify({
         prompt,
         currentUrl: context.currentUrl || '',
         currentSite: context.currentSite || '',
-        pageTitle: context.pageTitle || ''
+        pageTitle: context.pageTitle || '',
+        modelId
       })
     });
+
+    // Update local user credits
+    if (data.usage?.creditsRemaining !== undefined) {
+      const user = await getUser();
+      if (user) {
+        user.credits = data.usage.creditsRemaining;
+        await setUser(user);
+      }
+    }
+
     return data;
   }
 
-  async function iterateTool(toolId, feedback, currentCode) {
+  async function iterateTool(toolId, feedback, currentCode, modelId = 'gemini-2-5-flash') {
     const data = await request('/api/ai/iterate', {
       method: 'POST',
       body: JSON.stringify({
         toolId,
         feedback,
-        currentCode
+        currentCode,
+        modelId
       })
     });
+
+    if (data.usage?.creditsRemaining !== undefined) {
+      const user = await getUser();
+      if (user) {
+        user.credits = data.usage.creditsRemaining;
+        await setUser(user);
+      }
+    }
+
     return data;
   }
 
@@ -208,13 +229,16 @@ const NewOrderAPI = (() => {
   // ============================================
   // Subscription / Billing
   // ============================================
-  async function getSubscription() {
-    const data = await request('/api/billing/subscription');
+  async function getCredits() {
+    const data = await request('/api/billing/credits');
     return data;
   }
 
-  async function getUsage() {
-    const data = await request('/api/billing/usage');
+  async function createCheckout(packageId) {
+    const data = await request('/api/billing/checkout', {
+      method: 'POST',
+      body: JSON.stringify({ packageId })
+    });
     return data;
   }
 
@@ -243,8 +267,11 @@ const NewOrderAPI = (() => {
     deleteTool,
 
     // Billing
-    getSubscription,
-    getUsage,
+    getCredits,
+    createCheckout,
+
+    // Generic request (for model loading etc)
+    request,
 
     // Config
     BASE_URL
