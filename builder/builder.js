@@ -123,36 +123,110 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function renderModelSelector() {
-    let selector = document.getElementById('model-selector');
-    if (!selector) {
-      selector = document.createElement('div');
-      selector.id = 'model-selector';
-      selector.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 16px;border-top:1px solid rgba(255,255,255,0.05);background:rgba(255,255,255,0.02);';
-      const inputArea = document.querySelector('.chat-input-area');
-      if (inputArea) inputArea.parentNode.insertBefore(selector, inputArea);
-    }
+    const container = document.getElementById('model-selector-pill-container');
+    if (!container) return;
 
-    selector.innerHTML = `
-      <span style="font-size:11px;color:#5a6070;white-space:nowrap;">Model:</span>
-      <select id="model-select" style="flex:1;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:8px;color:white;font-size:12px;padding:6px 10px;outline:none;cursor:pointer;">
-        ${availableModels.map(m => `<option value="${m.id}" ${m.id === selectedModelId ? 'selected' : ''} style="background:#1a1a25;">${m.name} — ~${m.estimatedToolCost.toFixed(2)} cr</option>`).join('')}
-      </select>
-      <span id="model-cost" style="font-size:11px;color:#7c5cfc;white-space:nowrap;font-weight:600;"></span>
+    const selectedModel = availableModels.find(m => m.id === selectedModelId) || availableModels[0];
+    
+    container.innerHTML = `
+      <div class="model-pill" id="model-selector-pill">
+        <div class="robot-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M12,2A10,10,0,0,0,2,12a9.89,9.89,0,0,0,2.26,6.33l-2,2a1,1,0,0,0,1.42,1.42l2-2A9.94,9.94,0,0,0,12,22a10,10,0,0,0,0-20Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"/>
+            <circle cx="8.5" cy="11.5" r="1.5"/><circle cx="15.5" cy="11.5" r="1.5"/><path d="M8,15a4,4,0,0,0,8,0H8Z"/>
+          </svg>
+        </div>
+        <span>${selectedModel ? selectedModel.name : 'Select Model'}</span>
+      </div>
     `;
 
-    document.getElementById('model-select')?.addEventListener('change', (e) => {
-      selectedModelId = e.target.value;
-      updateModelCost();
-    });
-    updateModelCost();
+    document.getElementById('model-selector-pill')?.addEventListener('click', openModelSelectorModal);
   }
 
-  function updateModelCost() {
-    const model = availableModels.find(m => m.id === selectedModelId);
-    const costEl = document.getElementById('model-cost');
-    if (model && costEl) {
-      costEl.textContent = `~${model.estimatedToolCost.toFixed(2)} cr`;
+  function openModelSelectorModal() {
+    let overlay = document.getElementById('model-modal-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'model-modal-overlay';
+      overlay.className = 'model-modal-overlay';
+      overlay.innerHTML = `
+        <div class="model-modal">
+          <div class="model-modal-header">
+            <div class="model-tabs">
+              <button class="model-tab active" data-group="BETA">✨ Beta</button>
+              <button class="model-tab" data-group="FREE">⚡ Free</button>
+              <button class="model-tab" data-group="PREMIUM">💎 Premium</button>
+              <button class="model-tab" data-group="BYOK">🔑 BYOK</button>
+            </div>
+          </div>
+          <div class="model-modal-body" id="model-modal-list"></div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.classList.remove('active');
+      });
+
+      overlay.querySelectorAll('.model-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          overlay.querySelectorAll('.model-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          renderModelList(tab.dataset.group);
+        });
+      });
     }
+
+    renderModelList('BETA');
+    overlay.classList.add('active');
+  }
+
+  function renderModelList(group) {
+    const list = document.getElementById('model-modal-list');
+    if (!list) return;
+
+    // Filter models by group (assuming the API provides some category or we map them)
+    // For now, let's distribute them based on some criteria if category is missing
+    const filteredModels = availableModels.filter(m => {
+      if (group === 'BETA') return m.id.includes('3.5') || m.id.includes('qwen');
+      if (group === 'FREE') return m.id.includes('lite') || m.id.includes('flash');
+      if (group === 'PREMIUM') return m.id.includes('pro') || m.id.includes('ultra') || m.id.includes('sonnet');
+      if (group === 'BYOK') return false; // Placeholder
+      return true;
+    });
+
+    list.innerHTML = filteredModels.map(m => {
+      const isSelected = m.id === selectedModelId;
+      const tags = [];
+      if (m.id.includes('reasoning') || m.id.includes('sonnet')) tags.push('<span class="model-tag reasoning">Reasoning</span>');
+      if (m.id.includes('vision')) tags.push('<span class="model-tag vision">Vision</span>');
+      if (m.id.includes('lite') || m.id.includes('flash')) tags.push('<span class="model-tag fast">Fast</span>');
+      if (m.id.includes('pro')) tags.push('<span class="model-tag full">Full</span>');
+
+      return `
+        <div class="model-card ${isSelected ? 'selected' : ''}" data-id="${m.id}">
+          <div class="model-card-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12,2A10,10,0,0,0,2,12a9.89,9.89,0,0,0,2.26,6.33l-2,2a1,1,0,0,0,1.42,1.42l2-2A9.94,9.94,0,0,0,12,22a10,10,0,0,0,0-20Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"/>
+              <circle cx="8.5" cy="11.5" r="1.5"/><circle cx="15.5" cy="11.5" r="1.5"/><path d="M8,15a4,4,0,0,0,8,0H8Z"/>
+            </svg>
+          </div>
+          <div class="model-card-info">
+            <div class="model-card-name">${m.name}</div>
+            <div class="model-card-tags">${tags.join('')}</div>
+            <div class="model-card-pricing">⚡ ${m.estimatedToolCost.toFixed(2)} In / ${(m.estimatedToolCost * 2).toFixed(2)} Out / 1K</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    list.querySelectorAll('.model-card').forEach(card => {
+      card.addEventListener('click', () => {
+        selectedModelId = card.dataset.id;
+        document.getElementById('model-modal-overlay').classList.remove('active');
+        renderModelSelector();
+      });
+    });
   }
 
   // ============================================
@@ -557,11 +631,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (isGenerating) {
       btnSend.classList.add('queuing');
       btnSend.title = 'Message will be queued';
-      chatInput.placeholder = 'Type to queue next message...';
+      chatInput.placeholder = 'Queuing next message...';
     } else {
       btnSend.classList.remove('queuing');
       btnSend.title = 'Send';
-      chatInput.placeholder = currentTool ? `How should I change "${currentTool.name}"?` : 'Describe what you want to build...';
+      chatInput.placeholder = 'Type...';
     }
   }
 

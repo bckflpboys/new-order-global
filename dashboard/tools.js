@@ -1,13 +1,26 @@
 document.addEventListener('DOMContentLoaded', async () => {
-  const tools = await ToolManager.getInstalledTools();
   const container = document.getElementById('tools-container');
-  
-  if (!tools || tools.length === 0) {
-    container.innerHTML = '<div style="color: var(--text-muted); padding: 20px;">No tools created yet. Go to the AI Builder to make one!</div>';
-    return;
-  }
+  container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">Syncing tools...</div>';
 
-  container.innerHTML = '';
+  try {
+    // Initialize auth
+    await NewOrderAuth.init();
+    
+    let stats;
+    if (NewOrderAuth.isAuthenticated()) {
+      stats = await ToolManager.syncTools();
+    } else {
+      stats = await ToolManager.getStats();
+    }
+
+    const tools = stats.tools || [];
+    
+    if (tools.length === 0) {
+      container.innerHTML = '<div style="color: var(--text-muted); padding: 20px;">No tools created yet. Go to the AI Builder to make one!</div>';
+      return;
+    }
+
+    container.innerHTML = '';
   tools.forEach(tool => {
     const card = document.createElement('div');
     card.className = 'tool-card';
@@ -28,4 +41,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
     container.appendChild(card);
   });
+  } catch (err) {
+    console.error('Tools: Error loading tools:', err);
+    container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--accent-red);">Error loading tools. Please check your connection.</div>';
+  }
 });

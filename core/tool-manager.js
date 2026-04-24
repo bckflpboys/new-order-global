@@ -4,6 +4,7 @@
 const ToolManager = (() => {
   const TOOLS_STORAGE_KEY = 'noInstalledTools';
   const ACTIVE_TOOLS_KEY = 'noActiveTools';
+  const LAST_SYNC_KEY = 'noLastSync';
 
   // ============================================
   // Storage Helpers
@@ -409,6 +410,49 @@ const ToolManager = (() => {
   }
 
   // ============================================
+  // Sync tools from Cloud
+  // ============================================
+  async function syncTools(force = false) {
+    // Check if we need to sync
+    if (!force) {
+      const lastSync = await new Promise((resolve) => {
+        chrome.storage.local.get([LAST_SYNC_KEY], (result) => {
+          resolve(result[LAST_SYNC_KEY] || 0);
+        });
+      });
+
+      // Sync only once every 5 minutes unless forced
+      if (Date.now() - lastSync < 5 * 60 * 1000) {
+        console.log('New Order Global: Tools already synced recently');
+        return await getStats();
+      }
+    }
+
+    try {
+      console.log('New Order Global: Syncing tools from cloud...');
+      const cloudTools = await NewOrderAPI.getUserTools();
+      
+      if (!Array.isArray(cloudTools)) return await getStats();
+
+      // Save each tool locally
+      for (const tool of cloudTools) {
+        await installTool(tool);
+      }
+
+      // Update last sync time
+      await new Promise((resolve) => {
+        chrome.storage.local.set({ [LAST_SYNC_KEY]: Date.now() }, resolve);
+      });
+
+      return await getStats();
+    } catch (err) {
+      console.error('New Order Global: Failed to sync tools:', err);
+      // Return local tools even if sync failed
+      return await getStats();
+    }
+  }
+
+  // ============================================
   // Public API
   // ============================================
   return {
@@ -422,6 +466,8 @@ const ToolManager = (() => {
     injectToolsIntoTab,
     getToolsForUrl,
     getStats,
+    getTools: getStats, // Alias for convenience
+    syncTools,
     buildToolWrapper
   };
 })();

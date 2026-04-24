@@ -7,6 +7,17 @@
     <title>New Order Global</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg-base: #fdf8f5;
+            --bg-card: rgba(255, 255, 255, 0.7);
+            --accent-red: #d62828;
+            --accent-black: #121212;
+            --text-main: #1a1a1a;
+            --text-muted: #5f6368;
+            --border: rgba(0, 0, 0, 0.06);
+            --shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -17,8 +28,8 @@
             width: 100%;
             height: 100vh;
             font-family: 'Inter', system-ui, sans-serif;
-            background: #0a0a0f;
-            color: #f0f0f5;
+            background: var(--bg-base);
+            color: var(--text-main);
             overflow: hidden;
         }
 
@@ -29,8 +40,8 @@
             right: 0;
             bottom: 0;
             background:
-                radial-gradient(ellipse at 30% -20%, rgba(124, 92, 252, 0.15) 0%, transparent 50%),
-                radial-gradient(ellipse at 70% 120%, rgba(0, 212, 170, 0.1) 0%, transparent 50%);
+                radial-gradient(ellipse at 30% -20%, rgba(214, 40, 40, 0.05) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 120%, rgba(18, 18, 18, 0.03) 0%, transparent 50%);
             z-index: -1;
             pointer-events: none;
         }
@@ -42,7 +53,6 @@
             height: 200%;
             transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
             transform: translateY(-50%);
-            /* Start at the main app */
         }
 
         .v-screen {
@@ -58,68 +68,58 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 14px 16px;
-            background: rgba(10, 10, 15, 0.8);
+            padding: 16px 20px;
+            background: rgba(253, 248, 245, 0.8);
             backdrop-filter: blur(12px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            border-bottom: 1px solid var(--border);
             z-index: 10;
         }
 
         .nav-btn {
             background: transparent;
             border: none;
-            color: #fff;
-            width: 34px;
-            height: 34px;
-            border-radius: 8px;
+            color: var(--accent-black);
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            transition: 0.2s;
+            transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         .nav-btn:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: #fff;
+            background: rgba(0, 0, 0, 0.04);
+            color: var(--accent-red);
         }
 
         @keyframes pulse-dot {
-            0% {
-                transform: scale(0.95);
-                box-shadow: 0 0 0 0 rgba(255, 87, 87, 0.7);
-            }
-
-            70% {
-                transform: scale(1);
-                box-shadow: 0 0 0 6px rgba(255, 87, 87, 0);
-            }
-
-            100% {
-                transform: scale(0.95);
-                box-shadow: 0 0 0 0 rgba(255, 87, 87, 0);
-            }
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(214, 40, 40, 0.5); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(214, 40, 40, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(214, 40, 40, 0); }
         }
 
         .notification-dot {
             position: absolute;
-            top: 6px;
+            top: 8px;
             right: 8px;
             width: 6px;
             height: 6px;
-            background-color: #ff5757;
+            background-color: var(--accent-red);
             border-radius: 50%;
             animation: pulse-dot 2s infinite;
         }
 
         .logo-pill {
-            background: #fff;
-            color: #000;
-            padding: 4px 12px;
+            background: var(--accent-red);
+            color: #fff;
+            padding: 6px 16px;
             border-radius: 100px;
             font-weight: 800;
-            font-size: 13px;
-            letter-spacing: 0.5px;
+            font-size: 12px;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 12px rgba(214, 40, 40, 0.2);
         }
 
         /* Horizontal Carousel Container */
@@ -136,42 +136,49 @@
             height: 100%;
             overflow-y: auto;
             overflow-x: hidden;
-            padding: 20px;
+            padding: 24px;
         }
 
         /* Styling for content items */
         .screen-title {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: 700;
             margin-bottom: 24px;
             display: flex;
             align-items: center;
-            gap: 10px;
-            color: #fff;
+            gap: 12px;
+            color: var(--accent-black);
         }
 
         .screen-title svg {
-            width: 22px;
-            height: 22px;
-            color: #fff;
+            width: 24px;
+            height: 24px;
+            color: var(--accent-red);
         }
 
         .notification-item {
-            padding: 16px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 14px;
+            padding: 18px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
             margin-bottom: 12px;
             display: flex;
             gap: 14px;
+            box-shadow: var(--shadow);
+            transition: 0.2s;
+        }
+
+        .notification-item:hover {
+            border-color: rgba(214, 40, 40, 0.2);
+            transform: translateY(-1px);
         }
 
         .notification-icon {
-            width: 32px;
-            height: 32px;
+            width: 34px;
+            height: 34px;
             border-radius: 10px;
-            background: rgba(124, 92, 252, 0.1);
-            color: #7c5cfc;
+            background: rgba(214, 40, 40, 0.08);
+            color: var(--accent-red);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -182,84 +189,119 @@
         .notification-title {
             font-weight: 600;
             font-size: 14px;
-            margin-bottom: 2px;
-            color: #fff;
+            margin-bottom: 3px;
+            color: var(--accent-black);
         }
 
         .notification-text {
-            font-size: 12px;
-            color: #8a8a9a;
+            font-size: 12.5px;
+            color: var(--text-muted);
             line-height: 1.5;
         }
 
         .main-actions {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 8px;
-            margin-bottom: 24px;
+            gap: 10px;
+            margin-bottom: 28px;
         }
 
         .action-card {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 12px;
-            padding: 12px 8px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 14px 8px;
             cursor: pointer;
             text-align: center;
-            transition: 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow);
         }
 
-        .action-card:hover {
-            transform: translateY(-2px);
-            border-color: rgba(124, 92, 252, 0.3);
+        .action-card:hover, .action-card.active {
+            transform: translateY(-3px);
+            border-color: var(--accent-red);
+            background: #fff;
+            color: var(--accent-red);
         }
 
         .action-card svg {
-            color: #fff;
-            width: 20px;
-            height: 20px;
+            color: var(--accent-black);
+            width: 22px;
+            height: 22px;
             margin-bottom: 8px;
+            transition: 0.2s;
+        }
+
+        .action-card:hover svg, .action-card.active svg {
+            color: var(--accent-red);
         }
 
         .action-card span {
             font-size: 11px;
-            font-weight: 500;
-            color: #d0d0d5;
+            font-weight: 600;
+            color: var(--text-main);
             display: block;
         }
 
         .action-card.primary {
-            background: linear-gradient(135deg, rgba(124, 92, 252, 0.1), rgba(94, 156, 255, 0.05));
-            border-color: rgba(124, 92, 252, 0.2);
+            background: var(--accent-red);
+            border-color: var(--accent-red);
+            color: #fff;
+        }
+
+        .action-card.primary svg {
+            color: #fff;
+        }
+
+        .action-card.primary span {
+            color: #fff;
+        }
+
+        .action-card.primary:hover {
+            background: var(--accent-black);
+            border-color: var(--accent-black);
+        }
+
+        .nav-btn.active {
+            color: var(--accent-red);
+            background: rgba(214, 40, 40, 0.05);
         }
 
         .tool-card {
-            background: rgba(255, 255, 255, 0.02);
-            border: 1px solid rgba(255, 255, 255, 0.04);
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 10px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 18px;
+            margin-bottom: 12px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             cursor: pointer;
+            box-shadow: var(--shadow);
+            transition: 0.2s;
+        }
+
+        .tool-card:hover {
+            border-color: var(--accent-red);
+            background: #fff;
         }
 
         .tool-name {
             font-weight: 600;
-            font-size: 14px;
-            color: #fff;
+            font-size: 14.5px;
+            color: var(--accent-black);
+            margin-bottom: 2px;
         }
 
         .tool-desc {
             font-size: 12px;
-            color: #8a8a9a;
+            color: var(--text-muted);
         }
 
         .toggle-switch {
             position: relative;
-            width: 36px;
-            height: 20px;
+            width: 40px;
+            height: 22px;
         }
 
         .toggle-switch input {
@@ -275,44 +317,60 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 24px;
             transition: 0.3s;
         }
 
         .slider:before {
             position: absolute;
             content: "";
-            height: 14px;
-            width: 14px;
+            height: 16px;
+            width: 16px;
             left: 3px;
             bottom: 3px;
             background: #fff;
             border-radius: 50%;
-            transition: 0.3s;
+            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         input:checked+.slider {
-            background: linear-gradient(135deg, #7c5cfc, #5e9cff);
+            background: var(--accent-red);
         }
 
         input:checked+.slider:before {
-            transform: translateX(16px);
+            transform: translateX(18px);
         }
 
         .btn-outline {
             width: 100%;
-            padding: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
+            padding: 14px;
+            border: 1px solid var(--accent-black);
+            border-radius: 12px;
             background: transparent;
-            color: #fff;
-            font-weight: 600;
+            color: var(--accent-black);
+            font-weight: 700;
+            font-size: 14px;
             cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         .btn-outline:hover {
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--accent-black);
+            color: #fff;
+        }
+
+        #btn-yt-settings {
+            border-color: var(--accent-red);
+            color: var(--accent-red);
+        }
+
+        #btn-yt-settings:hover {
+            background: var(--accent-red);
+            color: #fff;
         }
 
         ::-webkit-scrollbar {
@@ -320,8 +378,12 @@
         }
 
         ::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.1);
+            background: rgba(0, 0, 0, 0.05);
             border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.1);
         }
     </style>
 </head>
@@ -338,7 +400,7 @@
                         <path
                             d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" />
                     </svg>
-                    System Notifications
+                    System Alerts
                 </div>
 
                 <div style="flex: 1; overflow-y: auto;">
@@ -351,16 +413,16 @@
                         </div>
                     </div>
                     <div class="notification-item"
-                        style="border-color: rgba(255, 87, 87, 0.2); background: rgba(255, 87, 87, 0.03);">
-                        <div class="notification-icon" style="color: #ff5757;">⚠️</div>
+                        style="border-color: rgba(214, 40, 40, 0.15); background: #fff;">
+                        <div class="notification-icon" style="color: var(--accent-red); background: rgba(214, 40, 40, 0.05);">⚠️</div>
                         <div class="notification-content">
-                            <div class="notification-title">Tool Warning</div>
+                            <div class="notification-title" style="color: var(--accent-red);">Tool Warning</div>
                             <div class="notification-text">"Wikipedia Dark Mode" failed to inject on current page.</div>
                         </div>
                     </div>
                 </div>
 
-                <button class="btn-outline" id="btn-close-notifications" style="margin-top: 20px;">Back to App</button>
+                <button class="btn-outline" id="btn-close-notifications" style="margin-top: 24px;">Return to Dashboard</button>
             </div>
         </div>
 
@@ -392,8 +454,14 @@
             <div class="screens-container" id="horizontal-slider">
                 <!-- History -->
                 <div class="screen">
-                    <div class="screen-title">Chat History</div>
-                    <div class="notification-item">Tool "Ad Skipper" created today</div>
+                    <div class="screen-title">Recent Activity</div>
+                    <div class="notification-item">
+                        <div class="notification-icon">🛠️</div>
+                        <div class="notification-content">
+                            <div class="notification-title">Tool Created</div>
+                            <div class="notification-text">"Ad Skipper" was successfully generated today.</div>
+                        </div>
+                    </div>
                 </div>
                 <!-- Main -->
                 <div class="screen">
@@ -414,14 +482,24 @@
                                     d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35C8.66 5.59 8.12 5.92 7.63 6.29L5.24 5.33c-.22-.08-.47 0-.59.22L2.73 8.87c-.11.21-.07.47.13.61l2.03 1.58c-.05.3-.09.63-.09.94s.04.64.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l0.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.49-.12-.61l-2.03-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6s3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
                             </svg><span>Config</span></div>
                     </div>
-                    <div class="screen-title" style="font-size:16px;">Active Tools</div>
-                    <div id="tools-container">Loading...</div>
+                    <div class="screen-title" style="font-size:16px; margin-bottom: 16px;">Active Tools</div>
+                    <div id="tools-container">
+                        <div class="tool-card" style="opacity: 0.5;">
+                            <div class="tool-name">Loading...</div>
+                        </div>
+                    </div>
                 </div>
                 <!-- Settings -->
                 <div class="screen">
                     <div class="screen-title">Integrations</div>
-                    <div class="notification-item">YouTube Toolkit Active</div>
-                    <button class="btn-outline" id="btn-yt-settings">YouTube Config</button>
+                    <div class="notification-item">
+                        <div class="notification-icon">🎞️</div>
+                        <div class="notification-content">
+                            <div class="notification-title">YouTube Toolkit</div>
+                            <div class="notification-text">Active and optimized for your experience.</div>
+                        </div>
+                    </div>
+                    <button class="btn-outline" id="btn-yt-settings" style="margin-top: 10px;">Configure YouTube</button>
                 </div>
             </div>
         </div>
