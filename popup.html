@@ -1,499 +1,260 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>New Order Global</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            width: 100%;
-            height: 100vh;
+            width: 100%; height: 100vh;
             font-family: 'Inter', system-ui, sans-serif;
-            background: #0a0a0f;
-            color: #f0f0f5;
-            padding: 0;
-            overflow-y: auto;
-            overflow-x: hidden;
+            background: #0a0a0f; color: #f0f0f5;
+            overflow: hidden;
+            display: flex; flex-direction: column;
         }
 
-        /* Background glow */
-        .popup-container {
-            padding: 20px;
-            position: relative;
-            min-height: 100%;
+        /* Background glow effect behind main UI */
+        .bg-glow {
+            position: absolute; top: 0; left: 0; right: 0; height: 100%;
             background:
-                radial-gradient(ellipse at 30% 20%, rgba(124, 92, 252, 0.1) 0%, transparent 50%),
-                radial-gradient(ellipse at 70% 80%, rgba(0, 212, 170, 0.06) 0%, transparent 50%),
-                #0a0a0f;
+                radial-gradient(ellipse at 30% -20%, rgba(124, 92, 252, 0.15) 0%, transparent 50%),
+                radial-gradient(ellipse at 70% 120%, rgba(0, 212, 170, 0.1) 0%, transparent 50%);
+            z-index: 0; pointer-events: none;
         }
 
-        /* Header */
-        .header {
-            text-align: center;
-            margin-bottom: 18px;
+        /* Top Navbar */
+        .top-navbar {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px; background: rgba(10,10,15,0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+            z-index: 10;
         }
 
-        .logo-wrapper {
-            position: relative;
-            display: inline-block;
-            margin-bottom: 10px;
+        .nav-btn {
+            background: transparent; border: none;
+            color: #8a8a9a; width: 34px; height: 34px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: 0.2s;
+        }
+        .nav-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+        .logo-pill {
+            background: #fff; color: #000;
+            padding: 4px 12px; border-radius: 100px;
+            font-weight: 800; font-size: 13px; letter-spacing: 0.5px;
+            display: flex; align-items: center; gap: 6px;
         }
 
-        .logo-wrapper::before {
-            content: '';
-            position: absolute;
-            inset: -14px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #7c5cfc, #5e9cff, #00d4aa);
-            opacity: 0.12;
-            filter: blur(16px);
-            animation: logoGlow 3s ease-in-out infinite;
-        }
-
-        @keyframes logoGlow {
-
-            0%,
-            100% {
-                opacity: 0.08;
-                transform: scale(0.92);
-            }
-
-            50% {
-                opacity: 0.18;
-                transform: scale(1.05);
-            }
-        }
-
-        .logo {
-            width: 64px;
-            height: 64px;
-            border-radius: 14px;
-            object-fit: contain;
-            display: block;
-            position: relative;
+        /* Carousel Container */
+        .screens-container {
+            flex: 1; display: flex; width: 300%;
+            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transform: translateX(-33.333%);
             z-index: 1;
         }
 
-        h1 {
-            font-size: 17px;
-            font-weight: 700;
-            margin-bottom: 2px;
+        .screen {
+            width: 33.333%; height: 100%;
+            overflow-y: auto; overflow-x: hidden;
+            padding: 20px;
         }
 
-        h1 .accent {
-            background: linear-gradient(135deg, #7c5cfc, #5e9cff, #00d4aa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        /* Center Main Screen */
+        .main-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; margin-top: 8px; }
+        .main-header h2 { font-size: 16px; font-weight: 600; }
+        
+        .main-actions {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 24px;
         }
-
-        .subtitle {
-            font-size: 11px;
-            color: #5a6070;
-        }
-
-        /* AI Builder CTA */
-        .ai-builder-cta {
-            background: linear-gradient(135deg, rgba(124, 92, 252, 0.12), rgba(94, 156, 255, 0.08));
-            border: 1px solid rgba(124, 92, 252, 0.25);
-            border-radius: 14px;
-            padding: 16px;
-            margin-bottom: 14px;
-            cursor: pointer;
-            transition: all 0.25s ease;
-        }
-
-        .ai-builder-cta:hover {
-            border-color: rgba(124, 92, 252, 0.5);
-            transform: translateY(-1px);
-            box-shadow: 0 8px 24px rgba(124, 92, 252, 0.15);
-        }
-
-        .cta-top {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-
-        .cta-icon {
-            font-size: 22px;
-            width: 36px;
-            height: 36px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(124, 92, 252, 0.2);
-            border-radius: 10px;
-        }
-
-        .cta-title {
-            font-size: 14px;
-            font-weight: 700;
-        }
-
-        .cta-arrow {
-            margin-left: auto;
-            color: #7c5cfc;
-            font-size: 18px;
-        }
-
-        .cta-desc {
-            font-size: 12px;
-            color: #9ca3b0;
-            line-height: 1.5;
-        }
-
-        /* Section Divider */
-        .section-divider {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 10px;
-        }
-
-        .section-divider span {
-            font-size: 10px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1.2px;
-            color: #5a6070;
-            white-space: nowrap;
-        }
-
-        .section-divider::after {
-            content: '';
-            flex: 1;
-            height: 1px;
-            background: rgba(255, 255, 255, 0.06);
-        }
-
-        /* Quick Toggle */
-        .quick-toggle {
-            background: rgba(255, 255, 255, 0.04);
-            border-radius: 12px;
-            padding: 12px 14px;
-            margin-bottom: 10px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .toggle-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .toggle-icon {
-            font-size: 18px;
-        }
-
-        .toggle-label {
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .toggle-sub {
-            font-size: 10px;
-            color: #5a6070;
-        }
-
-        .toggle-switch {
-            position: relative;
-            width: 44px;
-            height: 24px;
-        }
-
-        .toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-
-        .slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: rgba(255, 255, 255, 0.12);
-            transition: 0.3s;
-            border-radius: 24px;
-        }
-
-        .slider:before {
-            position: absolute;
-            content: "";
-            height: 18px;
-            width: 18px;
-            left: 3px;
-            bottom: 3px;
-            background-color: white;
-            transition: 0.3s;
-            border-radius: 50%;
-        }
-
-        input:checked+.slider {
-            background: linear-gradient(135deg, #7c5cfc, #5e9cff);
-        }
-
-        input:checked+.slider:before {
-            transform: translateX(20px);
-        }
-
-        /* Status */
-        .status-bar {
-            background: rgba(255, 255, 255, 0.04);
-            border-radius: 12px;
-            padding: 12px 14px;
-            margin-bottom: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.06);
-        }
-
-        .status-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 6px;
-        }
-
-        .status-row:last-child {
-            margin-bottom: 0;
-        }
-
-        .status-label {
-            font-size: 11px;
-            color: #5a6070;
-        }
-
-        .status-value {
-            font-size: 11px;
-            font-weight: 600;
-            color: #00d4aa;
-        }
-
-        .status-value.highlight {
-            color: #5e9cff;
-        }
-
-        .status-value.inactive {
-            color: #ff5757;
-        }
-
-        /* Tools Grid */
-        .tools-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-bottom: 14px;
-        }
-
-        .tool-chip {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 8px 10px;
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 8px;
-            font-size: 11px;
-            color: #5a6070;
+        .action-card {
+            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px; padding: 12px 8px; cursor: pointer;
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
             transition: all 0.2s;
         }
-
-        .tool-chip.active {
-            border-color: rgba(124, 92, 252, 0.25);
-            color: #c0c0cc;
-            background: rgba(124, 92, 252, 0.06);
+        .action-card:hover {
+            background: rgba(255,255,255,0.06); border-color: rgba(124, 92, 252, 0.3);
+            transform: translateY(-2px);
         }
+        .action-card svg { color: #5e9cff; width: 20px; height: 20px; }
+        .action-card span { font-size: 11px; font-weight: 500; color: #d0d0d5; text-align: center; }
 
-        .tool-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.12);
-            flex-shrink: 0;
+        .action-card.primary {
+            background: linear-gradient(135deg, rgba(124, 92, 252, 0.15), rgba(94, 156, 255, 0.1));
+            border-color: rgba(124, 92, 252, 0.4);
         }
+        .action-card.primary svg { color: #7c5cfc; }
 
-        .tool-chip.active .tool-dot {
-            background: #7c5cfc;
-            box-shadow: 0 0 6px rgba(124, 92, 252, 0.5);
+        .tools-list { display: flex; flex-direction: column; gap: 10px; }
+        
+        .tool-card {
+            background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04);
+            border-radius: 12px; padding: 16px; cursor: pointer;
+            transition: all 0.2s; display: flex; align-items: center; justify-content: space-between;
         }
+        .tool-card:hover {
+            border-color: rgba(124, 92, 252, 0.3); background: rgba(255,255,255,0.04);
+        }
+        
+        .tool-info { display: flex; flex-direction: column; gap: 4px; padding-right: 12px; }
+        .tool-name { font-weight: 600; font-size: 14px; color: #fff; }
+        .tool-desc { font-size: 12px; color: #8a8a9a; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+        
+        /* Toggle Switch */
+        .toggle-switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255,255,255,0.15); transition: .3s; border-radius: 20px;
+        }
+        .slider:before {
+            position: absolute; content: ""; height: 14px; width: 14px;
+            left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%;
+        }
+        input:checked + .slider { background: linear-gradient(135deg, #7c5cfc, #5e9cff); }
+        input:checked + .slider:before { transform: translateX(16px); }
 
-        /* Buttons */
-        .btn {
-            width: 100%;
-            padding: 11px;
-            border: none;
-            border-radius: 10px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            letter-spacing: 0.3px;
-            margin-bottom: 8px;
-            font-family: inherit;
+        /* Left/Right Screens */
+        .screen-title { font-size: 18px; font-weight: 700; margin-bottom: 24px; display: flex; align-items: center; gap: 10px; color: #fff;}
+        .screen-title svg { width: 22px; height: 22px; color: #7c5cfc; }
+        
+        .history-item {
+            padding: 14px; background: rgba(255,255,255,0.03); border-radius: 12px;
+            margin-bottom: 10px; font-size: 13px; color: #d0d0d5; cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.05); transition: 0.2s;
         }
+        .history-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
+        .history-date { font-size: 10px; color: #8a8a9a; margin-bottom: 4px; }
 
-        .btn-primary {
-            background: linear-gradient(135deg, #7c5cfc, #5e9cff);
-            color: white;
-            box-shadow: 0 4px 16px rgba(124, 92, 252, 0.3);
+        .settings-group { margin-bottom: 24px; }
+        .settings-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #5a5a6a; margin-bottom: 12px; font-weight: 700; }
+        .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: rgba(255,255,255,0.02); border-radius: 10px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.04); }
+        .setting-name { font-size: 13px; color: #d0d0d5; font-weight: 500; }
+        
+        .btn-outline {
+            width: 100%; padding: 12px; border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1); background: transparent;
+            color: #fff; cursor: pointer; font-weight: 600; font-size: 13px;
+            transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
         }
+        .btn-outline:hover { background: rgba(255,255,255,0.05); }
+        
+        /* Empty states */
+        .empty-state { text-align: center; padding: 40px 0; color: #5a5a6a; font-size: 13px; }
+        
+        /* SVG Icons */
+        svg { width: 18px; height: 18px; fill: currentColor; }
 
-        .btn-primary:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 24px rgba(124, 92, 252, 0.4);
-        }
-
-        .btn-yt {
-            background: linear-gradient(135deg, #FF0000, #cc0000);
-            color: white;
-            box-shadow: 0 4px 12px rgba(255, 0, 0, 0.2);
-        }
-
-        .btn-yt:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 20px rgba(255, 0, 0, 0.3);
-        }
-
-        .btn-secondary {
-            background: rgba(255, 255, 255, 0.04);
-            color: #f0f0f5;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.07);
-            border-color: rgba(124, 92, 252, 0.3);
-        }
-
-        /* Custom tools counter */
-        .custom-tools-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 4px 10px;
-            background: rgba(124, 92, 252, 0.1);
-            border-radius: 99px;
-            font-size: 11px;
-            color: #7c5cfc;
-            font-weight: 600;
-            margin-bottom: 10px;
-        }
-
-        /* Footer */
-        .footer {
-            text-align: center;
-            font-size: 10px;
-            color: #3a3e4a;
-            margin-top: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-        }
-
-        .footer img {
-            width: 16px;
-            height: 16px;
-            border-radius: 4px;
-        }
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
     </style>
 </head>
-
 <body>
-    <div class="popup-container">
-        <!-- Header -->
-        <div class="header">
-            <div class="logo-wrapper">
-                <img src="icons/logo.png" alt="New Order Global" class="logo">
+    <div class="bg-glow"></div>
+    
+    <nav class="top-navbar">
+        <button class="nav-btn" id="btn-left" title="Chat History">
+            <svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/></svg>
+        </button>
+        <div class="logo-pill">
+            NEW ORDER
+        </div>
+        <button class="nav-btn" id="btn-right" title="Settings & Integrations">
+            <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
+        </button>
+    </nav>
+
+    <div class="screens-container" id="screens-slider">
+        <!-- LEFT: Chat History -->
+        <div class="screen">
+            <div class="screen-title">
+                <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                Chat History
             </div>
-            <h1>New Order <span class="accent">Global</span></h1>
-            <p class="subtitle">AI-Powered Extension Builder</p>
-        </div>
-
-        <!-- AI Builder CTA -->
-        <div class="ai-builder-cta" id="open-builder">
-            <div class="cta-top">
-                <div class="cta-icon">⚡</div>
-                <span class="cta-title">Create a New Tool</span>
-                <span class="cta-arrow">→</span>
-            </div>
-            <p class="cta-desc">Describe what you want in plain English — AI builds it instantly.</p>
-        </div>
-
-        <!-- Custom Tools Counter -->
-        <div class="custom-tools-badge" id="custom-tools-badge" style="display:none;">
-            <span>🛠️</span>
-            <span id="custom-tools-count">0</span> custom tools active
-        </div>
-
-        <!-- YouTube Section -->
-        <div class="section-divider">
-            <span>📺 YouTube Tool</span>
-        </div>
-
-        <!-- YouTube Quick Toggle -->
-        <div class="quick-toggle">
-            <div class="toggle-info">
-                <span class="toggle-icon">📺</span>
-                <div>
-                    <div class="toggle-label">YouTube New Order</div>
-                    <div class="toggle-sub">Free built-in tool</div>
+            <div id="history-container">
+                <!-- Mock Data for sleek look -->
+                <div class="history-item">
+                    <div class="history-date">Today, 9:41 AM</div>
+                    Created "YouTube Ad Skipper" tool
+                </div>
+                <div class="history-item">
+                    <div class="history-date">Yesterday, 4:20 PM</div>
+                    Updated styling for Notion sidebar
+                </div>
+                <div class="history-item">
+                    <div class="history-date">Apr 21, 11:05 AM</div>
+                    Built custom dark mode for Wikipedia
                 </div>
             </div>
-            <label class="toggle-switch">
-                <input type="checkbox" id="quick-toggle" checked>
-                <span class="slider"></span>
-            </label>
         </div>
 
-        <!-- YouTube Status -->
-        <div class="status-bar">
-            <div class="status-row">
-                <span class="status-label">YouTube Status</span>
-                <span class="status-value status-text">Active</span>
+        <!-- CENTER: Main -->
+        <div class="screen">
+            <!-- Navigation Actions Grid -->
+            <div class="main-actions">
+                <div class="action-card primary" id="btn-create">
+                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+                    <span>Create</span>
+                </div>
+                <div class="action-card" id="btn-tools">
+                    <svg viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
+                    <span>Tools</span>
+                </div>
+                <div class="action-card" id="btn-account">
+                    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    <span>Account</span>
+                </div>
+                <div class="action-card" id="btn-settings">
+                    <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                    <span>Config</span>
+                </div>
             </div>
-            <div class="status-row">
-                <span class="status-label">Layout</span>
-                <span class="status-value highlight" id="layout-display">Swapped</span>
+
+            <div class="main-header">
+                <h2>Active Tools</h2>
             </div>
-            <div class="status-row">
-                <span class="status-label">Active Features</span>
-                <span class="status-value highlight" id="feature-count">0</span>
+            <div class="tools-list" id="tools-container">
+                <div class="empty-state" id="tools-empty">Loading tools...</div>
             </div>
         </div>
 
-        <!-- YouTube Features -->
-        <div class="section-divider">
-            <span>Active Features</span>
-        </div>
-        <div class="tools-grid" id="features-grid">
-            <!-- Dynamically populated -->
-        </div>
+        <!-- RIGHT: Extension Settings -->
+        <div class="screen">
+            <div class="screen-title">
+                <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                Integrations
+            </div>
+            
+            <div class="settings-group">
+                <div class="settings-label">Built-in Modules</div>
+                <div class="setting-row">
+                    <span class="setting-name">YouTube Toolkit</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="yt-quick-toggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
 
-        <!-- Buttons -->
-        <button class="btn btn-primary" id="open-builder-btn">⚡ AI Tool Builder</button>
-        <button class="btn btn-yt" id="open-settings">⚙️ YouTube Settings</button>
-        <button class="btn btn-secondary" id="reload-page">🔄 Reload Page</button>
+            <div class="settings-group">
+                <div class="settings-label">Active Features</div>
+                <div id="yt-features-list">
+                    <!-- Populated dynamically -->
+                </div>
+            </div>
 
-        <!-- Footer -->
-        <div class="footer">
-            <img src="icons/logo.png" alt="">
-            v2.0.0 · New Order Global
+            <div style="margin-top: 30px;">
+                <button class="btn-outline" id="btn-yt-settings">
+                    <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                    Advanced YouTube Config
+                </button>
+            </div>
         </div>
     </div>
 
@@ -502,5 +263,4 @@
     <script src="core/tool-manager.js"></script>
     <script src="popup.js"></script>
 </body>
-
 </html>
