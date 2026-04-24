@@ -140,9 +140,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast('No active tab found', 'warning');
                 return false;
             }
-            if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
-                showToast('Cannot run tools on browser pages', 'warning');
+
+            const url = tab.url || '';
+
+            // Check for restricted Chrome pages
+            if (!url || url.startsWith('chrome://') || url.startsWith('chrome-extension://') ||
+                url.startsWith('about:') || url.startsWith('edge://') || url.startsWith('brave://') ||
+                url.startsWith('devtools://') || url === 'chrome://newtab/') {
+                showToast('Navigate to a website first — tools can\'t run on browser pages', 'warning');
                 return false;
+            }
+
+            // Ensure we have host permission for this site
+            try {
+                const origin = new URL(url).origin + '/*';
+                const hasPermission = await chrome.permissions.contains({ origins: [origin] });
+                if (!hasPermission) {
+                    // Try requesting <all_urls> so it works everywhere
+                    const granted = await chrome.permissions.request({ origins: ['<all_urls>'] });
+                    if (!granted) {
+                        showToast('Permission denied — allow access to run tools', 'warning');
+                        return false;
+                    }
+                }
+            } catch (permErr) {
+                console.warn('Permission check failed:', permErr);
+                // Continue anyway — the injection itself will fail if no permission
             }
 
             // Ask background to inject
@@ -157,7 +180,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast(`"${tool.name}" is now running`, 'success');
                 return true;
             } else {
-                showToast(`Failed to run "${tool.name}"`, 'warning');
+                const errMsg = response?.error || 'Unknown error';
+                showToast(`Failed: ${errMsg}`, 'warning');
                 return false;
             }
         } catch (err) {

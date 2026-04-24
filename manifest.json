@@ -10,9 +10,11 @@
         "activeTab",
         "sidePanel"
     ],
-    "optional_host_permissions": [
-        "https://www.youtube.com/*",
+    "host_permissions": [
         "<all_urls>"
+    ],
+    "optional_host_permissions": [
+        "https://www.youtube.com/*"
     ],
     "background": {
         "service_worker": "background.js"

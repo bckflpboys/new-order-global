@@ -1,3 +1,6 @@
+// New Order Global — Tool Detail Page
+// Manages code editing, data viewing, and the AI-generated dashboard iframe
+
 document.addEventListener('DOMContentLoaded', async () => {
   const urlParams = new URLSearchParams(window.location.search);
   const toolId = urlParams.get('id');
@@ -16,11 +19,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  // ============================================
+  // Header
+  // ============================================
   document.getElementById('tool-name').innerHTML = `
-    <span style="display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; background:rgba(124,92,252,0.1); border-radius:8px; margin-right:12px; color:var(--accent-primary); vertical-align: middle;">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-    </span>
-    ${tool.name}
+    <span style="display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; background:rgba(124,92,252,0.1); border-radius:10px; margin-right:12px; font-size:20px; vertical-align:middle;">${tool.icon || '🔧'}</span>
+    ${escapeHtml(tool.name)}
   `;
   document.getElementById('tool-desc').textContent = tool.description || 'Custom AI Tool running on ' + (tool.targetSites?.join(', ') || 'all sites');
 
@@ -28,106 +32,528 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.location.href = '../builder/builder.html?loadTool=' + tool.id;
   });
 
-  // Populate Code
-  document.getElementById('code-js').value = tool.contentScript || '// No JavaScript';
-  document.getElementById('code-css').value = tool.styles || '/* No CSS */';
-  document.getElementById('code-config').value = JSON.stringify(tool.config || {}, null, 2);
+  // ============================================
+  // Code Editors — Populate
+  // ============================================
+  const codeJs = document.getElementById('code-js');
+  const codeCss = document.getElementById('code-css');
+  const codeConfig = document.getElementById('code-config');
+  const codeDashboard = document.getElementById('code-dashboard');
 
-  // Show save button if user types
+  codeJs.value = tool.contentScript || '// No JavaScript';
+  codeCss.value = tool.styles || '/* No CSS */';
+  codeConfig.value = JSON.stringify(tool.config || {}, null, 2);
+  codeDashboard.value = tool.dashboardHTML || '<!-- No dashboard HTML generated -->';
+
+  // Show save button on edit
   const btnSave = document.getElementById('btn-save');
-  const markChanged = () => { btnSave.style.display = 'inline-block'; };
-  document.getElementById('code-js').addEventListener('input', markChanged);
-  document.getElementById('code-css').addEventListener('input', markChanged);
-  document.getElementById('code-config').addEventListener('input', markChanged);
+  const markChanged = () => { btnSave.style.display = 'inline-flex'; };
+  codeJs.addEventListener('input', markChanged);
+  codeCss.addEventListener('input', markChanged);
+  codeConfig.addEventListener('input', markChanged);
+  codeDashboard.addEventListener('input', markChanged);
 
-  // Save Code Logic
+  // ============================================
+  // Save Logic
+  // ============================================
   btnSave.addEventListener('click', async () => {
     try {
-      btnSave.textContent = 'Saving...';
-      tool.contentScript = document.getElementById('code-js').value;
-      tool.styles = document.getElementById('code-css').value;
-      
+      btnSave.textContent = '⏳ Saving...';
+      btnSave.disabled = true;
+
+      tool.contentScript = codeJs.value;
+      tool.styles = codeCss.value;
+      tool.dashboardHTML = codeDashboard.value;
+
       try {
-        tool.config = JSON.parse(document.getElementById('code-config').value);
+        tool.config = JSON.parse(codeConfig.value);
       } catch (e) {
         alert('Invalid JSON in Config tab!');
-        btnSave.textContent = '💾 Save Code';
+        btnSave.textContent = '💾 Save Changes';
+        btnSave.disabled = false;
         return;
       }
 
       await ToolManager.installTool(tool);
-      if (NewOrderAuth.isAuthenticated()) {
+
+      // Sync to cloud
+      if (typeof NewOrderAuth !== 'undefined' && NewOrderAuth.isAuthenticated()) {
         try {
           await window.NewOrderAPI.saveToolToCloud(tool);
         } catch (e) {
           console.log('Failed to sync to cloud:', e);
         }
       }
-      
+
       btnSave.textContent = '✅ Saved!';
       setTimeout(() => {
         btnSave.style.display = 'none';
-        btnSave.textContent = '💾 Save Code';
+        btnSave.textContent = '💾 Save Changes';
+        btnSave.disabled = false;
       }, 2000);
+
+      // Reload dashboard iframe if dashboard HTML was changed
+      loadDashboardIframe();
+
     } catch (err) {
-      alert('Error saving code: ' + err.message);
-      btnSave.textContent = '💾 Save Code';
+      alert('Error saving: ' + err.message);
+      btnSave.textContent = '💾 Save Changes';
+      btnSave.disabled = false;
     }
   });
 
-  // Tab switching logic
-  const tabs = {
-    'js': document.getElementById('code-js'),
-    'css': document.getElementById('code-css'),
-    'config': document.getElementById('code-config')
+  // ============================================
+  // Code Tab Switching
+  // ============================================
+  const codeTabs = {
+    'js': codeJs,
+    'css': codeCss,
+    'config': codeConfig,
+    'dashboard': codeDashboard
   };
-  const btns = {
+  const tabBtns = {
     'js': document.getElementById('tab-js'),
     'css': document.getElementById('tab-css'),
-    'config': document.getElementById('tab-config')
+    'config': document.getElementById('tab-config'),
+    'dashboard': document.getElementById('tab-dashboard')
   };
 
-  function switchTab(active) {
-    Object.keys(tabs).forEach(key => {
-      tabs[key].style.display = key === active ? 'block' : 'none';
-      btns[key].style.background = key === active ? 'var(--accent-primary)' : 'transparent';
-      btns[key].style.color = key === active ? 'white' : 'var(--text-secondary)';
+  function switchCodeTab(active) {
+    Object.keys(codeTabs).forEach(key => {
+      codeTabs[key].style.display = key === active ? 'block' : 'none';
+      tabBtns[key].classList.toggle('active', key === active);
     });
   }
 
-  btns['js'].addEventListener('click', () => switchTab('js'));
-  btns['css'].addEventListener('click', () => switchTab('css'));
-  btns['config'].addEventListener('click', () => switchTab('config'));
+  Object.keys(tabBtns).forEach(key => {
+    tabBtns[key].addEventListener('click', () => switchCodeTab(key));
+  });
 
-  // Load tool data
-  chrome.storage.local.get(null, (result) => {
-    const prefix = 'toolData_' + tool.id + '_';
-    const data = {};
-    let hasData = false;
+  // ============================================
+  // Dashboard Tabs (Dashboard vs Raw Data)
+  // ============================================
+  const dashTabs = document.querySelectorAll('[data-dash-tab]');
+  const viewDashboard = document.getElementById('view-dashboard');
+  const viewRaw = document.getElementById('view-raw');
+
+  dashTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      dashTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+
+      const target = tab.dataset.dashTab;
+      viewDashboard.style.display = target === 'dashboard' ? 'block' : 'none';
+      viewRaw.style.display = target === 'raw' ? 'block' : 'none';
+    });
+  });
+
+  // ============================================
+  // Load Tool Data from chrome.storage
+  // ============================================
+  let toolData = {};
+  let toolDataKeys = [];
+
+  function loadToolData() {
+    return new Promise(resolve => {
+      chrome.storage.local.get(null, (result) => {
+        const prefix = 'toolData_' + tool.id + '_';
+        toolData = {};
+        toolDataKeys = [];
+
+        Object.keys(result).forEach(key => {
+          if (key.startsWith(prefix)) {
+            const cleanKey = key.replace(prefix, '');
+            toolData[cleanKey] = result[key];
+            toolDataKeys.push(cleanKey);
+          }
+        });
+        resolve(toolData);
+      });
+    });
+  }
+
+  // ============================================
+  // Render Stats Row
+  // ============================================
+  function renderStats() {
+    const statsEl = document.getElementById('data-stats');
+    const keyCount = toolDataKeys.length;
     
-    Object.keys(result).forEach(key => {
-      if (key.startsWith(prefix)) {
-        data[key.replace(prefix, '')] = result[key];
-        hasData = true;
-      }
+    // Count total items across all keys
+    let totalItems = 0;
+    toolDataKeys.forEach(key => {
+      const val = toolData[key];
+      if (Array.isArray(val)) totalItems += val.length;
+      else if (typeof val === 'object' && val !== null) totalItems += Object.keys(val).length;
+      else totalItems += 1;
     });
 
-    const dataContainer = document.getElementById('data-container');
-    if (hasData) {
-      document.getElementById('btn-download').style.display = 'block';
-      document.getElementById('btn-download').addEventListener('click', () => {
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = tool.name.replace(/\s+/g, '_').toLowerCase() + '_data.json';
-        a.click();
-        URL.revokeObjectURL(url);
-      });
-      
-      dataContainer.innerHTML = '<pre style="font-size: 12px; color: var(--text-secondary);">' + JSON.stringify(data, null, 2) + '</pre>';
-    } else {
-      dataContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 12px;">No data has been saved by this tool yet.</span>';
+    // Calculate data size
+    const dataStr = JSON.stringify(toolData);
+    const sizeBytes = new Blob([dataStr]).size;
+    const sizeLabel = sizeBytes > 1024 * 1024 
+      ? (sizeBytes / (1024 * 1024)).toFixed(1) + ' MB'
+      : sizeBytes > 1024 
+        ? (sizeBytes / 1024).toFixed(1) + ' KB' 
+        : sizeBytes + ' B';
+
+    if (keyCount === 0) {
+      statsEl.innerHTML = '';
+      return;
+    }
+
+    statsEl.innerHTML = `
+      <div class="data-stat">
+        <div class="data-stat-value">${keyCount}</div>
+        <div class="data-stat-label">Storage Keys</div>
+      </div>
+      <div class="data-stat">
+        <div class="data-stat-value">${totalItems}</div>
+        <div class="data-stat-label">Total Entries</div>
+      </div>
+      <div class="data-stat">
+        <div class="data-stat-value">${sizeLabel}</div>
+        <div class="data-stat-label">Data Size</div>
+      </div>
+    `;
+  }
+
+  // ============================================
+  // Render Raw Data View
+  // ============================================
+  function renderRawData(filter = '') {
+    const container = document.getElementById('data-container');
+    
+    if (toolDataKeys.length === 0) {
+      container.innerHTML = `
+        <div class="empty-data">
+          <div class="icon">📭</div>
+          <p>No data has been saved by this tool yet.<br>
+          Run the tool on a page and it will store data here.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const filtered = filter 
+      ? toolDataKeys.filter(k => k.toLowerCase().includes(filter.toLowerCase()))
+      : toolDataKeys;
+
+    if (filtered.length === 0) {
+      container.innerHTML = `<div style="padding:20px; text-align:center; color:var(--text-muted); font-size:13px;">No keys match "${escapeHtml(filter)}"</div>`;
+      return;
+    }
+
+    let html = '';
+    filtered.forEach(key => {
+      const val = toolData[key];
+      const preview = getDataPreview(val);
+      const typeBadge = getTypeBadge(val);
+
+      html += `
+        <div class="data-key-row" data-key="${escapeHtml(key)}">
+          <div class="data-key-name">${escapeHtml(key)}</div>
+          <div class="data-key-preview">${escapeHtml(preview)}</div>
+          <div class="data-key-actions">
+            <span class="data-key-badge">${typeBadge}</span>
+            <button class="btn-sm" onclick="viewKeyDetail('${escapeHtml(key)}')">👁️</button>
+            <button class="btn-sm danger" onclick="deleteKey('${escapeHtml(key)}')">🗑️</button>
+          </div>
+        </div>
+      `;
+    });
+
+    container.innerHTML = html;
+  }
+
+  function getDataPreview(val) {
+    if (val === null || val === undefined) return 'null';
+    if (typeof val === 'string') return val.length > 80 ? val.substring(0, 80) + '...' : val;
+    if (typeof val === 'number' || typeof val === 'boolean') return String(val);
+    if (Array.isArray(val)) return `[${val.length} items]`;
+    if (typeof val === 'object') return `{${Object.keys(val).length} keys}`;
+    return String(val);
+  }
+
+  function getTypeBadge(val) {
+    if (val === null || val === undefined) return 'null';
+    if (Array.isArray(val)) return `array(${val.length})`;
+    if (typeof val === 'object') return `object(${Object.keys(val).length})`;
+    return typeof val;
+  }
+
+  // Expose to global for inline onclick
+  window.viewKeyDetail = function(key) {
+    const val = toolData[key];
+    const formatted = JSON.stringify(val, null, 2);
+    
+    // Create a modal overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:32px;';
+    overlay.innerHTML = `
+      <div style="background:var(--bg-secondary);border:1px solid var(--border-color);border-radius:16px;width:100%;max-width:700px;max-height:80vh;display:flex;flex-direction:column;overflow:hidden;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border-color);">
+          <div>
+            <div style="font-weight:700;font-size:15px;">${escapeHtml(key)}</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${getTypeBadge(val)}</div>
+          </div>
+          <button id="modal-close" style="background:none;border:none;color:var(--text-secondary);font-size:20px;cursor:pointer;">✕</button>
+        </div>
+        <div style="padding:16px 20px;overflow-y:auto;flex:1;">
+          <pre style="font-size:12px;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap;word-break:break-word;">${escapeHtml(formatted)}</pre>
+        </div>
+      </div>
+    `;
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+    document.body.appendChild(overlay);
+    overlay.querySelector('#modal-close').addEventListener('click', () => overlay.remove());
+  };
+
+  window.deleteKey = async function(key) {
+    const prefix = 'toolData_' + tool.id + '_';
+    const storageKey = prefix + key;
+    
+    // Inline confirmation
+    const confirmed = confirm(`Delete key "${key}"?`);
+    if (!confirmed) return;
+    
+    await new Promise(resolve => chrome.storage.local.remove([storageKey], resolve));
+    
+    // Refresh
+    await loadToolData();
+    renderStats();
+    renderRawData(document.getElementById('data-search').value);
+    sendDataToIframe();
+  };
+
+  // ============================================
+  // Search Filter
+  // ============================================
+  document.getElementById('data-search').addEventListener('input', (e) => {
+    renderRawData(e.target.value);
+  });
+
+  // ============================================
+  // Export Buttons
+  // ============================================
+  document.getElementById('btn-download-json').addEventListener('click', () => {
+    downloadFile(
+      JSON.stringify(toolData, null, 2),
+      tool.name.replace(/\s+/g, '_').toLowerCase() + '_data.json',
+      'application/json'
+    );
+  });
+
+  document.getElementById('btn-download-csv').addEventListener('click', () => {
+    const csv = convertToCSV(toolData);
+    downloadFile(
+      csv,
+      tool.name.replace(/\s+/g, '_').toLowerCase() + '_data.csv',
+      'text/csv'
+    );
+  });
+
+  document.getElementById('btn-clear-data').addEventListener('click', async () => {
+    if (!confirm(`Clear ALL data for "${tool.name}"? This cannot be undone.`)) return;
+
+    const prefix = 'toolData_' + tool.id + '_';
+    const allKeys = toolDataKeys.map(k => prefix + k);
+    
+    if (allKeys.length > 0) {
+      await new Promise(resolve => chrome.storage.local.remove(allKeys, resolve));
+    }
+
+    await loadToolData();
+    renderStats();
+    renderRawData();
+    sendDataToIframe();
+  });
+
+  // ============================================
+  // Dashboard Iframe — Load & Bridge
+  // ============================================
+  let dashboardIframe = null;
+
+  function loadDashboardIframe() {
+    const container = document.getElementById('view-dashboard');
+    const noMsg = document.getElementById('no-dashboard-msg');
+    
+    // Remove existing iframe
+    if (dashboardIframe) {
+      dashboardIframe.remove();
+      dashboardIframe = null;
+    }
+
+    const dashHTML = tool.dashboardHTML || codeDashboard.value;
+
+    if (!dashHTML || dashHTML.trim().length < 30 || dashHTML.includes('No dashboard HTML')) {
+      // No dashboard available
+      if (noMsg) noMsg.style.display = 'block';
+      return;
+    }
+
+    if (noMsg) noMsg.style.display = 'none';
+
+    // Create sandboxed iframe with the dashboard HTML
+    dashboardIframe = document.createElement('iframe');
+    dashboardIframe.sandbox = 'allow-scripts allow-same-origin';
+    dashboardIframe.style.cssText = 'width:100%;min-height:520px;border:none;display:block;border-radius:0 0 10px 10px;';
+    
+    // Write the dashboard HTML into the iframe via srcdoc
+    dashboardIframe.srcdoc = dashHTML;
+
+    container.appendChild(dashboardIframe);
+
+    // Wait for iframe to load, then send data
+    dashboardIframe.addEventListener('load', () => {
+      sendDataToIframe();
+    });
+  }
+
+  function sendDataToIframe() {
+    if (!dashboardIframe || !dashboardIframe.contentWindow) return;
+    
+    dashboardIframe.contentWindow.postMessage({
+      type: 'toolData',
+      data: toolData,
+      toolName: tool.name,
+      toolId: tool.id
+    }, '*');
+  }
+
+  // ============================================
+  // Listen for messages from the dashboard iframe
+  // ============================================
+  window.addEventListener('message', async (event) => {
+    // Only handle messages from our iframe
+    if (!dashboardIframe || event.source !== dashboardIframe.contentWindow) return;
+
+    const msg = event.data;
+    if (!msg || !msg.type) return;
+
+    const prefix = 'toolData_' + tool.id + '_';
+
+    switch (msg.type) {
+      case 'requestData':
+        // Dashboard is requesting fresh data
+        sendDataToIframe();
+        break;
+
+      case 'exportData': {
+        const format = msg.format || 'json';
+        const filename = tool.name.replace(/\s+/g, '_').toLowerCase() + '_data';
+        if (format === 'csv') {
+          downloadFile(convertToCSV(toolData), filename + '.csv', 'text/csv');
+        } else {
+          downloadFile(JSON.stringify(toolData, null, 2), filename + '.json', 'application/json');
+        }
+        break;
+      }
+
+      case 'clearData': {
+        const allKeys = toolDataKeys.map(k => prefix + k);
+        if (allKeys.length > 0) {
+          await new Promise(resolve => chrome.storage.local.remove(allKeys, resolve));
+        }
+        await loadToolData();
+        renderStats();
+        renderRawData(document.getElementById('data-search').value);
+        sendDataToIframe();
+        break;
+      }
+
+      case 'updateData': {
+        if (msg.key) {
+          const storageKey = prefix + msg.key;
+          await new Promise(resolve => chrome.storage.local.set({ [storageKey]: msg.value }, resolve));
+          await loadToolData();
+          renderStats();
+          renderRawData(document.getElementById('data-search').value);
+        }
+        break;
+      }
+
+      case 'deleteData': {
+        if (msg.key) {
+          const storageKey = prefix + msg.key;
+          await new Promise(resolve => chrome.storage.local.remove([storageKey], resolve));
+          await loadToolData();
+          renderStats();
+          renderRawData(document.getElementById('data-search').value);
+          sendDataToIframe();
+        }
+        break;
+      }
     }
   });
+
+  // ============================================
+  // Utility Functions
+  // ============================================
+  function downloadFile(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function convertToCSV(data) {
+    // Try to find the most "tabular" data key
+    let bestKey = null;
+    let bestArray = null;
+
+    for (const key of Object.keys(data)) {
+      if (Array.isArray(data[key]) && data[key].length > 0 && typeof data[key][0] === 'object') {
+        if (!bestArray || data[key].length > bestArray.length) {
+          bestKey = key;
+          bestArray = data[key];
+        }
+      }
+    }
+
+    if (bestArray && bestArray.length > 0) {
+      // Use the array of objects as CSV rows
+      const headers = Object.keys(bestArray[0]);
+      const rows = [headers.join(',')];
+      bestArray.forEach(item => {
+        const row = headers.map(h => {
+          let val = item[h];
+          if (val === null || val === undefined) val = '';
+          val = String(val).replace(/"/g, '""');
+          return `"${val}"`;
+        });
+        rows.push(row.join(','));
+      });
+      return rows.join('\n');
+    }
+
+    // Fallback: key-value pairs
+    const rows = ['key,value'];
+    Object.keys(data).forEach(key => {
+      const val = typeof data[key] === 'object' ? JSON.stringify(data[key]) : String(data[key]);
+      rows.push(`"${key}","${val.replace(/"/g, '""')}"`);
+    });
+    return rows.join('\n');
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // ============================================
+  // Initialize Everything
+  // ============================================
+  await loadToolData();
+  renderStats();
+  renderRawData();
+  loadDashboardIframe();
 });

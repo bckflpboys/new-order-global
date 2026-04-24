@@ -898,6 +898,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('preview-code-js').textContent = tool.contentScript || '// No JavaScript generated';
     document.getElementById('preview-code-css').textContent = tool.styles || '/* No CSS generated */';
     document.getElementById('preview-code-config').textContent = JSON.stringify(tool.config || {}, null, 2);
+    document.getElementById('preview-code-dashboard').textContent = tool.dashboardHTML || '<!-- No dashboard generated -->';
 
     document.querySelectorAll('.code-tab').forEach(tab => {
       tab.addEventListener('click', () => {
@@ -907,6 +908,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('preview-code-js').style.display = tab.dataset.tab === 'js' ? 'block' : 'none';
         document.getElementById('preview-code-css').style.display = tab.dataset.tab === 'css' ? 'block' : 'none';
         document.getElementById('preview-code-config').style.display = tab.dataset.tab === 'config' ? 'block' : 'none';
+        document.getElementById('preview-code-dashboard').style.display = tab.dataset.tab === 'dashboard' ? 'block' : 'none';
       });
     });
   }
