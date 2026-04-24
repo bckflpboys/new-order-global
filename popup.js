@@ -52,15 +52,116 @@ document.addEventListener('DOMContentLoaded', () => {
             // Initialize auth to see if we can sync
             await NewOrderAuth.init();
             
-            let stats;
-            if (NewOrderAuth.isAuthenticated()) {
-                // If logged in, sync from cloud (handles 5min cache internally)
-                stats = await ToolManager.syncTools(forceSync);
-            } else {
-                // If not logged in, just get local tools
-                stats = await ToolManager.getStats();
+            if (!NewOrderAuth.isAuthenticated()) {
+                // Show Sign In / Register card instead of tools based on user request
+                cont.innerHTML = `
+                    <div class="auth-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: var(--shadow);">
+                        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                            <button class="auth-tab active" data-tab="login" style="flex: 1; padding: 10px; border: none; background: var(--accent-red); color: white; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s;">Sign In</button>
+                            <button class="auth-tab" data-tab="register" style="flex: 1; padding: 10px; border: 1px solid var(--border); background: transparent; color: var(--text-main); border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s;">Register</button>
+                        </div>
+                        
+                        <form id="popup-login-form">
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-size: 12px; margin-bottom: 6px; font-weight: 600; color: var(--accent-black);">Email</label>
+                                <input type="email" id="popup-login-email" required placeholder="your@email.com" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+                            </div>
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; font-size: 12px; margin-bottom: 6px; font-weight: 600; color: var(--accent-black);">Password</label>
+                                <input type="password" id="popup-login-password" required placeholder="••••••••" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+                            </div>
+                            <button type="submit" style="width: 100%; padding: 12px; background: var(--accent-black); color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s;">Sign In</button>
+                            <div id="popup-login-error" style="color: var(--accent-red); font-size: 12px; margin-top: 10px; text-align: center; display: none;"></div>
+                        </form>
+
+                        <form id="popup-register-form" style="display: none;">
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-size: 12px; margin-bottom: 6px; font-weight: 600; color: var(--accent-black);">Display Name</label>
+                                <input type="text" id="popup-register-name" required placeholder="Your name" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; font-size: 12px; margin-bottom: 6px; font-weight: 600; color: var(--accent-black);">Email</label>
+                                <input type="email" id="popup-register-email" required placeholder="your@email.com" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+                            </div>
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; font-size: 12px; margin-bottom: 6px; font-weight: 600; color: var(--accent-black);">Password</label>
+                                <input type="password" id="popup-register-password" minlength="8" required placeholder="••••••••" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+                            </div>
+                            <button type="submit" style="width: 100%; padding: 12px; background: var(--accent-black); color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s;">Create Account</button>
+                            <div id="popup-register-error" style="color: var(--accent-red); font-size: 12px; margin-top: 10px; text-align: center; display: none;"></div>
+                        </form>
+                    </div>
+                `;
+
+                const tabs = cont.querySelectorAll('.auth-tab');
+                const loginForm = document.getElementById('popup-login-form');
+                const registerForm = document.getElementById('popup-register-form');
+
+                tabs.forEach(tab => {
+                    tab.addEventListener('click', () => {
+                        tabs.forEach(t => {
+                            t.style.background = 'transparent';
+                            t.style.color = 'var(--text-main)';
+                            t.style.border = '1px solid var(--border)';
+                        });
+                        tab.style.background = 'var(--accent-red)';
+                        tab.style.color = 'white';
+                        tab.style.border = 'none';
+
+                        const isLogin = tab.dataset.tab === 'login';
+                        loginForm.style.display = isLogin ? 'block' : 'none';
+                        registerForm.style.display = isLogin ? 'none' : 'block';
+                    });
+                });
+
+                loginForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const email = document.getElementById('popup-login-email').value;
+                    const password = document.getElementById('popup-login-password').value;
+                    const errorEl = document.getElementById('popup-login-error');
+                    errorEl.style.display = 'none';
+                    try {
+                        const submitBtn = loginForm.querySelector('button[type="submit"]');
+                        submitBtn.textContent = 'Signing in...';
+                        submitBtn.disabled = true;
+                        await NewOrderAuth.login(email, password);
+                        loadTools(true);
+                    } catch (err) {
+                        const submitBtn = loginForm.querySelector('button[type="submit"]');
+                        submitBtn.textContent = 'Sign In';
+                        submitBtn.disabled = false;
+                        errorEl.textContent = err.message;
+                        errorEl.style.display = 'block';
+                    }
+                });
+
+                registerForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const name = document.getElementById('popup-register-name').value;
+                    const email = document.getElementById('popup-register-email').value;
+                    const password = document.getElementById('popup-register-password').value;
+                    const errorEl = document.getElementById('popup-register-error');
+                    errorEl.style.display = 'none';
+                    try {
+                        const submitBtn = registerForm.querySelector('button[type="submit"]');
+                        submitBtn.textContent = 'Creating...';
+                        submitBtn.disabled = true;
+                        await NewOrderAuth.register(email, password, name);
+                        loadTools(true);
+                    } catch (err) {
+                        const submitBtn = registerForm.querySelector('button[type="submit"]');
+                        submitBtn.textContent = 'Create Account';
+                        submitBtn.disabled = false;
+                        errorEl.textContent = err.message;
+                        errorEl.style.display = 'block';
+                    }
+                });
+
+                return;
             }
 
+            // If logged in, sync from cloud
+            const stats = await ToolManager.syncTools(forceSync);
             const tools = stats.tools || [];
             
             if (!tools.length) {
