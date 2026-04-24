@@ -1,259 +1,428 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>New Order Global</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            width: 100%; height: 100vh;
-            font-family: 'Inter', system-ui, sans-serif;
-            background: #0a0a0f; color: #f0f0f5;
-            overflow: hidden;
-            display: flex; flex-direction: column;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
-        /* Background glow effect behind main UI */
+        body {
+            width: 100%;
+            height: 100vh;
+            font-family: 'Inter', system-ui, sans-serif;
+            background: #0a0a0f;
+            color: #f0f0f5;
+            overflow: hidden;
+        }
+
         .bg-glow {
-            position: absolute; top: 0; left: 0; right: 0; height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
             background:
                 radial-gradient(ellipse at 30% -20%, rgba(124, 92, 252, 0.15) 0%, transparent 50%),
                 radial-gradient(ellipse at 70% 120%, rgba(0, 212, 170, 0.1) 0%, transparent 50%);
-            z-index: 0; pointer-events: none;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* Vertical Slider Container */
+        .vertical-container {
+            display: flex;
+            flex-direction: column;
+            height: 200%;
+            transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transform: translateY(-50%);
+            /* Start at the main app */
+        }
+
+        .v-screen {
+            height: 50%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            position: relative;
         }
 
         /* Top Navbar */
         .top-navbar {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 14px 16px; background: rgba(10,10,15,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 16px;
+            background: rgba(10, 10, 15, 0.8);
             backdrop-filter: blur(12px);
-            border-bottom: 1px solid rgba(255,255,255,0.06);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
             z-index: 10;
         }
 
         .nav-btn {
-            background: transparent; border: none;
-            color: #8a8a9a; width: 34px; height: 34px; border-radius: 8px;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer; transition: 0.2s;
+            background: transparent;
+            border: none;
+            color: #fff;
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
         }
-        .nav-btn:hover { background: rgba(255,255,255,0.08); color: #fff; }
+
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: #fff;
+        }
+
+        @keyframes pulse-dot {
+            0% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(255, 87, 87, 0.7);
+            }
+
+            70% {
+                transform: scale(1);
+                box-shadow: 0 0 0 6px rgba(255, 87, 87, 0);
+            }
+
+            100% {
+                transform: scale(0.95);
+                box-shadow: 0 0 0 0 rgba(255, 87, 87, 0);
+            }
+        }
+
+        .notification-dot {
+            position: absolute;
+            top: 6px;
+            right: 8px;
+            width: 6px;
+            height: 6px;
+            background-color: #ff5757;
+            border-radius: 50%;
+            animation: pulse-dot 2s infinite;
+        }
 
         .logo-pill {
-            background: #fff; color: #000;
-            padding: 4px 12px; border-radius: 100px;
-            font-weight: 800; font-size: 13px; letter-spacing: 0.5px;
-            display: flex; align-items: center; gap: 6px;
+            background: #fff;
+            color: #000;
+            padding: 4px 12px;
+            border-radius: 100px;
+            font-weight: 800;
+            font-size: 13px;
+            letter-spacing: 0.5px;
         }
 
-        /* Carousel Container */
+        /* Horizontal Carousel Container */
         .screens-container {
-            flex: 1; display: flex; width: 300%;
-            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+            flex: 1;
+            display: flex;
+            width: 300%;
+            transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
             transform: translateX(-33.333%);
-            z-index: 1;
         }
 
         .screen {
-            width: 33.333%; height: 100%;
-            overflow-y: auto; overflow-x: hidden;
+            width: 33.333%;
+            height: 100%;
+            overflow-y: auto;
+            overflow-x: hidden;
             padding: 20px;
         }
 
-        /* Center Main Screen */
-        .main-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; margin-top: 8px; }
-        .main-header h2 { font-size: 16px; font-weight: 600; }
-        
+        /* Styling for content items */
+        .screen-title {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #fff;
+        }
+
+        .screen-title svg {
+            width: 22px;
+            height: 22px;
+            color: #fff;
+        }
+
+        .notification-item {
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            margin-bottom: 12px;
+            display: flex;
+            gap: 14px;
+        }
+
+        .notification-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            background: rgba(124, 92, 252, 0.1);
+            color: #7c5cfc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 14px;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 2px;
+            color: #fff;
+        }
+
+        .notification-text {
+            font-size: 12px;
+            color: #8a8a9a;
+            line-height: 1.5;
+        }
+
         .main-actions {
-            display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 24px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 24px;
         }
+
         .action-card {
-            background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
-            border-radius: 12px; padding: 12px 8px; cursor: pointer;
-            display: flex; flex-direction: column; align-items: center; gap: 8px;
-            transition: all 0.2s;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 12px 8px;
+            cursor: pointer;
+            text-align: center;
+            transition: 0.2s;
         }
+
         .action-card:hover {
-            background: rgba(255,255,255,0.06); border-color: rgba(124, 92, 252, 0.3);
             transform: translateY(-2px);
+            border-color: rgba(124, 92, 252, 0.3);
         }
-        .action-card svg { color: #5e9cff; width: 20px; height: 20px; }
-        .action-card span { font-size: 11px; font-weight: 500; color: #d0d0d5; text-align: center; }
+
+        .action-card svg {
+            color: #fff;
+            width: 20px;
+            height: 20px;
+            margin-bottom: 8px;
+        }
+
+        .action-card span {
+            font-size: 11px;
+            font-weight: 500;
+            color: #d0d0d5;
+            display: block;
+        }
 
         .action-card.primary {
-            background: linear-gradient(135deg, rgba(124, 92, 252, 0.15), rgba(94, 156, 255, 0.1));
-            border-color: rgba(124, 92, 252, 0.4);
+            background: linear-gradient(135deg, rgba(124, 92, 252, 0.1), rgba(94, 156, 255, 0.05));
+            border-color: rgba(124, 92, 252, 0.2);
         }
-        .action-card.primary svg { color: #7c5cfc; }
 
-        .tools-list { display: flex; flex-direction: column; gap: 10px; }
-        
         .tool-card {
-            background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.04);
-            border-radius: 12px; padding: 16px; cursor: pointer;
-            transition: all 0.2s; display: flex; align-items: center; justify-content: space-between;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
         }
-        .tool-card:hover {
-            border-color: rgba(124, 92, 252, 0.3); background: rgba(255,255,255,0.04);
+
+        .tool-name {
+            font-weight: 600;
+            font-size: 14px;
+            color: #fff;
         }
-        
-        .tool-info { display: flex; flex-direction: column; gap: 4px; padding-right: 12px; }
-        .tool-name { font-weight: 600; font-size: 14px; color: #fff; }
-        .tool-desc { font-size: 12px; color: #8a8a9a; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
-        
-        /* Toggle Switch */
-        .toggle-switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+        .tool-desc {
+            font-size: 12px;
+            color: #8a8a9a;
+        }
+
+        .toggle-switch {
+            position: relative;
+            width: 36px;
+            height: 20px;
+        }
+
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
         .slider {
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: rgba(255,255,255,0.15); transition: .3s; border-radius: 20px;
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            transition: 0.3s;
         }
+
         .slider:before {
-            position: absolute; content: ""; height: 14px; width: 14px;
-            left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%;
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background: #fff;
+            border-radius: 50%;
+            transition: 0.3s;
         }
-        input:checked + .slider { background: linear-gradient(135deg, #7c5cfc, #5e9cff); }
-        input:checked + .slider:before { transform: translateX(16px); }
 
-        /* Left/Right Screens */
-        .screen-title { font-size: 18px; font-weight: 700; margin-bottom: 24px; display: flex; align-items: center; gap: 10px; color: #fff;}
-        .screen-title svg { width: 22px; height: 22px; color: #7c5cfc; }
-        
-        .history-item {
-            padding: 14px; background: rgba(255,255,255,0.03); border-radius: 12px;
-            margin-bottom: 10px; font-size: 13px; color: #d0d0d5; cursor: pointer;
-            border: 1px solid rgba(255,255,255,0.05); transition: 0.2s;
+        input:checked+.slider {
+            background: linear-gradient(135deg, #7c5cfc, #5e9cff);
         }
-        .history-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
-        .history-date { font-size: 10px; color: #8a8a9a; margin-bottom: 4px; }
 
-        .settings-group { margin-bottom: 24px; }
-        .settings-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #5a5a6a; margin-bottom: 12px; font-weight: 700; }
-        .setting-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: rgba(255,255,255,0.02); border-radius: 10px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.04); }
-        .setting-name { font-size: 13px; color: #d0d0d5; font-weight: 500; }
-        
+        input:checked+.slider:before {
+            transform: translateX(16px);
+        }
+
         .btn-outline {
-            width: 100%; padding: 12px; border-radius: 10px;
-            border: 1px solid rgba(255,255,255,0.1); background: transparent;
-            color: #fff; cursor: pointer; font-weight: 600; font-size: 13px;
-            transition: 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            background: transparent;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
         }
-        .btn-outline:hover { background: rgba(255,255,255,0.05); }
-        
-        /* Empty states */
-        .empty-state { text-align: center; padding: 40px 0; color: #5a5a6a; font-size: 13px; }
-        
-        /* SVG Icons */
-        svg { width: 18px; height: 18px; fill: currentColor; }
 
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+        }
     </style>
 </head>
+
 <body>
     <div class="bg-glow"></div>
-    
-    <nav class="top-navbar">
-        <button class="nav-btn" id="btn-left" title="Chat History">
-            <svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/></svg>
-        </button>
-        <div class="logo-pill">
-            NEW ORDER
-        </div>
-        <button class="nav-btn" id="btn-right" title="Settings & Integrations">
-            <svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
-        </button>
-    </nav>
 
-    <div class="screens-container" id="screens-slider">
-        <!-- LEFT: Chat History -->
-        <div class="screen">
-            <div class="screen-title">
-                <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
-                Chat History
-            </div>
-            <div id="history-container">
-                <!-- Mock Data for sleek look -->
-                <div class="history-item">
-                    <div class="history-date">Today, 9:41 AM</div>
-                    Created "YouTube Ad Skipper" tool
+    <div class="vertical-container" id="vertical-slider">
+        <!-- SCREEN TOP: Notifications -->
+        <div class="v-screen">
+            <div class="screen" style="width: 100%; height: 100%; padding-top: 40px;">
+                <div class="screen-title">
+                    <svg viewBox="0 0 24 24">
+                        <path
+                            d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" />
+                    </svg>
+                    System Notifications
                 </div>
-                <div class="history-item">
-                    <div class="history-date">Yesterday, 4:20 PM</div>
-                    Updated styling for Notion sidebar
-                </div>
-                <div class="history-item">
-                    <div class="history-date">Apr 21, 11:05 AM</div>
-                    Built custom dark mode for Wikipedia
-                </div>
-            </div>
-        </div>
 
-        <!-- CENTER: Main -->
-        <div class="screen">
-            <!-- Navigation Actions Grid -->
-            <div class="main-actions">
-                <div class="action-card primary" id="btn-create">
-                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                    <span>Create</span>
+                <div style="flex: 1; overflow-y: auto;">
+                    <div class="notification-item">
+                        <div class="notification-icon">⚙️</div>
+                        <div class="notification-content">
+                            <div class="notification-title">System Update</div>
+                            <div class="notification-text">Engine v2.1.0 is now active. All tools are running with
+                                enhanced performance.</div>
+                        </div>
+                    </div>
+                    <div class="notification-item"
+                        style="border-color: rgba(255, 87, 87, 0.2); background: rgba(255, 87, 87, 0.03);">
+                        <div class="notification-icon" style="color: #ff5757;">⚠️</div>
+                        <div class="notification-content">
+                            <div class="notification-title">Tool Warning</div>
+                            <div class="notification-text">"Wikipedia Dark Mode" failed to inject on current page.</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="action-card" id="btn-tools">
-                    <svg viewBox="0 0 24 24"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
-                    <span>Tools</span>
-                </div>
-                <div class="action-card" id="btn-account">
-                    <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-                    <span>Account</span>
-                </div>
-                <div class="action-card" id="btn-settings">
-                    <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
-                    <span>Config</span>
-                </div>
-            </div>
 
-            <div class="main-header">
-                <h2>Active Tools</h2>
-            </div>
-            <div class="tools-list" id="tools-container">
-                <div class="empty-state" id="tools-empty">Loading tools...</div>
+                <button class="btn-outline" id="btn-close-notifications" style="margin-top: 20px;">Back to App</button>
             </div>
         </div>
 
-        <!-- RIGHT: Extension Settings -->
-        <div class="screen">
-            <div class="screen-title">
-                <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
-                Integrations
-            </div>
-            
-            <div class="settings-group">
-                <div class="settings-label">Built-in Modules</div>
-                <div class="setting-row">
-                    <span class="setting-name">YouTube Toolkit</span>
-                    <label class="toggle-switch">
-                        <input type="checkbox" id="yt-quick-toggle" checked>
-                        <span class="slider"></span>
-                    </label>
-                </div>
-            </div>
-
-            <div class="settings-group">
-                <div class="settings-label">Active Features</div>
-                <div id="yt-features-list">
-                    <!-- Populated dynamically -->
-                </div>
-            </div>
-
-            <div style="margin-top: 30px;">
-                <button class="btn-outline" id="btn-yt-settings">
-                    <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.43-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
-                    Advanced YouTube Config
+        <!-- SCREEN BOTTOM: Main App -->
+        <div class="v-screen">
+            <nav class="top-navbar">
+                <button class="nav-btn" id="btn-left" title="Chat History">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z" />
+                    </svg>
                 </button>
+                <div class="logo-pill">NEW ORDER</div>
+                <div style="display: flex; gap: 4px;">
+                    <button class="nav-btn" id="btn-notifications" style="position: relative;" title="Notifications">
+                        <svg viewBox="0 0 24 24">
+                            <path
+                                d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" />
+                        </svg>
+                        <span class="notification-dot" id="dot"></span>
+                    </button>
+                    <button class="nav-btn" id="btn-right" title="Settings">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z" />
+                        </svg>
+                    </button>
+                </div>
+            </nav>
+
+            <div class="screens-container" id="horizontal-slider">
+                <!-- History -->
+                <div class="screen">
+                    <div class="screen-title">Chat History</div>
+                    <div class="notification-item">Tool "Ad Skipper" created today</div>
+                </div>
+                <!-- Main -->
+                <div class="screen">
+                    <div class="main-actions">
+                        <div class="action-card primary" id="btn-create"><svg viewBox="0 0 24 24">
+                                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                            </svg><span>Create</span></div>
+                        <div class="action-card" id="btn-tools"><svg viewBox="0 0 24 24">
+                                <path
+                                    d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z" />
+                            </svg><span>Tools</span></div>
+                        <div class="action-card" id="btn-account"><svg viewBox="0 0 24 24">
+                                <path
+                                    d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                            </svg><span>Account</span></div>
+                        <div class="action-card" id="btn-settings"><svg viewBox="0 0 24 24">
+                                <path
+                                    d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35C8.66 5.59 8.12 5.92 7.63 6.29L5.24 5.33c-.22-.08-.47 0-.59.22L2.73 8.87c-.11.21-.07.47.13.61l2.03 1.58c-.05.3-.09.63-.09.94s.04.64.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l0.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.49-.12-.61l-2.03-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6s3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                            </svg><span>Config</span></div>
+                    </div>
+                    <div class="screen-title" style="font-size:16px;">Active Tools</div>
+                    <div id="tools-container">Loading...</div>
+                </div>
+                <!-- Settings -->
+                <div class="screen">
+                    <div class="screen-title">Integrations</div>
+                    <div class="notification-item">YouTube Toolkit Active</div>
+                    <button class="btn-outline" id="btn-yt-settings">YouTube Config</button>
+                </div>
             </div>
         </div>
     </div>
@@ -263,4 +432,5 @@
     <script src="core/tool-manager.js"></script>
     <script src="popup.js"></script>
 </body>
+
 </html>
