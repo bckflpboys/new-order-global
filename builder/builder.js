@@ -485,6 +485,91 @@ document.addEventListener('DOMContentLoaded', async () => {
       renderConversations();
       historySidebar.classList.remove('open');
       
+      // Look for a tool connected to this conversation
+      try {
+        const tools = await ToolManager.getInstalledTools();
+        const convoTool = tools.find(t => t.conversationId === conversationId || t.conversationId === id);
+        
+        // Let's also check cloud tools just in case it's newly synced
+        let matchingTool = convoTool;
+        if (!matchingTool && NewOrderAuth.isAuthenticated()) {
+            const userTools = await NewOrderAPI.getUserTools();
+            matchingTool = userTools.find(t => t.conversationId === conversationId || t.conversationId === id);
+        }
+
+        if (matchingTool) {
+            currentTool = matchingTool;
+            showToolPreview(currentTool);
+            
+            // Reconstruct the context badge
+            const contextEl = document.getElementById('input-context');
+            const badge = document.getElementById('context-badge');
+            if (contextEl && badge) {
+                contextEl.style.display = 'flex';
+                badge.innerHTML = `🔧 Editing: <strong>${currentTool.name.replace(/</g, "&lt;")}</strong>`;
+                document.getElementById('context-remove').onclick = () => {
+                    contextEl.style.display = 'none';
+                    currentTool = null;
+                    document.getElementById('chat-input').placeholder = 'Describe what you want to build...';
+                };
+            }
+            document.getElementById('chat-input').placeholder = `How should I change "${currentTool.name.replace(/</g, "&lt;")}"?`;
+            
+            // Append a synthetic tool card message
+            const toolMsg = document.createElement('div');
+            toolMsg.className = 'message ai';
+            toolMsg.innerHTML = `
+                <div class="message-avatar">⚡</div>
+                <div class="message-bubble">
+                    <div class="message-content">
+                        <div style="font-style:italic; font-size:13px; color:var(--text-secondary); margin-bottom:10px;">Tool attached to this chat:</div>
+                    </div>
+                </div>
+            `;
+            
+            const contentDiv = toolMsg.querySelector('.message-content');
+            const btnGroup = document.createElement('div');
+            btnGroup.style.cssText = 'margin-top:10px; display:flex; gap:8px; align-items:stretch;';
+
+            const toolStr = encodeURIComponent(JSON.stringify(currentTool));
+            
+            const btn = document.createElement('div');
+            btn.className = 'chat-tool-btn';
+            btn.setAttribute('data-tool', toolStr);
+            btn.style.cssText = 'flex:1; padding:12px; border:1px solid var(--border-focus); background:var(--bg-card); border-radius:12px; cursor:pointer; display:flex; align-items:center; gap:12px; transition:0.2s;';
+            btn.onmouseover = () => btn.style.background = 'var(--bg-card-hover)';
+            btn.onmouseout = () => btn.style.background = 'var(--bg-card)';
+            
+            btn.innerHTML = `
+                <div style="font-size:24px; background:rgba(124, 92, 252, 0.1); padding:8px; border-radius:8px;">📦</div> 
+                <div>
+                    <div style="font-weight:700; font-size:14px; color:var(--accent-primary);">${currentTool.name.replace(/</g, "&lt;")}</div>
+                    <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Click to view files/code or iterate</div>
+                </div>
+            `;
+            
+            btn.onclick = () => {
+                currentTool = JSON.parse(decodeURIComponent(btn.getAttribute('data-tool')));
+                showToolPreview(currentTool);
+            };
+
+            const linkBtn = document.createElement('a');
+            linkBtn.href = `../dashboard/tool-detail.html?id=${currentTool.id || currentTool._id}`;
+            linkBtn.target = '_blank';
+            linkBtn.style.cssText = 'display:flex; flex-direction:column; justify-content:center; align-items:center; padding:0 16px; border:1px solid var(--border-focus); background:var(--bg-card); border-radius:12px; color:var(--text-primary); text-decoration:none; transition:0.2s;';
+            linkBtn.onmouseover = () => linkBtn.style.background = 'var(--bg-card-hover)';
+            linkBtn.onmouseout = () => linkBtn.style.background = 'var(--bg-card)';
+            linkBtn.innerHTML = `<span style="font-size:20px;">↗️</span><span style="font-size:10px; opacity:0.7; margin-top:4px;">Manage</span>`;
+
+            btnGroup.appendChild(btn);
+            btnGroup.appendChild(linkBtn);
+            contentDiv.appendChild(btnGroup);
+            chatMessages.appendChild(toolMsg);
+        }
+      } catch (err) {
+        console.error('Failed to link convo to tool', err);
+      }
+
       // Scroll to bottom
       chatMessages.scrollTop = chatMessages.scrollHeight;
     } catch (err) {
@@ -584,12 +669,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (result.tool) {
         currentTool = result.tool;
+        currentTool.conversationId = conversationId;
         const creditsUsed = result.usage?.creditsUsed || 0;
         totalCreditsUsed += creditsUsed;
 
         addMessage('ai', `✅ I've created **"${result.tool.name}"** for you!\n\n${result.tool.description}\n\n📍 **Target:** ${result.tool.targetSites?.join(', ') || 'All websites'}\n\nCheck the preview below.`, {
           creditsUsed,
           model: result.usage?.model || selectedModelId,
+          tool: currentTool
         });
 
         showToolPreview(result.tool);
@@ -691,6 +778,60 @@ document.addEventListener('DOMContentLoaded', async () => {
     const content = document.createElement('div');
     content.className = 'message-content';
     content.innerHTML = formatMessage(text);
+    
+    // Check if we need to embed a mini interactive tool card inside the message
+    if (opts.tool) {
+        const btnGroup = document.createElement('div');
+        btnGroup.style.cssText = 'margin-top:12px; display:flex; gap:8px; align-items:stretch;';
+
+        const toolStr = encodeURIComponent(JSON.stringify(opts.tool));
+        const btn = document.createElement('div');
+        btn.className = 'chat-tool-btn';
+        btn.setAttribute('data-tool', toolStr);
+        btn.style.cssText = 'flex:1; padding:12px; border:1px solid var(--border-focus); background:var(--bg-card); border-radius:12px; cursor:pointer; display:flex; align-items:center; gap:12px; transition:0.2s;';
+        btn.onmouseover = () => btn.style.background = 'var(--bg-card-hover)';
+        btn.onmouseout = () => btn.style.background = 'var(--bg-card)';
+        
+        btn.innerHTML = `
+            <div style="font-size:24px; background:rgba(124, 92, 252, 0.1); padding:8px; border-radius:8px;">📦</div> 
+            <div>
+                <div style="font-weight:700; font-size:14px; color:var(--accent-primary);">${opts.tool.name.replace(/</g, "&lt;")}</div>
+                <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Click to view files/code or iterate</div>
+            </div>
+        `;
+        
+        btn.onclick = () => {
+            currentTool = JSON.parse(decodeURIComponent(btn.getAttribute('data-tool')));
+            showToolPreview(currentTool);
+            
+            // Set context for iteration
+            const contextEl = document.getElementById('input-context');
+            const badge = document.getElementById('context-badge');
+            if (contextEl && badge) {
+                contextEl.style.display = 'flex';
+                badge.innerHTML = `🔧 Editing: <strong>${currentTool.name.replace(/</g, "&lt;")}</strong>`;
+                document.getElementById('context-remove').onclick = () => {
+                    contextEl.style.display = 'none';
+                    currentTool = null;
+                    document.getElementById('chat-input').placeholder = 'Describe what you want to build...';
+                };
+            }
+            document.getElementById('chat-input').placeholder = `How should I change "${currentTool.name.replace(/</g, "&lt;")}"?`;
+        };
+        
+        const linkBtn = document.createElement('a');
+        linkBtn.href = `../dashboard/tool-detail.html?id=${opts.tool.id || opts.tool._id}`;
+        linkBtn.target = '_blank';
+        linkBtn.style.cssText = 'display:flex; flex-direction:column; justify-content:center; align-items:center; padding:0 16px; border:1px solid var(--border-focus); background:var(--bg-card); border-radius:12px; color:var(--text-primary); text-decoration:none; transition:0.2s;';
+        linkBtn.onmouseover = () => linkBtn.style.background = 'var(--bg-card-hover)';
+        linkBtn.onmouseout = () => linkBtn.style.background = 'var(--bg-card)';
+        linkBtn.innerHTML = `<span style="font-size:20px;">↗️</span><span style="font-size:10px; opacity:0.7; margin-top:4px;">Manage</span>`;
+
+        btnGroup.appendChild(btn);
+        btnGroup.appendChild(linkBtn);
+        content.appendChild(btnGroup);
+    }
+    
     bubble.appendChild(content);
 
     // Credits + model info
@@ -785,8 +926,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       addMessage('ai', `🎉 **"${currentTool.name}"** has been saved and activated! It will run on the target site(s).`);
 
-      toolPreview.style.display = 'none';
-      currentTool = null;
+      toolPreview.style.display = 'none'; // Collapse the code preview UI, but keep editing context active
       loadInstalledTools();
     } catch (err) {
       addMessage('ai', `❌ Error saving tool: ${err.message}`);
