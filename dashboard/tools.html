@@ -41,6 +41,23 @@
     </div>
   </main>
   
+  <!-- Initial Loading Overlay -->
+  <div class="initial-loading-overlay" id="initial-loading-overlay">
+    <div class="loading-content">
+      <div class="loading-logo-container">
+        <div class="loading-glow"></div>
+        <img src="../icons/logo.png" alt="New Order" class="loading-logo">
+      </div>
+      <div class="loading-text">
+        <h2 id="loading-status">Syncing Environment</h2>
+        <div class="loading-bar">
+          <div class="loading-bar-progress"></div>
+        </div>
+        <p id="loading-subtext">Preparing your tools...</p>
+      </div>
+    </div>
+  </div>
+
   <script src="../core/api-client.js"></script>
   <script src="../core/auth.js"></script>
   <script src="../core/tool-manager.js"></script>

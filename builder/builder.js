@@ -29,12 +29,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ============================================
   // Initialize
   // ============================================
-  await initializeAuth();
-  await loadInstalledTools();
-  await loadModels();
-  renderSessionCredits();
-  if (NewOrderAuth.isAuthenticated()) {
-    await loadConversations();
+  const loadingOverlay = document.getElementById('initial-loading-overlay');
+  const loadingStatus = document.getElementById('loading-status');
+  const loadingSubtext = document.getElementById('loading-subtext');
+
+  function updateLoading(status, sub) {
+    if (loadingStatus) loadingStatus.textContent = status;
+    if (loadingSubtext) loadingSubtext.textContent = sub;
+  }
+
+  try {
+    updateLoading('Authenticating', 'Checking session...');
+    await initializeAuth();
+    
+    updateLoading('Loading Tools', 'Syncing your workspace...');
+    await loadInstalledTools();
+    
+    updateLoading('Loading Models', 'Fetching AI brains...');
+    await loadModels();
+    
+    renderSessionCredits();
+    
+    if (NewOrderAuth.isAuthenticated()) {
+      updateLoading('Loading History', 'Restoring conversations...');
+      await loadConversations();
+    }
+  } catch (err) {
+    console.error('Initialization error:', err);
+  } finally {
+    // Small delay for smooth transition
+    setTimeout(() => {
+      if (loadingOverlay) loadingOverlay.classList.add('hidden');
+    }, 800);
   }
 
   // Handle URL parameters (loadTool)

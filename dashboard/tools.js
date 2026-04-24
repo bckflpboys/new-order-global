@@ -1,15 +1,24 @@
 document.addEventListener('DOMContentLoaded', async () => {
   const container = document.getElementById('tools-container');
-  container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">Syncing tools...</div>';
+  const loadingOverlay = document.getElementById('initial-loading-overlay');
+  const loadingStatus = document.getElementById('loading-status');
+  const loadingSubtext = document.getElementById('loading-subtext');
+
+  function updateLoading(status, sub) {
+    if (loadingStatus) loadingStatus.textContent = status;
+    if (loadingSubtext) loadingSubtext.textContent = sub;
+  }
 
   try {
-    // Initialize auth
+    updateLoading('Authenticating', 'Checking session...');
     await NewOrderAuth.init();
     
     let stats;
     if (NewOrderAuth.isAuthenticated()) {
+      updateLoading('Syncing Tools', 'Fetching your AI arsenal...');
       stats = await ToolManager.syncTools();
     } else {
+      updateLoading('Loading Tools', 'Accessing local storage...');
       stats = await ToolManager.getStats();
     }
 
@@ -37,12 +46,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       <div class="tool-desc">${tool.description || 'Custom AI Tool'}</div>
     `;
     card.addEventListener('click', () => {
-      window.location.href = 'tool-detail.html?id=' + tool.id;
+      window.location.href = 'tool-detail.html?id=' + (tool.id || tool._id);
     });
     container.appendChild(card);
   });
   } catch (err) {
     console.error('Tools: Error loading tools:', err);
     container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--accent-red);">Error loading tools. Please check your connection.</div>';
+  } finally {
+    setTimeout(() => {
+      if (loadingOverlay) loadingOverlay.classList.add('hidden');
+    }, 800);
   }
 });
