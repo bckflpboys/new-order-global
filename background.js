@@ -186,13 +186,16 @@ async function injectCustomToolsIntoTab(tabId, url) {
                         target: { tabId },
                         func: (code) => {
                             try {
-                                const fn = new Function(code);
-                                fn();
+                                const script = document.createElement('script');
+                                script.textContent = code;
+                                (document.head || document.documentElement).appendChild(script);
+                                script.remove();
                             } catch (e) {
                                 console.error('[New Order] Tool execution error:', e);
                             }
                         },
-                        args: [wrappedCode]
+                        args: [wrappedCode],
+                        world: 'MAIN'
                     });
                 }
 
@@ -524,13 +527,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         target: { tabId: message.tabId },
                         func: (code) => {
                             try {
-                                const fn = new Function(code);
-                                fn();
+                                const script = document.createElement('script');
+                                script.textContent = code;
+                                (document.head || document.documentElement).appendChild(script);
+                                script.remove();
                             } catch (e) {
                                 console.error('[New Order] Tool execution error:', e);
                             }
                         },
-                        args: [wrappedCode]
+                        args: [wrappedCode],
+                        world: 'MAIN'
                     });
                 }
 

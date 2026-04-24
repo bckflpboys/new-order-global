@@ -170,68 +170,73 @@ const ToolManager = (() => {
     });
   }
 
-  // ============================================
-  // Tool Code Wrapper
-  // ============================================
   function buildToolWrapper(tool) {
     // Wraps the AI-generated code in a safe IIFE with:
     // - Guard against double-injection
-    // - Access to chrome.storage for data persistence
+    // - Bridge-based storage (works in MAIN world)
     // - A cleanup function
     // - Console namespacing
     return `
 (function() {
   'use strict';
 
-  // Guard against double-injection
-  if (window.__noTool_${tool.id.replace(/[^a-zA-Z0-9]/g, '_')}) return;
-  window.__noTool_${tool.id.replace(/[^a-zA-Z0-9]/g, '_')} = true;
+  const toolSlug = '${tool.id.replace(/[^a-zA-Z0-9]/g, '_')}';
+  if (window['__noTool_' + toolSlug]) return;
+  window['__noTool_' + toolSlug] = true;
 
   const TOOL_ID = '${tool.id}';
   const TOOL_NAME = '${tool.name.replace(/'/g, "\\'")}';
 
   console.log('[New Order] Tool active: ' + TOOL_NAME);
 
-  // Storage helpers for this tool
-  const ToolStorage = {
-    async get(key) {
-      return new Promise((resolve) => {
-        const storageKey = 'toolData_' + TOOL_ID + '_' + key;
-        chrome.storage.local.get([storageKey], (result) => {
-          resolve(result[storageKey] || null);
-        });
-      });
-    },
-    async set(key, value) {
-      return new Promise((resolve) => {
-        const storageKey = 'toolData_' + TOOL_ID + '_' + key;
-        chrome.storage.local.set({ [storageKey]: value }, resolve);
-      });
-    },
-    async getAll() {
-      return new Promise((resolve) => {
-        chrome.storage.local.get(null, (result) => {
-          const prefix = 'toolData_' + TOOL_ID + '_';
-          const data = {};
-          Object.keys(result).forEach(key => {
-            if (key.startsWith(prefix)) {
-              data[key.replace(prefix, '')] = result[key];
-            }
-          });
-          resolve(data);
-        });
-      });
-    },
-    async clear() {
-      return new Promise((resolve) => {
-        chrome.storage.local.get(null, (result) => {
-          const prefix = 'toolData_' + TOOL_ID + '_';
-          const keysToRemove = Object.keys(result).filter(k => k.startsWith(prefix));
-          chrome.storage.local.remove(keysToRemove, resolve);
-        });
+  // Storage Bridge implementation
+  const ToolStorage = (() => {
+    const prefix = 'toolData_' + TOOL_ID + '_';
+    const pendingRequests = new Map();
+
+    window.addEventListener('message', (event) => {
+      if (event.data && event.data.source === 'no-runtime-bridge') {
+        const { requestId, value, success, error } = event.data;
+        if (pendingRequests.has(requestId)) {
+          const { resolve, reject } = pendingRequests.get(requestId);
+          pendingRequests.delete(requestId);
+          if (error) reject(new Error(error));
+          else resolve(value !== undefined ? value : success);
+        }
+      }
+    });
+
+    function request(action, params = {}) {
+      const requestId = Math.random().toString(36).substr(2, 9);
+      return new Promise((resolve, reject) => {
+        pendingRequests.set(requestId, { resolve, reject });
+        window.postMessage({
+          source: 'no-tool-context',
+          type: 'storage-request',
+          requestId,
+          action,
+          prefix,
+          ...params
+        }, '*');
+        
+        // Timeout
+        setTimeout(() => {
+          if (pendingRequests.has(requestId)) {
+            pendingRequests.delete(requestId);
+            reject(new Error('Storage request timed out. Make sure the extension is active.'));
+          }
+        }, 5000);
       });
     }
-  };
+
+    return {
+      get: (key) => request('get', { key }),
+      set: (key, value) => request('set', { key, value }),
+      remove: (key) => request('remove', { key }),
+      getAll: () => request('getAll'),
+      clear: () => request('clear')
+    };
+  })();
 
   // Download helper
   function downloadData(data, filename, type = 'application/json') {
@@ -251,51 +256,38 @@ const ToolManager = (() => {
 
     const toast = document.createElement('div');
     toast.className = 'no-tool-toast';
+    toast.setAttribute('data-no-tool', TOOL_ID);
     toast.textContent = message;
-    toast.style.cssText = \`
-      position: fixed;
-      bottom: 30px;
-      right: 30px;
-      background: linear-gradient(135deg, #667eea, #764ba2);
-      color: white;
-      padding: 14px 24px;
-      border-radius: 12px;
-      font-size: 14px;
-      font-weight: 600;
-      box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
-      z-index: 999999;
-      animation: noToastIn 0.3s ease;
-      font-family: 'Inter', system-ui, sans-serif;
-    \`;
+    toast.style.cssText = 'position:fixed;bottom:30px;right:30px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:14px 24px;border-radius:12px;font-size:14px;font-weight:600;box-shadow:0 8px 32px rgba(102,126,234,0.4);z-index:999999;font-family:sans-serif;pointer-events:none;transition:0.3s;';
 
-    const style = document.createElement('style');
-    style.textContent = \`
-      @keyframes noToastIn { from { transform: translateY(20px); opacity: 0; } }
-      @keyframes noToastOut { to { transform: translateY(20px); opacity: 0; } }
-    \`;
-    document.head.appendChild(style);
+    if (!document.getElementById('no-toast-style')) {
+      const style = document.createElement('style');
+      style.id = 'no-toast-style';
+      style.textContent = '@keyframes noIn { from { transform:translateY(20px);opacity:0; } } .no-tool-toast { animation:noIn 0.3s ease; }';
+      document.head.appendChild(style);
+    }
+
     document.body.appendChild(toast);
-
     setTimeout(() => {
-      toast.style.animation = 'noToastOut 0.3s ease forwards';
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(20px)';
       setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    }, 4000);
   }
 
-  // Cleanup function — called when tool is deactivated
-  window.__noToolCleanup_${tool.id.replace(/[^a-zA-Z0-9]/g, '_')} = function() {
-    // Remove all elements injected by this tool
-    document.querySelectorAll('[data-no-tool="${tool.id}"]').forEach(el => el.remove());
-    window.__noTool_${tool.id.replace(/[^a-zA-Z0-9]/g, '_')} = false;
-    console.log('[New Order] Tool deactivated: ' + TOOL_NAME);
+  // Cleanup handler
+  window[\'__noToolCleanup_\' + toolSlug] = function() {
+    document.querySelectorAll(\'[data-no-tool="\' + TOOL_ID + \'"]\').forEach(el => el.remove());
+    window[\'__noTool_\' + toolSlug] = false;
+    console.log(\'[New Order] Tool deactivated: \' + TOOL_NAME);
   };
 
   // ============ USER TOOL CODE START ============
   try {
     ${tool.contentScript}
   } catch (err) {
-    console.error('[New Order] Tool error in ' + TOOL_NAME + ':', err);
-    showToolToast('Tool error: ' + err.message);
+    console.error(\'[New Order] Tool error in \' + TOOL_NAME + \':\', err);
+    showToolToast(\'Tool error: \' + err.message);
   }
   // ============ USER TOOL CODE END ============
 
@@ -321,20 +313,17 @@ const ToolManager = (() => {
       await chrome.scripting.executeScript({
         target: { tabId },
         func: (code) => {
-          const script = document.createElement('script');
-          script.textContent = code;
-          document.documentElement.appendChild(script);
-          script.remove();
+          try {
+            const script = document.createElement('script');
+            script.textContent = code;
+            (document.head || document.documentElement).appendChild(script);
+            script.remove();
+          } catch (e) {
+            console.error('[New Order] Script injection failed:', e);
+          }
         },
         args: [wrappedCode],
         world: 'MAIN'
-      });
-
-      // Fallback: inject directly in the isolated world
-      await chrome.scripting.executeScript({
-        target: { tabId },
-        func: new Function(wrappedCode),
-        world: 'ISOLATED'
       });
 
       console.log(`New Order Global: Injected "${tool.name}" into tab ${tabId}`);
@@ -347,9 +336,17 @@ const ToolManager = (() => {
   // Check if a URL matches any tool's target sites
   // ============================================
   function urlMatchesTool(url, tool) {
-    if (!tool.targetSites || tool.targetSites.length === 0) return false;
+    if (!tool.targetSites || tool.targetSites.length === 0) {
+      // If no sites specified, default to false (manual run Only)
+      // UNLESS the tool was designed to be global.
+      // But for security/UX, we usually want explicit sites.
+      // However, if the tool is active and we want total automation, we should check a flag.
+      return false; 
+    }
 
     return tool.targetSites.some(pattern => {
+      if (pattern === '*' || pattern === '<all_urls>' || pattern === '*://*/*') return true;
+      
       // Convert Chrome match pattern to regex
       const regexStr = pattern
         .replace(/[.+?^${}()|[\]\\]/g, '\\$&') // Escape special chars
