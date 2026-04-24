@@ -75,6 +75,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       welcomeScreen.style.display = 'none';
       chatMessages.style.display = 'flex';
     }
+  } else {
+    // Check if we just want to load a conversation directly
+    const loadConversationId = urlParams.get('conversationId');
+    if (loadConversationId && NewOrderAuth.isAuthenticated()) {
+      await selectConversation(loadConversationId);
+    }
   }
 
   // ============================================

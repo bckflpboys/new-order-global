@@ -112,9 +112,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Persistent Notifications & Activity
     // =========================================================
     function initNotifications() {
-        chrome.storage.local.get(['no_notifications', 'no_activity', 'no_unread_notifications'], (data) => {
+        chrome.storage.local.get(['no_notifications', 'no_unread_notifications'], (data) => {
             renderNotifications(data.no_notifications || []);
-            renderActivity(data.no_activity || []);
             
             if (data.no_unread_notifications) {
                 if (notificationDot) notificationDot.style.display = 'block';
@@ -127,9 +126,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (area === 'local') {
                 if (changes.no_notifications) {
                     renderNotifications(changes.no_notifications.newValue || []);
-                }
-                if (changes.no_activity) {
-                    renderActivity(changes.no_activity.newValue || []);
                 }
                 if (changes.no_unread_notifications && changes.no_unread_notifications.newValue === true) {
                     if (notificationDot) notificationDot.style.display = 'block';
@@ -159,25 +155,63 @@ document.addEventListener('DOMContentLoaded', () => {
         `).join('');
     }
 
-    function renderActivity(activity) {
-        const cont = document.getElementById('activity-container');
+    async function loadChatHistory() {
+        const cont = document.getElementById('history-container');
         if (!cont) return;
 
-        if (activity.length === 0) {
-            cont.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No recent activity</div>';
-            return;
-        }
+        cont.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Loading history...</div>';
 
-        cont.innerHTML = activity.map(n => `
-            <div class="notification-item">
-                <div class="notification-icon">${n.icon || '🛠️'}</div>
-                <div class="notification-content">
-                    <div class="notification-title">${n.title}</div>
-                    <div class="notification-text">${n.message}</div>
-                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">${new Date(n.timestamp).toLocaleTimeString()}</div>
+        try {
+            await NewOrderAuth.init();
+            if (!NewOrderAuth.isAuthenticated()) {
+                cont.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">Sign in to view chat history</div>';
+                return;
+            }
+
+            const conversations = await NewOrderAPI.getConversations();
+            
+            if (!conversations || conversations.length === 0) {
+                cont.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No conversations yet</div>';
+                return;
+            }
+
+            cont.innerHTML = conversations.map(c => {
+                const date = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Recently';
+                const hasTool = c.toolName ? true : false;
+                const icon = hasTool ? '🔧' : '💬';
+                const pillText = hasTool ? c.toolName : 'General Chat';
+
+                return `
+                <div class="history-card" data-convo="${c.id}">
+                    <div class="history-top">
+                        <div class="history-icon-wrapper">${icon}</div>
+                        <div class="history-title-group">
+                            <div class="history-title">${c.title || 'New Conversation'}</div>
+                            <div class="history-date">${date} &middot; ${c.messageCount || 0} messages</div>
+                        </div>
+                    </div>
+                    <div class="history-bottom">
+                        <div class="history-pill">
+                            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                            ${pillText}
+                        </div>
+                        <div style="font-size: 11px; color: var(--accent-red); font-weight: 700;">Open &rarr;</div>
+                    </div>
                 </div>
-            </div>
-        `).join('');
+                `;
+            }).join('');
+
+            // Add click listeners to items
+            cont.querySelectorAll('.history-card').forEach(item => {
+                item.addEventListener('click', () => {
+                    const id = item.getAttribute('data-convo');
+                    chrome.tabs.create({ url: chrome.runtime.getURL(`builder/builder.html?conversationId=${id}`) });
+                });
+            });
+
+        } catch (err) {
+            cont.innerHTML = `<div style="padding: 20px; text-align: center; color: var(--accent-red); font-size: 13px;">Error loading history</div>`;
+        }
     }
 
     // =========================================================
@@ -743,6 +777,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial load
     loadTools();
     initNotifications();
+    loadChatHistory();
 
     // --- YT Status ---
     (async () => {
