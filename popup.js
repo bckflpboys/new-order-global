@@ -164,43 +164,90 @@ document.addEventListener('DOMContentLoaded', () => {
             const stats = await ToolManager.syncTools(forceSync);
             const tools = stats.tools || [];
             
-            if (!tools.length) {
-                cont.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No tools found. <br>Create one in the AI Builder!</div>';
-                return;
-            }
-
             cont.innerHTML = '';
-            tools.forEach(t => {
-                const div = document.createElement('div');
-                div.className = 'tool-card';
-                div.onclick = (e) => { 
-                    if (e.target.tagName !== 'INPUT' && !e.target.className.includes('slider')) {
-                        open(`dashboard/tool-detail.html?id=${t.id}`); 
-                    }
-                };
-                
-                div.innerHTML = `
-                    <div>
-                        <div class="tool-name">${t.name || 'Untitled'}</div>
-                        <div class="tool-desc">${t.description || 'No description'}</div>
-                    </div>
-                    <label class="toggle-switch">
-                        <input type="checkbox" ${t.isActive ? 'checked' : ''}>
-                        <span class="slider"></span>
-                    </label>
-                `;
 
-                const checkbox = div.querySelector('input');
-                checkbox.onchange = async (e) => {
-                    if (e.target.checked) {
-                        await ToolManager.activateTool(t.id);
-                    } else {
-                        await ToolManager.deactivateTool(t.id);
-                    }
-                };
-                
-                cont.appendChild(div);
+            // 1. Add Built-in YouTube Tool
+            const ytCard = document.createElement('div');
+            ytCard.className = 'tool-card';
+            ytCard.onclick = (e) => { 
+                if (e.target.tagName !== 'INPUT' && !e.target.className.includes('slider')) {
+                    chrome.runtime.openOptionsPage(); 
+                }
+            };
+            ytCard.innerHTML = `
+                <div>
+                    <div class="tool-name">YouTube Toolkit <span style="font-size:10px; background:rgba(214,40,40,0.1); color:var(--accent-red); padding:2px 6px; border-radius:4px; margin-left:4px;">Built-in</span></div>
+                    <div class="tool-desc">Custom layouts, video tools, filters</div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="popup-yt-toggle">
+                    <span class="slider"></span>
+                </label>
+            `;
+            
+            const ytCheckbox = ytCard.querySelector('#popup-yt-toggle');
+            chrome.permissions.contains({ origins: ['https://www.youtube.com/*'] }).then((hasPerm) => {
+                ytCheckbox.checked = hasPerm;
             });
+
+            ytCheckbox.onchange = async (e) => {
+                if (e.target.checked) {
+                    try {
+                        const granted = await chrome.permissions.request({ origins: ['https://www.youtube.com/*'] });
+                        e.target.checked = granted;
+                    } catch (err) {
+                        e.target.checked = false;
+                    }
+                } else {
+                    try {
+                        const removed = await chrome.permissions.remove({ origins: ['https://www.youtube.com/*'] });
+                        e.target.checked = !removed;
+                    } catch (err) {
+                        e.target.checked = true;
+                    }
+                }
+            };
+
+            cont.appendChild(ytCard);
+
+            // 2. Add AI Builder Custom Tools
+            if (tools.length === 0) {
+                const emptyMsg = document.createElement('div');
+                emptyMsg.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px;">No custom tools found.<br>Create more in the AI Builder!</div>';
+                cont.appendChild(emptyMsg);
+            } else {
+                tools.forEach(t => {
+                    const div = document.createElement('div');
+                    div.className = 'tool-card';
+                    div.onclick = (e) => { 
+                        if (e.target.tagName !== 'INPUT' && !e.target.className.includes('slider')) {
+                            open(`dashboard/tool-detail.html?id=${t.id}`); 
+                        }
+                    };
+                    
+                    div.innerHTML = `
+                        <div>
+                            <div class="tool-name">${t.name || 'Untitled'}</div>
+                            <div class="tool-desc">${t.description || 'No description'}</div>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" ${t.isActive ? 'checked' : ''}>
+                            <span class="slider"></span>
+                        </label>
+                    `;
+
+                    const checkbox = div.querySelector('input');
+                    checkbox.onchange = async (e) => {
+                        if (e.target.checked) {
+                            await ToolManager.activateTool(t.id);
+                        } else {
+                            await ToolManager.deactivateTool(t.id);
+                        }
+                    };
+                    
+                    cont.appendChild(div);
+                });
+            }
         } catch (e) {
             console.error('Popup: Error loading tools:', e);
             cont.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--accent-red); font-size: 13px;">Error loading tools. <br>Check your connection.</div>';

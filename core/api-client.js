@@ -79,8 +79,8 @@ const NewOrderAPI = (() => {
       const data = await response.json();
 
       if (!response.ok) {
-        // Handle token expiry
-        if (response.status === 401) {
+        // Handle token expiry, EXCEPT for login/register where 401 means invalid credentials
+        if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
           await clearToken();
           throw new Error('Session expired. Please sign in again.');
         }
