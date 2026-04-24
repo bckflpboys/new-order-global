@@ -132,6 +132,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+
+        // Clear All button listener
+        const btnClearAll = document.getElementById('btn-clear-all');
+        if (btnClearAll) {
+            btnClearAll.onclick = () => {
+                chrome.storage.local.set({ no_notifications: [] });
+            };
+        }
     }
 
     function renderNotifications(notifs) {
@@ -151,8 +159,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="notification-text">${n.message}</div>
                     <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">${new Date(n.timestamp).toLocaleTimeString()}</div>
                 </div>
+                <button class="dismiss-btn" data-id="${n.id}" title="Dismiss">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
             </div>
         `).join('');
+
+        // Add dismiss listeners
+        cont.querySelectorAll('.dismiss-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const id = btn.getAttribute('data-id');
+                chrome.storage.local.get(['no_notifications'], (data) => {
+                    let filtered = (data.no_notifications || []).filter(item => item.id !== id);
+                    chrome.storage.local.set({ no_notifications: filtered });
+                });
+            });
+        });
     }
 
     async function loadChatHistory() {

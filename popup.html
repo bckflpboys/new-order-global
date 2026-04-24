@@ -200,6 +200,61 @@
             line-height: 1.5;
         }
 
+        .notification-item {
+            position: relative;
+        }
+
+        .dismiss-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            border: none;
+            background: rgba(0, 0, 0, 0.04);
+            color: var(--text-muted);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: 0.2s;
+            opacity: 0;
+        }
+
+        .notification-item:hover .dismiss-btn {
+            opacity: 1;
+        }
+
+        .dismiss-btn:hover {
+            background: rgba(214, 40, 40, 0.1);
+            color: var(--accent-red);
+        }
+
+        .dismiss-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .clear-all-btn {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-muted);
+            background: rgba(0, 0, 0, 0.05);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .clear-all-btn:hover {
+            background: var(--accent-red);
+            color: #fff;
+        }
+
         .main-actions {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -761,12 +816,15 @@
         <!-- SCREEN TOP: Notifications -->
         <div class="v-screen">
             <div class="screen" style="width: 100%; height: 100%; padding-top: 40px;">
-                <div class="screen-title">
-                    <svg viewBox="0 0 24 24">
-                        <path
-                            d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" />
-                    </svg>
-                    System Alerts
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <div class="screen-title" style="margin-bottom: 0;">
+                        <svg viewBox="0 0 24 24">
+                            <path
+                                d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" />
+                        </svg>
+                        System Alerts
+                    </div>
+                    <button id="btn-clear-all" class="clear-all-btn">Clear All</button>
                 </div>
 
                 <div style="flex: 1; overflow-y: auto;" id="notifications-container">
