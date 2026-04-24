@@ -4,10 +4,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const btnNotifications = document.getElementById('btn-notifications');
     const btnCloseNotifications = document.getElementById('btn-close-notifications');
     const notificationDot = document.getElementById('dot');
+    const notificationBadge = document.getElementById('notification-badge');
 
     btnNotifications.addEventListener('click', () => {
         verticalSlider.style.transform = 'translateY(0)';
         if (notificationDot) notificationDot.style.display = 'none';
+        // Clear badge when opening notifications
+        updateBadge(0);
     });
 
     btnCloseNotifications.addEventListener('click', () => {
@@ -43,10 +46,207 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-settings').onclick = () => open('dashboard/settings.html');
     document.getElementById('btn-yt-settings').onclick = () => chrome.runtime.openOptionsPage();
 
-    // --- Load Tools ---
+    // =========================================================
+    // Toast Notification System
+    // =========================================================
+    let badgeCount = 0;
+
+    function updateBadge(count) {
+        badgeCount = count;
+        if (notificationBadge) {
+            notificationBadge.textContent = count;
+            notificationBadge.classList.toggle('visible', count > 0);
+        }
+    }
+
+    function showToast(message, type = 'info', durationMs = 4000) {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        const icons = {
+            success: '✅',
+            info: 'ℹ️',
+            warning: '⚠️',
+        };
+
+        const toast = document.createElement('div');
+        toast.className = `popup-toast toast-${type}`;
+        toast.innerHTML = `
+            <span class="popup-toast-icon">${icons[type] || icons.info}</span>
+            <span>${message}</span>
+        `;
+        container.appendChild(toast);
+
+        // Increment badge
+        updateBadge(badgeCount + 1);
+
+        // Auto-dismiss
+        setTimeout(() => {
+            toast.classList.add('exiting');
+            setTimeout(() => toast.remove(), 300);
+        }, durationMs);
+    }
+
+    // =========================================================
+    // Run Timer Helpers
+    // =========================================================
+    const runTimers = {}; // toolId -> { startTime, intervalId, el }
+
+    function formatElapsed(ms) {
+        const totalSec = Math.floor(ms / 1000);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    function startTimer(toolId, timerEl, cardEl, dotEl) {
+        if (runTimers[toolId]) stopTimer(toolId); // prevent duplicates
+
+        const startTime = Date.now();
+        timerEl.classList.add('visible');
+        cardEl.classList.add('is-running');
+        if (dotEl) dotEl.classList.add('running');
+
+        const intervalId = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            timerEl.querySelector('.timer-value').textContent = formatElapsed(elapsed);
+        }, 1000);
+
+        runTimers[toolId] = { startTime, intervalId, el: timerEl };
+
+        // Persist run state
+        chrome.storage.local.set({ [`toolRunning_${toolId}`]: startTime });
+    }
+
+    function stopTimer(toolId) {
+        const entry = runTimers[toolId];
+        if (entry) {
+            clearInterval(entry.intervalId);
+            entry.el.classList.remove('visible');
+            delete runTimers[toolId];
+        }
+        chrome.storage.local.remove([`toolRunning_${toolId}`]);
+    }
+
+    // =========================================================
+    // Run / Stop Tool
+    // =========================================================
+    async function runToolOnCurrentTab(tool) {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab || !tab.id) {
+                showToast('No active tab found', 'warning');
+                return false;
+            }
+            if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+                showToast('Cannot run tools on browser pages', 'warning');
+                return false;
+            }
+
+            // Ask background to inject
+            const response = await chrome.runtime.sendMessage({
+                type: 'noRunToolOnTab',
+                toolId: tool.id,
+                tabId: tab.id,
+                url: tab.url
+            });
+
+            if (response && response.success) {
+                showToast(`"${tool.name}" is now running`, 'success');
+                return true;
+            } else {
+                showToast(`Failed to run "${tool.name}"`, 'warning');
+                return false;
+            }
+        } catch (err) {
+            console.error('Run tool error:', err);
+            showToast(`Error: ${err.message}`, 'warning');
+            return false;
+        }
+    }
+
+    async function stopToolOnCurrentTab(tool) {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab || !tab.id) return false;
+
+            await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                func: (toolId) => {
+                    const cleanupKey = `__noToolCleanup_${toolId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                    if (typeof window[cleanupKey] === 'function') {
+                        window[cleanupKey]();
+                    }
+                },
+                args: [tool.id]
+            });
+
+            showToast(`"${tool.name}" stopped`, 'info');
+            return true;
+        } catch (err) {
+            console.error('Stop tool error:', err);
+            return false;
+        }
+    }
+
+    // =========================================================
+    // Build Tool Card (Enhanced)
+    // =========================================================
+    function createToolCard(tool, options = {}) {
+        const { isBuiltIn = false, isAutoRun = false } = options;
+        const div = document.createElement('div');
+        div.className = 'tool-card-enhanced';
+        div.dataset.toolId = tool.id || 'youtube';
+
+        const tagHTML = isBuiltIn
+            ? '<span class="tool-tag built-in">Built-in</span>'
+            : isAutoRun
+                ? '<span class="tool-tag auto-run">Auto</span>'
+                : '<span class="tool-tag manual">Manual</span>';
+
+        // Run button tooltip varies by type
+        const runBtnTitle = isBuiltIn ? 'Refresh on current tab' : isAutoRun ? 'Re-inject on current tab' : 'Run on current tab';
+
+        div.innerHTML = `
+            <div class="tool-card-top">
+                <div class="tool-card-info">
+                    <div class="tool-name-row">
+                        <span class="tool-status-dot ${isAutoRun ? 'auto' : ''}" data-dot></span>
+                        <span class="tool-name">${tool.name || 'Untitled'}</span>
+                        ${tagHTML}
+                    </div>
+                    <div class="tool-desc">${tool.description || 'No description'}</div>
+                </div>
+                <div class="tool-card-controls">
+                    <button class="run-btn play" data-run title="${runBtnTitle}">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                    <label class="toggle-switch">
+                        <input type="checkbox" ${tool.isActive ? 'checked' : ''} data-toggle>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+            <div class="tool-card-bottom">
+                <div class="run-timer" data-timer>
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+                    <span class="timer-value">0:00</span>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted);">${isAutoRun ? 'Auto-runs · ▶ to re-inject now' : isBuiltIn ? 'YouTube suite · ▶ to refresh' : 'Click ▶ to run on this page'}</div>
+            </div>
+        `;
+
+        return div;
+    }
+
+    // =========================================================
+    // Load Tools (Main Logic)
+    // =========================================================
     const loadTools = async (forceSync = false) => {
         const cont = document.getElementById('tools-container');
-        cont.innerHTML = '<div class="tool-card" style="opacity: 0.5;"><div class="tool-name">Loading tools...</div></div>';
+        cont.innerHTML = '<div class="tool-card-enhanced" style="opacity: 0.5; text-align:center; padding:24px;"><div class="tool-name">Loading tools...</div></div>';
         
         try {
             // Initialize auth to see if we can sync
@@ -166,35 +366,34 @@ document.addEventListener('DOMContentLoaded', () => {
             
             cont.innerHTML = '';
 
-            // 1. Add Built-in YouTube Tool
-            const ytCard = document.createElement('div');
-            ytCard.className = 'tool-card';
-            ytCard.onclick = (e) => { 
-                if (e.target.tagName !== 'INPUT' && !e.target.className.includes('slider')) {
-                    chrome.runtime.openOptionsPage(); 
-                }
+            // ======================================
+            // 1. Built-in YouTube Tool Card
+            // ======================================
+            const ytTool = {
+                id: 'youtube-toolkit',
+                name: 'YouTube Toolkit',
+                description: 'Custom layouts, video tools, filters',
+                isActive: false
             };
-            ytCard.innerHTML = `
-                <div>
-                    <div class="tool-name">YouTube Toolkit <span style="font-size:10px; background:rgba(214,40,40,0.1); color:var(--accent-red); padding:2px 6px; border-radius:4px; margin-left:4px;">Built-in</span></div>
-                    <div class="tool-desc">Custom layouts, video tools, filters</div>
-                </div>
-                <label class="toggle-switch">
-                    <input type="checkbox" id="popup-yt-toggle">
-                    <span class="slider"></span>
-                </label>
-            `;
-            
-            const ytCheckbox = ytCard.querySelector('#popup-yt-toggle');
-            chrome.permissions.contains({ origins: ['https://www.youtube.com/*'] }).then((hasPerm) => {
-                ytCheckbox.checked = hasPerm;
-            });
 
-            ytCheckbox.onchange = async (e) => {
+            // Check YouTube permission
+            const hasYtPerm = await chrome.permissions.contains({ origins: ['https://www.youtube.com/*'] });
+            ytTool.isActive = hasYtPerm;
+
+            const ytCard = createToolCard(ytTool, { isBuiltIn: true });
+
+            // YouTube toggle handler
+            const ytToggle = ytCard.querySelector('[data-toggle]');
+            ytToggle.checked = hasYtPerm;
+            ytToggle.onchange = async (e) => {
                 if (e.target.checked) {
                     try {
                         const granted = await chrome.permissions.request({ origins: ['https://www.youtube.com/*'] });
                         e.target.checked = granted;
+                        if (granted) {
+                            showToast('YouTube Toolkit enabled', 'success');
+                            updateDot(ytCard, true);
+                        }
                     } catch (err) {
                         e.target.checked = false;
                     }
@@ -202,57 +401,227 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         const removed = await chrome.permissions.remove({ origins: ['https://www.youtube.com/*'] });
                         e.target.checked = !removed;
+                        if (removed) {
+                            showToast('YouTube Toolkit disabled', 'info');
+                            updateDot(ytCard, false);
+                        }
                     } catch (err) {
                         e.target.checked = true;
                     }
                 }
             };
 
+            // Click to open settings (but not on controls)
+            ytCard.addEventListener('click', (e) => {
+                if (e.target.closest('.tool-card-controls')) return;
+                chrome.runtime.openOptionsPage();
+            });
+
+            // YouTube Run/Re-inject button
+            const ytRunBtn = ytCard.querySelector('[data-run]');
+            if (ytRunBtn) {
+                ytRunBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    try {
+                        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                        if (!tab || !tab.url || !tab.url.includes('youtube.com')) {
+                            showToast('Navigate to YouTube first', 'warning');
+                            return;
+                        }
+                        // Re-inject YouTube CSS + JS
+                        await chrome.scripting.insertCSS({ target: { tabId: tab.id }, files: ['styles.css'] });
+                        await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
+                        showToast('YouTube Toolkit refreshed on tab', 'success');
+                        updateDot(ytCard, true);
+                        const timerEl = ytCard.querySelector('[data-timer]');
+                        const dotEl = ytCard.querySelector('[data-dot]');
+                        startTimer('youtube-toolkit', timerEl, ytCard, dotEl);
+                    } catch (err) {
+                        showToast('Failed to inject: ' + err.message, 'warning');
+                    }
+                });
+            }
+
+            // Show YouTube as running if permission active
+            if (hasYtPerm) {
+                updateDot(ytCard, true);
+                // Notify user
+                showToast('YouTube Toolkit is active', 'info', 3000);
+            }
+
             cont.appendChild(ytCard);
 
-            // 2. Add AI Builder Custom Tools
+            // ======================================
+            // 2. AI Builder Custom Tools
+            // ======================================
             if (tools.length === 0) {
                 const emptyMsg = document.createElement('div');
-                emptyMsg.innerHTML = '<div style="padding: 16px; text-align: center; color: var(--text-muted); font-size: 13px;">No custom tools found.<br>Create more in the AI Builder!</div>';
+                emptyMsg.className = 'empty-tools-msg';
+                emptyMsg.innerHTML = 'No custom tools found.<br>Create more in the <strong>AI Builder</strong>!';
                 cont.appendChild(emptyMsg);
             } else {
-                tools.forEach(t => {
-                    const div = document.createElement('div');
-                    div.className = 'tool-card';
-                    div.onclick = (e) => { 
-                        if (e.target.tagName !== 'INPUT' && !e.target.className.includes('slider')) {
-                            open(`dashboard/tool-detail.html?id=${t.id}`); 
-                        }
-                    };
-                    
-                    div.innerHTML = `
-                        <div>
-                            <div class="tool-name">${t.name || 'Untitled'}</div>
-                            <div class="tool-desc">${t.description || 'No description'}</div>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" ${t.isActive ? 'checked' : ''}>
-                            <span class="slider"></span>
-                        </label>
-                    `;
+                // Check current tab to determine auto-run status
+                let currentTabUrl = '';
+                try {
+                    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                    if (tab) currentTabUrl = tab.url || '';
+                } catch (e) {}
 
-                    const checkbox = div.querySelector('input');
-                    checkbox.onchange = async (e) => {
+                for (const t of tools) {
+                    // Determine if this tool auto-runs (has targetSites that match pages)
+                    const hasTargetSites = t.targetSites && t.targetSites.length > 0;
+                    const isAutoRun = hasTargetSites; // Tools with target sites auto-inject on matching pages
+
+                    const card = createToolCard(t, { isAutoRun });
+
+                    // Toggle handler
+                    const toggle = card.querySelector('[data-toggle]');
+                    toggle.onchange = async (e) => {
+                        e.stopPropagation();
                         if (e.target.checked) {
                             await ToolManager.activateTool(t.id);
+                            showToast(`"${t.name}" activated`, 'success');
+                            if (isAutoRun) {
+                                updateDot(card, true, true); // auto style
+                                showToast(`"${t.name}" will auto-run on matching sites`, 'info', 4000);
+                            }
                         } else {
                             await ToolManager.deactivateTool(t.id);
+                            showToast(`"${t.name}" deactivated`, 'info');
+                            updateDot(card, false);
+                            // Stop any running timer
+                            const timerEl = card.querySelector('[data-timer]');
+                            const dotEl = card.querySelector('[data-dot]');
+                            card.classList.remove('is-running');
+                            if (timerEl) timerEl.classList.remove('visible');
+                            if (dotEl) { dotEl.classList.remove('running'); dotEl.classList.remove('auto'); }
+                            stopTimer(t.id);
                         }
                     };
-                    
-                    cont.appendChild(div);
-                });
+
+                    // Run button handler (for manual tools)
+                    const runBtn = card.querySelector('[data-run]');
+                    if (runBtn) {
+                        let isRunning = false;
+
+                        // Check if it was already running (persisted state)
+                        const stored = await new Promise(resolve => {
+                            chrome.storage.local.get([`toolRunning_${t.id}`], result => {
+                                resolve(result[`toolRunning_${t.id}`] || null);
+                            });
+                        });
+
+                        if (stored) {
+                            // Restore running state
+                            isRunning = true;
+                            runBtn.className = 'run-btn stop';
+                            runBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+                            runBtn.title = 'Stop tool';
+                            const timerEl = card.querySelector('[data-timer]');
+                            const dotEl = card.querySelector('[data-dot]');
+                            startTimer(t.id, timerEl, card, dotEl);
+                            // Update timer to reflect actual elapsed time
+                            const elapsed = Date.now() - stored;
+                            timerEl.querySelector('.timer-value').textContent = formatElapsed(elapsed);
+                        }
+
+                        runBtn.addEventListener('click', async (e) => {
+                            e.stopPropagation();
+                            const timerEl = card.querySelector('[data-timer]');
+                            const dotEl = card.querySelector('[data-dot]');
+
+                            if (!isRunning) {
+                                // RUN
+                                const success = await runToolOnCurrentTab(t);
+                                if (success) {
+                                    isRunning = true;
+                                    runBtn.className = 'run-btn stop';
+                                    runBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+                                    runBtn.title = 'Stop tool';
+                                    startTimer(t.id, timerEl, card, dotEl);
+                                }
+                            } else {
+                                // STOP
+                                await stopToolOnCurrentTab(t);
+                                isRunning = false;
+                                runBtn.className = 'run-btn play';
+                                runBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+                                runBtn.title = 'Run on current tab';
+                                stopTimer(t.id);
+                                card.classList.remove('is-running');
+                                if (dotEl) dotEl.classList.remove('running');
+                                if (timerEl) timerEl.classList.remove('visible');
+                            }
+                        });
+                    }
+
+                    // For auto-run tools that are active, show status notification
+                    if (isAutoRun && t.isActive) {
+                        updateDot(card, true, true);
+                        // Check if tool is matching current page
+                        if (currentTabUrl && isUrlMatchingTool(currentTabUrl, t)) {
+                            showToast(`"${t.name}" is running on this page`, 'success', 3500);
+                            // Also show running indicator
+                            const timerEl = card.querySelector('[data-timer]');
+                            const dotEl = card.querySelector('[data-dot]');
+                            if (dotEl) { dotEl.classList.remove('auto'); dotEl.classList.add('running'); }
+                            card.classList.add('is-running');
+                        }
+                    }
+
+                    // Click to open tool detail (but not on controls)
+                    card.addEventListener('click', (e) => {
+                        if (e.target.closest('.tool-card-controls') || e.target.closest('[data-run]')) return;
+                        open(`dashboard/tool-detail.html?id=${t.id}`);
+                    });
+
+                    cont.appendChild(card);
+                }
             }
         } catch (e) {
             console.error('Popup: Error loading tools:', e);
             cont.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--accent-red); font-size: 13px;">Error loading tools. <br>Check your connection.</div>';
         }
     };
+
+    // =========================================================
+    // Helpers
+    // =========================================================
+    function updateDot(card, active, isAuto = false) {
+        const dot = card.querySelector('[data-dot]');
+        if (!dot) return;
+        dot.classList.remove('running', 'auto');
+        if (active) {
+            dot.classList.add(isAuto ? 'auto' : 'running');
+        }
+    }
+
+    function isUrlMatchingTool(url, tool) {
+        if (!tool.targetSites || tool.targetSites.length === 0) return false;
+        return tool.targetSites.some(pattern => {
+            const regexStr = pattern
+                .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
+                .replace(/\\\*/g, '.*')
+                .replace(/^\\\*:/, '(https?|ftp):');
+            try {
+                return new RegExp(`^${regexStr}$`).test(url);
+            } catch {
+                return false;
+            }
+        });
+    }
+
+    // =========================================================
+    // Listen for messages from background (tool status updates)
+    // =========================================================
+    chrome.runtime.onMessage.addListener((msg) => {
+        if (msg.type === 'toolInjected') {
+            showToast(`"${msg.toolName}" injected on this page`, 'success', 3500);
+        }
+        if (msg.type === 'toolError') {
+            showToast(`"${msg.toolName}" failed: ${msg.error}`, 'warning', 5000);
+        }
+    });
 
     // Initial load
     loadTools();

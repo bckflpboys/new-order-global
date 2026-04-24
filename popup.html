@@ -385,6 +385,267 @@
         ::-webkit-scrollbar-thumb:hover {
             background: rgba(0, 0, 0, 0.1);
         }
+
+        /* === Run Controls === */
+        .tool-card-enhanced {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+            transition: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+        }
+
+        .tool-card-enhanced:hover {
+            border-color: var(--accent-red);
+            background: #fff;
+        }
+
+        .tool-card-enhanced.is-running {
+            border-color: rgba(34, 197, 94, 0.35);
+            background: rgba(34, 197, 94, 0.03);
+        }
+
+        .tool-card-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .tool-card-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .tool-name-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 2px;
+        }
+
+        .tool-status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: rgba(0,0,0,0.15);
+            transition: 0.3s;
+        }
+
+        .tool-status-dot.running {
+            background: #22c55e;
+            box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+            animation: pulse-green 1.8s infinite;
+        }
+
+        .tool-status-dot.auto {
+            background: #3b82f6;
+            box-shadow: 0 0 6px rgba(59, 130, 246, 0.4);
+        }
+
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.5); }
+            70% { box-shadow: 0 0 0 5px rgba(34,197,94,0); }
+            100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); }
+        }
+
+        .tool-card-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .run-btn {
+            width: 32px;
+            height: 32px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            padding: 0;
+        }
+
+        .run-btn.play {
+            background: var(--accent-red);
+            color: #fff;
+        }
+
+        .run-btn.play:hover {
+            background: #b71c1c;
+            transform: scale(1.08);
+        }
+
+        .run-btn.stop {
+            background: rgba(0, 0, 0, 0.08);
+            color: var(--accent-black);
+        }
+
+        .run-btn.stop:hover {
+            background: rgba(214, 40, 40, 0.12);
+            color: var(--accent-red);
+        }
+
+        .run-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .tool-card-bottom {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border);
+        }
+
+        .run-timer {
+            font-size: 11px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+            color: #22c55e;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .run-timer.visible {
+            opacity: 1;
+        }
+
+        .run-timer svg {
+            width: 12px;
+            height: 12px;
+        }
+
+        .tool-tag {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 6px;
+            letter-spacing: 0.3px;
+        }
+
+        .tool-tag.built-in {
+            background: rgba(214, 40, 40, 0.08);
+            color: var(--accent-red);
+        }
+
+        .tool-tag.auto-run {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+
+        .tool-tag.manual {
+            background: rgba(0, 0, 0, 0.06);
+            color: var(--text-muted);
+        }
+
+        /* === Toast Notification === */
+        .popup-toast-container {
+            position: fixed;
+            top: 56px;
+            left: 12px;
+            right: 12px;
+            z-index: 1000;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .popup-toast {
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 14px;
+            border-radius: 12px;
+            background: var(--accent-black);
+            color: #fff;
+            font-size: 12.5px;
+            font-weight: 500;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.18);
+            animation: toastSlideIn 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transition: all 0.3s ease;
+        }
+
+        .popup-toast.toast-success {
+            background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+            border-left: 3px solid #22c55e;
+        }
+
+        .popup-toast.toast-info {
+            background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+            border-left: 3px solid #3b82f6;
+        }
+
+        .popup-toast.toast-warning {
+            background: linear-gradient(135deg, #1a1a1a, #2d2d2d);
+            border-left: 3px solid #f59e0b;
+        }
+
+        .popup-toast-icon {
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .popup-toast.exiting {
+            animation: toastSlideOut 0.3s ease forwards;
+        }
+
+        @keyframes toastSlideIn {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        @keyframes toastSlideOut {
+            to { transform: translateY(-20px); opacity: 0; }
+        }
+
+        /* === Notification Badge (counter) === */
+        .notification-badge {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            min-width: 16px;
+            height: 16px;
+            border-radius: 8px;
+            background: var(--accent-red);
+            color: #fff;
+            font-size: 9px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 4px;
+            line-height: 1;
+            transform: scale(0);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .notification-badge.visible {
+            transform: scale(1);
+        }
+
+        /* === Empty State === */
+        .empty-tools-msg {
+            padding: 20px;
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 13px;
+            line-height: 1.6;
+        }
     </style>
 </head>
 
@@ -442,6 +703,7 @@
                                 d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.63-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2zm-2 1H8v-6c0-2.48 1.51-4.5 4-4.5s4 2.02 4 4.5v6z" />
                         </svg>
                         <span class="notification-dot" id="dot"></span>
+                        <span class="notification-badge" id="notification-badge">0</span>
                     </button>
                     <button class="nav-btn" id="btn-right" title="Settings">
                         <svg viewBox="0 0 24 24">
@@ -504,6 +766,9 @@
             </div>
         </div>
     </div>
+
+    <!-- Toast container -->
+    <div class="popup-toast-container" id="toast-container"></div>
 
     <script src="core/api-client.js"></script>
     <script src="core/auth.js"></script>

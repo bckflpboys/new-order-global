@@ -172,8 +172,12 @@ async function injectCustomToolsIntoTab(tabId, url) {
                 }
 
                 console.log(`New Order Global: Injected tool "${tool.name}" into tab ${tabId}`);
+
+                // Broadcast to popup / side panel that a tool was injected
+                broadcastToPopup({ type: 'toolInjected', toolId: tool.id, toolName: tool.name });
             } catch (err) {
                 console.error(`New Order Global: Failed to inject tool "${tool.name}":`, err);
+                broadcastToPopup({ type: 'toolError', toolId: tool.id, toolName: tool.name, error: err.message });
             }
         }
 
@@ -182,6 +186,13 @@ async function injectCustomToolsIntoTab(tabId, url) {
         console.error('New Order Global: Error injecting custom tools:', err);
         return 0;
     }
+}
+
+// Broadcast a message to popup / side panel pages
+function broadcastToPopup(msg) {
+    chrome.runtime.sendMessage(msg).catch(() => {
+        // Popup/side panel not open — ignore
+    });
 }
 
 // ============================================
@@ -454,6 +465,52 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
                 sendResponse({ success: true, active: !isActive });
             } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Run a specific tool on a specific tab (manual run from popup)
+    if (message.type === 'noRunToolOnTab') {
+        (async () => {
+            try {
+                const tools = await ToolManager.getInstalledTools();
+                const tool = tools.find(t => t.id === message.toolId);
+                if (!tool) {
+                    sendResponse({ success: false, error: 'Tool not found' });
+                    return;
+                }
+
+                // Inject styles
+                if (tool.styles) {
+                    await chrome.scripting.insertCSS({
+                        target: { tabId: message.tabId },
+                        css: tool.styles
+                    });
+                }
+
+                // Inject the script
+                if (tool.contentScript) {
+                    const wrappedCode = ToolManager.buildToolWrapper(tool);
+                    await chrome.scripting.executeScript({
+                        target: { tabId: message.tabId },
+                        func: (code) => {
+                            try {
+                                const fn = new Function(code);
+                                fn();
+                            } catch (e) {
+                                console.error('[New Order] Tool execution error:', e);
+                            }
+                        },
+                        args: [wrappedCode]
+                    });
+                }
+
+                console.log(`New Order Global: Manually ran tool "${tool.name}" on tab ${message.tabId}`);
+                sendResponse({ success: true });
+            } catch (err) {
+                console.error(`New Order Global: Failed to run tool:`, err);
                 sendResponse({ success: false, error: err.message });
             }
         })();
