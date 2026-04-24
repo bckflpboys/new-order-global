@@ -466,3 +466,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return false; // Don't block
     }
 });
+
+// ============================================
+// Configure Side Panel Behavior
+// ============================================
+if (chrome.sidePanel) {
+    chrome.sidePanel
+        .setPanelBehavior({ openPanelOnActionClick: true })
+        .catch((error) => console.error(error));
+}
