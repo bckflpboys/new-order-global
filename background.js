@@ -9,7 +9,32 @@
 // ============================================
 // Import core modules
 // ============================================
+// ============================================
+// Import core modules
+// ============================================
 importScripts('core/api-client.js', 'core/tool-manager.js', 'core/auth.js');
+
+// ============================================
+// Notifications System
+// ============================================
+async function addActivityActivityOrNotification(title, message, type = 'info', icon = '⚙️', isActivity = false) {
+    const storageKey = isActivity ? 'no_activity' : 'no_notifications';
+    const unreadKey = isActivity ? 'no_unread_activity' : 'no_unread_notifications';
+    
+    const data = await chrome.storage.local.get([storageKey]);
+    let items = data[storageKey] || [];
+    items.unshift({
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+        title,
+        message,
+        type,
+        icon,
+        timestamp: Date.now()
+    });
+    items = items.slice(0, 50); // Keep last 50
+    await chrome.storage.local.set({ [storageKey]: items, [unreadKey]: true });
+}
+
 
 // ============================================
 // Constants
@@ -175,9 +200,11 @@ async function injectCustomToolsIntoTab(tabId, url) {
 
                 // Broadcast to popup / side panel that a tool was injected
                 broadcastToPopup({ type: 'toolInjected', toolId: tool.id, toolName: tool.name });
+                addActivityActivityOrNotification('Tool Injected', `"${tool.name}" was injected on this page.`, 'success', '✨', true);
             } catch (err) {
                 console.error(`New Order Global: Failed to inject tool "${tool.name}":`, err);
                 broadcastToPopup({ type: 'toolError', toolId: tool.id, toolName: tool.name, error: err.message });
+                addActivityActivityOrNotification('Tool Error', `"${tool.name}" failed: ${err.message}`, 'error', '⚠️', false);
             }
         }
 
@@ -508,9 +535,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
 
                 console.log(`New Order Global: Manually ran tool "${tool.name}" on tab ${message.tabId}`);
+                addActivityActivityOrNotification('Tool Run', `"${tool.name}" was manually run on the current page.`, 'success', '▶️', true);
                 sendResponse({ success: true });
             } catch (err) {
                 console.error(`New Order Global: Failed to run tool:`, err);
+                addActivityActivityOrNotification('Tool Error', `Failed to run tool: ${err.message}`, 'error', '⚠️', false);
                 sendResponse({ success: false, error: err.message });
             }
         })();

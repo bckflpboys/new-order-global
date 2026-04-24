@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (notificationDot) notificationDot.style.display = 'none';
         // Clear badge when opening notifications
         updateBadge(0);
+        chrome.storage.local.set({ no_unread_notifications: false });
     });
 
     btnCloseNotifications.addEventListener('click', () => {
@@ -59,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showToast(message, type = 'info', durationMs = 4000) {
+    function showToast(message, type = 'info', durationMs = 4000, persist = true) {
         const container = document.getElementById('toast-container');
         if (!container) return;
 
@@ -85,6 +86,98 @@ document.addEventListener('DOMContentLoaded', () => {
             toast.classList.add('exiting');
             setTimeout(() => toast.remove(), 300);
         }, durationMs);
+
+        if (persist) {
+            chrome.storage.local.get(['no_notifications'], (data) => {
+                let notifs = data.no_notifications || [];
+                let title = type === 'success' ? 'Success' : type === 'warning' ? 'Alert' : 'System Info';
+                if (message.includes('activated') || message.includes('enabled')) title = 'Service Activated';
+                if (message.includes('deactivated') || message.includes('disabled') || message.includes('stopped')) title = 'Service Stopped';
+                
+                notifs.unshift({
+                    id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                    title: title,
+                    message,
+                    type,
+                    icon: icons[type] || icons.info,
+                    timestamp: Date.now()
+                });
+                notifs = notifs.slice(0, 50);
+                chrome.storage.local.set({ no_notifications: notifs, no_unread_notifications: true });
+            });
+        }
+    }
+
+    // =========================================================
+    // Persistent Notifications & Activity
+    // =========================================================
+    function initNotifications() {
+        chrome.storage.local.get(['no_notifications', 'no_activity', 'no_unread_notifications'], (data) => {
+            renderNotifications(data.no_notifications || []);
+            renderActivity(data.no_activity || []);
+            
+            if (data.no_unread_notifications) {
+                if (notificationDot) notificationDot.style.display = 'block';
+            } else {
+                if (notificationDot) notificationDot.style.display = 'none';
+            }
+        });
+
+        chrome.storage.onChanged.addListener((changes, area) => {
+            if (area === 'local') {
+                if (changes.no_notifications) {
+                    renderNotifications(changes.no_notifications.newValue || []);
+                }
+                if (changes.no_activity) {
+                    renderActivity(changes.no_activity.newValue || []);
+                }
+                if (changes.no_unread_notifications && changes.no_unread_notifications.newValue === true) {
+                    if (notificationDot) notificationDot.style.display = 'block';
+                }
+            }
+        });
+    }
+
+    function renderNotifications(notifs) {
+        const cont = document.getElementById('notifications-container');
+        if (!cont) return;
+
+        if (notifs.length === 0) {
+            cont.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No new alerts</div>';
+            return;
+        }
+
+        cont.innerHTML = notifs.map(n => `
+            <div class="notification-item" ${n.type === 'warning' || n.type === 'error' ? 'style="border-color: rgba(214, 40, 40, 0.15); background: #fff;"' : ''}>
+                <div class="notification-icon" ${n.type === 'warning' || n.type === 'error' ? 'style="color: var(--accent-red); background: rgba(214, 40, 40, 0.05);"' : ''}>${n.icon || 'ℹ️'}</div>
+                <div class="notification-content">
+                    <div class="notification-title" ${n.type === 'warning' || n.type === 'error' ? 'style="color: var(--accent-red);"' : ''}>${n.title}</div>
+                    <div class="notification-text">${n.message}</div>
+                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">${new Date(n.timestamp).toLocaleTimeString()}</div>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    function renderActivity(activity) {
+        const cont = document.getElementById('activity-container');
+        if (!cont) return;
+
+        if (activity.length === 0) {
+            cont.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No recent activity</div>';
+            return;
+        }
+
+        cont.innerHTML = activity.map(n => `
+            <div class="notification-item">
+                <div class="notification-icon">${n.icon || '🛠️'}</div>
+                <div class="notification-content">
+                    <div class="notification-title">${n.title}</div>
+                    <div class="notification-text">${n.message}</div>
+                    <div style="font-size: 10px; color: var(--text-muted); margin-top: 4px;">${new Date(n.timestamp).toLocaleTimeString()}</div>
+                </div>
+            </div>
+        `).join('');
     }
 
     // =========================================================
@@ -640,15 +733,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================
     chrome.runtime.onMessage.addListener((msg) => {
         if (msg.type === 'toolInjected') {
-            showToast(`"${msg.toolName}" injected on this page`, 'success', 3500);
+            showToast(`"${msg.toolName}" injected on this page`, 'success', 3500, false);
         }
         if (msg.type === 'toolError') {
-            showToast(`"${msg.toolName}" failed: ${msg.error}`, 'warning', 5000);
+            showToast(`"${msg.toolName}" failed: ${msg.error}`, 'warning', 5000, false);
         }
     });
 
     // Initial load
     loadTools();
+    initNotifications();
 
     // --- YT Status ---
     (async () => {

@@ -665,23 +665,8 @@
                     System Alerts
                 </div>
 
-                <div style="flex: 1; overflow-y: auto;">
-                    <div class="notification-item">
-                        <div class="notification-icon">⚙️</div>
-                        <div class="notification-content">
-                            <div class="notification-title">System Update</div>
-                            <div class="notification-text">Engine v2.1.0 is now active. All tools are running with
-                                enhanced performance.</div>
-                        </div>
-                    </div>
-                    <div class="notification-item"
-                        style="border-color: rgba(214, 40, 40, 0.15); background: #fff;">
-                        <div class="notification-icon" style="color: var(--accent-red); background: rgba(214, 40, 40, 0.05);">⚠️</div>
-                        <div class="notification-content">
-                            <div class="notification-title" style="color: var(--accent-red);">Tool Warning</div>
-                            <div class="notification-text">"Wikipedia Dark Mode" failed to inject on current page.</div>
-                        </div>
-                    </div>
+                <div style="flex: 1; overflow-y: auto;" id="notifications-container">
+                    <!-- Notifications will be injected here -->
                 </div>
 
                 <button class="btn-outline" id="btn-close-notifications" style="margin-top: 24px;">Return to Dashboard</button>
@@ -718,12 +703,8 @@
                 <!-- History -->
                 <div class="screen">
                     <div class="screen-title">Recent Activity</div>
-                    <div class="notification-item">
-                        <div class="notification-icon">🛠️</div>
-                        <div class="notification-content">
-                            <div class="notification-title">Tool Created</div>
-                            <div class="notification-text">"Ad Skipper" was successfully generated today.</div>
-                        </div>
+                    <div id="activity-container">
+                        <!-- Activity will be injected here -->
                     </div>
                 </div>
                 <!-- Main -->
