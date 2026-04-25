@@ -185,10 +185,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="model-modal">
           <div class="model-modal-header">
             <div class="model-tabs">
-              <button class="model-tab active" data-group="BETA">✨ Beta</button>
               <button class="model-tab" data-group="FREE">⚡ Free</button>
+              <button class="model-tab active" data-group="STANDARD">🚀 Standard</button>
               <button class="model-tab" data-group="PREMIUM">💎 Premium</button>
-              <button class="model-tab" data-group="BYOK">🔑 BYOK</button>
             </div>
           </div>
           <div class="model-modal-body" id="model-modal-list"></div>
@@ -209,7 +208,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       });
     }
 
-    renderModelList('BETA');
+    renderModelList('STANDARD');
     overlay.classList.add('active');
   }
 
@@ -217,23 +216,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     const list = document.getElementById('model-modal-list');
     if (!list) return;
 
-    // Filter models by group (assuming the API provides some category or we map them)
-    // For now, let's distribute them based on some criteria if category is missing
     const filteredModels = availableModels.filter(m => {
-      if (group === 'BETA') return m.id.includes('3.5') || m.id.includes('qwen');
-      if (group === 'FREE') return m.id.includes('lite') || m.id.includes('flash');
-      if (group === 'PREMIUM') return m.id.includes('pro') || m.id.includes('ultra') || m.id.includes('sonnet');
-      if (group === 'BYOK') return false; // Placeholder
+      if (group === 'FREE') return m.tier === 'free';
+      if (group === 'STANDARD') return m.tier === 'standard';
+      if (group === 'PREMIUM') return m.tier === 'premium';
       return true;
     });
 
     list.innerHTML = filteredModels.map(m => {
       const isSelected = m.id === selectedModelId;
       const tags = [];
-      if (m.id.includes('reasoning') || m.id.includes('sonnet')) tags.push('<span class="model-tag reasoning">Reasoning</span>');
-      if (m.id.includes('vision')) tags.push('<span class="model-tag vision">Vision</span>');
-      if (m.id.includes('lite') || m.id.includes('flash')) tags.push('<span class="model-tag fast">Fast</span>');
-      if (m.id.includes('pro')) tags.push('<span class="model-tag full">Full</span>');
+      if (m.name.toLowerCase().includes('reasoning') || m.name.toLowerCase().includes('sonnet')) tags.push('<span class="model-tag reasoning">Reasoning</span>');
+      if (m.name.toLowerCase().includes('vision')) tags.push('<span class="model-tag vision">Vision</span>');
+      if (m.tier === 'free') tags.push('<span class="model-tag fast">Fast</span>');
+      if (m.tier === 'premium') tags.push('<span class="model-tag full">Full</span>');
 
       return `
         <div class="model-card ${isSelected ? 'selected' : ''}" data-id="${m.id}">
