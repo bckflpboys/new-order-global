@@ -1,7 +1,8 @@
 {
     "manifest_version": 3,
+    "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyOKNBMeDLUaXv+hqOYs5GiCD8P7m6835Bc+m6LuGaruzMHT5Roaq7Wgnb3Q1pciT8Xgmkuqqnnh5ANiEu8dbRy08Ymsppg0CzDn8sHIGA0ryBqVSnVanNOfv4HCwi8m/7TH6jnNZba3+2i/Wr/t48vWACN5QZivGGK/tZcA3mD/VSpx01fpnbVE3XtkGL+mPUkYKe0GZHjnzBmfMjI7plmF8+dor2YSxilLicV4QYAvpIgzNK1kE5KvNcIo1VCMw+bbsd+Fh+yWn0emDRH0gIsxwZ+/s6tuIg7ILspBqZ3kxfjj6PWhNNCrcj/+EvrShH2LpDY/m/TsMpHya1GTBjQIDAQAB",
     "name": "New Order Global",
-    "version": "2.0.0",
+    "version": "1.0.0",
     "description": "AI-powered Chrome extension builder. Describe what you want, and AI creates custom tools for any website. Includes built-in YouTube enhancements.",
     "permissions": [
         "storage",
