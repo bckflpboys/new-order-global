@@ -1,46 +1,48 @@
 # New Order Global — Chrome Extension
 
-> **AI-Powered Chrome Extension Builder.** Describe what you want in plain English — AI builds custom tools for any website.
-
-Built-in: YouTube New Order (free layout customization tool).
+> **AI-Powered Chrome Extension Builder.** Describe what you want in plain English — AI builds custom tools for any website. Includes a built-in YouTube layout customization tool (free).
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-Chrome Extension
-├── manifest.json          # V3 manifest — permissions, resources
-├── popup.html/js          # Extension popup — quick controls + AI Builder CTA
-├── background.js          # Service worker — YouTube injection + AI tool injection
-├── content.js             # YouTube content script (built-in free tool)
-├── styles.css             # YouTube tool styles
-├── settings.html/js/css   # YouTube settings page
+new order global/
+├── manifest.json           # Manifest V3 — permissions, content scripts, side panel
+├── background.js           # Service worker — tab monitoring, tool injection orchestration
 │
-├── core/                  # New Order Global framework
-│   ├── api-client.js      # Communicates with backend server
-│   ├── tool-manager.js    # Installs, activates, injects AI tools
-│   ├── tool-runtime.js    # Sandboxed runtime for generated code
-│   └── auth.js            # User session management
+├── popup.html / popup.js    # Side panel UI — auth, tool list, AI builder entry point
 │
-├── builder/               # AI Tool Builder (full-page chat UI)
-│   ├── builder.html
-│   ├── builder.js
-│   └── builder.css
+├── core/                   # New Order Global framework
+│   ├── api-client.js       # HTTP client — auth, AI, tools, billing, conversations
+│   ├── tool-manager.js     # Install, activate, inject, sync AI-generated tools
+│   ├── tool-runtime.js     # Content script — storage bridge (ISOLATED ↔ MAIN world)
+│   └── auth.js             # Auth state management — login, register, session tracking
 │
-└── server/                # Backend API (deployed separately)
-    ├── server.js           # Express entry point
-    ├── models/             # MongoDB schemas (User, Tool)
-    ├── routes/             # API routes (auth, ai, tools, billing)
-    ├── middleware/          # JWT auth, rate limiting
-    └── services/           # OpenRouter AI integration
+├── builder/                # AI Tool Builder (full-page chat interface)
+│   ├── builder.html        # Chat UI layout
+│   ├── builder.js          # Conversation flow, code preview, tool acceptance
+│   └── builder.css         # Builder styling
+│
+├── dashboard/              # Extension dashboard pages
+│   ├── billing.html/js     # Credit balance, purchase packages
+│   ├── settings.html/js    # User settings
+│   ├── tools.html/js       # Tool management list
+│   ├── tool-detail.html/js # Tool detail view with dashboard iframe
+│   └── dashboard.css       # Shared dashboard styles
+│
+├── youtube.html / youtube.js / youtube.css   # YouTube New Order (built-in free tool)
+├── content.js              # YouTube content script (layout engine)
+├── styles.css              # YouTube tool styles
+│
+└── icons/                  # Extension icons (blue/white variants, 16/48/128px)
 ```
 
 ---
 
-## ⚡ Features
+## Features
 
-### Free (Built-in YouTube Tool)
+### Free — Built-in YouTube Tool
 - 8+ layout modes (swapped, triple, theater, focus, etc.)
 - Resizable columns, collapsible sections
 - PiP comments, grid view for related videos
@@ -52,128 +54,124 @@ Chrome Extension
 - Custom fonts, compact mode
 - Screenshot, skip ads, hide shorts
 
-### Paid (AI Tool Builder)
+### Credit-Based — AI Tool Builder
 - Describe any tool in plain English
-- AI generates JS + CSS + configuration
-- Preview, test, iterate, then accept
-- Tools auto-inject on matching websites
-- Data collection with export/download
-- Isolated storage per tool
+- AI generates JS + CSS + configuration + dashboard HTML
+- Preview, test, iterate with feedback, then accept
+- Tools auto-inject on matching websites via content scripts
+- Data collection with export/download (CSV, JSON)
+- Isolated storage per tool via `ToolStorage` bridge
 - Cloud sync across devices
+- Multiple AI model selection (Gemini, Claude, GPT-4o, etc.)
+- Conversation history for iterative refinement
 
 ---
 
-## 🚀 Setup
+## How AI Tools Work
+
+1. **User describes a tool** in the Builder chat UI
+2. **Server calls OpenRouter** with a detailed system prompt that instructs the AI to generate a Chrome extension content script
+3. **AI returns JSON** containing: `name`, `contentScript`, `styles`, `targetSites`, `config`, `storageSchema`, `dashboardHTML`
+4. **Tool is saved as draft** in MongoDB, credits are deducted atomically
+5. **User accepts the tool** → it's installed locally and activated
+6. **Background service worker** injects the tool's code into matching tabs
+7. **Tool code runs in MAIN world** via `chrome.scripting.executeScript`, with a storage bridge back to the ISOLATED world for `chrome.storage` access
+
+### Runtime Architecture
+
+```
+┌──────────────────────────────────────────────────┐
+│  Web Page (MAIN world)                           │
+│  ┌────────────────────────────────────────────┐  │
+│  │  Tool IIFE wrapper                         │  │
+│  │  ├── ToolStorage (postMessage bridge)      │  │
+│  │  ├── downloadData() helper                 │  │
+│  │  ├── showToolToast() helper                │  │
+│  │  └── User's contentScript code             │  │
+│  └────────────────────────────────────────────┘  │
+│         ↕ window.postMessage                      │
+│  ┌────────────────────────────────────────────┐  │
+│  │  tool-runtime.js (ISOLATED world)          │  │
+│  │  └── Bridges postMessage ↔ chrome.storage  │  │
+│  └────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────┘
+```
+
+---
+
+## Setup
 
 ### 1. Load the Extension
 1. Open `chrome://extensions/`
 2. Enable **Developer mode**
 3. Click **Load unpacked** → select this folder
-4. Click the extension icon to verify
+4. Pin the extension icon to your toolbar
 
 ### 2. Start the Backend Server
+See the [server README](../global%20order%20server/README.md) for full setup instructions.
+
 ```bash
-cd server
-cp .env.example .env
-# Fill in your keys (see below)
+cd "../global order server"
+cp .env.example .env   # Fill in your keys
 npm install
 npm run dev
 ```
 
-### 3. Configure Environment
-Edit `server/.env`:
-```env
-MONGODB_URI=your_mongodb_atlas_connection_string
-JWT_SECRET=your_random_secret
-OPENROUTER_API_KEY=sk-or-v1-your_key
-OPENROUTER_MODEL=anthropic/claude-sonnet-4-20250514
-LEMONSQUEEZY_API_KEY=your_key
-LEMONSQUEEZY_STORE_ID=your_store_id
-LEMONSQUEEZY_PRO_VARIANT_ID=your_variant_id
-LEMONSQUEEZY_UNLIMITED_VARIANT_ID=your_variant_id
-```
-
-### 4. Point Extension to Your Server
+### 3. Point Extension to Your Server
 Edit `core/api-client.js` line 6:
 ```js
 const BASE_URL = 'http://localhost:3001'; // local dev
-// const BASE_URL = 'https://api.neworderglobal.com'; // production
+// const BASE_URL = 'https://api.global-order.32d.one'; // production
 ```
 
 ---
 
-## 🔒 Security Model
+## Security Model
 
 | What | Where | Who sees it |
 |------|-------|-------------|
-| OpenRouter API key | Server `.env` | Only you |
-| MongoDB URI | Server `.env` | Only you |
-| Lemon Squeezy keys | Server `.env` | Only you |
-| JWT secret | Server `.env` | Only you |
+| OpenRouter API key | Server `.env` | Only server |
+| MongoDB URI | Server `.env` | Only server |
+| Lemon Squeezy keys | Server `.env` | Only server |
+| JWT secret | Server `.env` | Only server |
 | User auth tokens | `chrome.storage.local` | Only that user |
 | Generated tool code | MongoDB + local cache | The creator |
-| User passwords | MongoDB (bcrypt) | Nobody |
+| User passwords | MongoDB (bcrypt, `select: false`) | Nobody |
+| OpenRouter model IDs | Server DB only | Never sent to client |
 
-**All AI calls go through YOUR server.** The extension never touches OpenRouter directly. Even if someone decompiles the extension, they can't access AI without a valid account and paid plan.
-
----
-
-## 📡 API Endpoints
-
-### Auth
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/auth/register` | — | Create account |
-| POST | `/api/auth/login` | — | Sign in |
-| GET | `/api/auth/profile` | JWT | Get user profile |
-| PUT | `/api/auth/profile` | JWT | Update display name |
-| POST | `/api/auth/change-password` | JWT | Change password |
-
-### AI
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| POST | `/api/ai/generate` | JWT | Generate a new tool |
-| POST | `/api/ai/iterate` | JWT | Modify existing tool |
-
-### Tools
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/tools` | JWT | List user's tools |
-| GET | `/api/tools/:id` | JWT | Get specific tool |
-| POST | `/api/tools` | JWT | Save/accept a tool |
-| PUT | `/api/tools/:id` | JWT | Update a tool |
-| DELETE | `/api/tools/:id` | JWT | Delete a tool |
-
-### Billing
-| Method | Endpoint | Auth | Description |
-|--------|----------|------|-------------|
-| GET | `/api/billing/subscription` | JWT | Current plan info |
-| GET | `/api/billing/usage` | JWT | AI usage stats |
-| POST | `/api/billing/checkout` | JWT | Create Lemon Squeezy checkout |
-| POST | `/api/billing/webhook` | Signature | Lemon Squeezy events |
+**All AI calls go through the server.** The extension never touches OpenRouter directly. Even if someone decompiles the extension, they can't access AI without valid credentials and credits.
 
 ---
 
-## 💰 Plans
+## Credit System
 
-| Feature | Free | Pro ($9.99/mo) | Unlimited ($24.99/mo) |
-|---------|------|----------------|----------------------|
-| YouTube Tool | ✅ | ✅ | ✅ |
-| AI Generations | 0 | 50/month | Unlimited |
-| Saved Tools | 0 | 10 | Unlimited |
-| Cloud Sync | — | ✅ | ✅ |
-| Priority AI | — | — | ✅ |
+The extension uses a **credit-based** system for AI tool generation:
+
+- **New users** get 10 free credits on signup
+- **Credit cost** is calculated per request based on token usage and model pricing
+- **Credit packages** can be purchased via Lemon Squeezy:
+
+| Package | Credits | Price |
+|---------|---------|-------|
+| Starter | 40 | $4.00 |
+| Popular | 100 | $8.00 |
+| Pro | 200 | $15.00 |
+
+- **Tool limits**: Free=3, Pro=10, Unlimited=999 saved tools
+- **Daily AI limit**: 50 requests per user per day
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
-- **Extension:** Chrome Manifest V3, vanilla JS
-- **Backend:** Node.js, Express, MongoDB, JWT
-- **AI:** OpenRouter (Claude, GPT-4o, Gemini)
+- **Extension:** Chrome Manifest V3, vanilla JS, no build step
+- **Backend:** Node.js, Express, MongoDB, JWT (see [server README](../global%20order%20server/README.md))
+- **AI:** OpenRouter (Gemini 2.5 Flash, Claude, GPT-4o, etc.)
 - **Payments:** Lemon Squeezy
-- **Website:** Next.js 16, Tailwind CSS
+- **Website:** Next.js, Tailwind CSS (deployed at global-order.32d.one)
 
 ---
 
-© New Order Global. All rights reserved.
+## License
+
+MIT — See [LICENSE](LICENSE)
