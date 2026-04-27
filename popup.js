@@ -432,40 +432,40 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!NewOrderAuth.isAuthenticated()) {
                 // Show Sign In / Register card instead of tools based on user request
                 cont.innerHTML = `
-                    <div class="auth-card" style="background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: var(--shadow);">
-                        <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                            <button class="auth-tab active" data-tab="login" style="flex: 1; padding: 10px; border: none; background: var(--accent-red); color: white; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s;">Sign In</button>
-                            <button class="auth-tab" data-tab="register" style="flex: 1; padding: 10px; border: 1px solid var(--border); background: transparent; color: var(--text-main); border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.2s;">Register</button>
+                    <div class="auth-card" style="background: var(--surface-container-lowest); border: 1px solid var(--ghost-border); border-radius: var(--radius-lg); padding: 20px; box-shadow: var(--shadow-xs);">
+                        <div style="display: flex; gap: 4px; margin-bottom: 22px; background: var(--surface-container); border-radius: var(--radius-md); padding: 4px;">
+                            <button class="auth-tab active" data-tab="login" style="flex: 1; padding: 9px; border: none; background: var(--surface-container-lowest); color: var(--primary); border-radius: var(--radius-sm); font-family: var(--font-label); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; cursor: pointer; transition: 0.2s ease; box-shadow: var(--shadow-xs);">Sign In</button>
+                            <button class="auth-tab" data-tab="register" style="flex: 1; padding: 9px; border: none; background: transparent; color: var(--on-surface-muted); border-radius: var(--radius-sm); font-family: var(--font-label); font-size: 12px; font-weight: 600; letter-spacing: 0.04em; cursor: pointer; transition: 0.2s ease;">Register</button>
                         </div>
                         
                         <form id="popup-login-form">
-                            <div style="margin-bottom: 15px;">
-                                <label style="display: block; font-size: 12px; margin-bottom: 6px; font-weight: 600; color: var(--accent-black);">Email</label>
-                                <input type="email" id="popup-login-email" required placeholder="your@email.com" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+                            <div style="margin-bottom: 14px;">
+                                <label style="display: block; font-family: var(--font-label); font-size: 11px; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant);">Email</label>
+                                <input type="email" id="popup-login-email" required placeholder="your@email.com" style="width: 100%; padding: 11px 14px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border-strong); border-radius: var(--radius-md); color: var(--on-surface); font-family: var(--font-body); font-size: 14px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;">
                             </div>
-                            <div style="margin-bottom: 20px;">
-                                <label style="display: block; font-size: 12px; margin-bottom: 6px; font-weight: 600; color: var(--accent-black);">Password</label>
-                                <input type="password" id="popup-login-password" required placeholder="••••••••" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+                            <div style="margin-bottom: 14px;">
+                                <label style="display: block; font-family: var(--font-label); font-size: 11px; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant);">Password</label>
+                                <input type="password" id="popup-login-password" required placeholder="••••••••" style="width: 100%; padding: 11px 14px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border-strong); border-radius: var(--radius-md); color: var(--on-surface); font-family: var(--font-body); font-size: 14px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;">
                             </div>
-                            <button type="submit" style="width: 100%; padding: 12px; background: var(--accent-black); color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s;">Sign In</button>
-                            <div id="popup-login-error" style="color: var(--accent-red); font-size: 12px; margin-top: 10px; text-align: center; display: none;"></div>
+                            <button type="submit" style="width: 100%; padding: 13px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%); color: var(--on-primary); border: none; border-radius: var(--radius-md); font-family: var(--font-label); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease; margin-top: 10px; box-shadow: var(--shadow-xs);">Sign In</button>
+                            <div id="popup-login-error" style="color: var(--on-error-container); font-size: 13px; margin-top: 14px; padding: 11px 14px; background: var(--error-container); border-radius: var(--radius-md); text-align: center; display: none;"></div>
                         </form>
 
                         <form id="popup-register-form" style="display: none;">
-                            <div style="margin-bottom: 15px;">
-                                <label style="display: block; font-size: 12px; margin-bottom: 6px; font-weight: 600; color: var(--accent-black);">Display Name</label>
-                                <input type="text" id="popup-register-name" required placeholder="Your name" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+                            <div style="margin-bottom: 14px;">
+                                <label style="display: block; font-family: var(--font-label); font-size: 11px; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant);">Display Name</label>
+                                <input type="text" id="popup-register-name" required placeholder="Your name" style="width: 100%; padding: 11px 14px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border-strong); border-radius: var(--radius-md); color: var(--on-surface); font-family: var(--font-body); font-size: 14px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;">
                             </div>
-                            <div style="margin-bottom: 15px;">
-                                <label style="display: block; font-size: 12px; margin-bottom: 6px; font-weight: 600; color: var(--accent-black);">Email</label>
-                                <input type="email" id="popup-register-email" required placeholder="your@email.com" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+                            <div style="margin-bottom: 14px;">
+                                <label style="display: block; font-family: var(--font-label); font-size: 11px; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant);">Email</label>
+                                <input type="email" id="popup-register-email" required placeholder="your@email.com" style="width: 100%; padding: 11px 14px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border-strong); border-radius: var(--radius-md); color: var(--on-surface); font-family: var(--font-body); font-size: 14px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;">
                             </div>
-                            <div style="margin-bottom: 20px;">
-                                <label style="display: block; font-size: 12px; margin-bottom: 6px; font-weight: 600; color: var(--accent-black);">Password</label>
-                                <input type="password" id="popup-register-password" minlength="8" required placeholder="••••••••" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; outline: none; font-family: inherit;">
+                            <div style="margin-bottom: 14px;">
+                                <label style="display: block; font-family: var(--font-label); font-size: 11px; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant);">Password</label>
+                                <input type="password" id="popup-register-password" minlength="8" required placeholder="••••••••" style="width: 100%; padding: 11px 14px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border-strong); border-radius: var(--radius-md); color: var(--on-surface); font-family: var(--font-body); font-size: 14px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;">
                             </div>
-                            <button type="submit" style="width: 100%; padding: 12px; background: var(--accent-black); color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s;">Create Account</button>
-                            <div id="popup-register-error" style="color: var(--accent-red); font-size: 12px; margin-top: 10px; text-align: center; display: none;"></div>
+                            <button type="submit" style="width: 100%; padding: 13px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%); color: var(--on-primary); border: none; border-radius: var(--radius-md); font-family: var(--font-label); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease; margin-top: 10px; box-shadow: var(--shadow-xs);">Create Account</button>
+                            <div id="popup-register-error" style="color: var(--on-error-container); font-size: 13px; margin-top: 14px; padding: 11px 14px; background: var(--error-container); border-radius: var(--radius-md); text-align: center; display: none;"></div>
                         </form>
                     </div>
                 `;
@@ -478,12 +478,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     tab.addEventListener('click', () => {
                         tabs.forEach(t => {
                             t.style.background = 'transparent';
-                            t.style.color = 'var(--text-main)';
-                            t.style.border = '1px solid var(--border)';
+                            t.style.color = 'var(--on-surface-muted)';
                         });
-                        tab.style.background = 'var(--accent-red)';
-                        tab.style.color = 'white';
-                        tab.style.border = 'none';
+                        tab.style.background = 'var(--surface-container-lowest)';
+                        tab.style.color = 'var(--primary)';
 
                         const isLogin = tab.dataset.tab === 'login';
                         loginForm.style.display = isLogin ? 'block' : 'none';
