@@ -555,3 +555,105 @@ body {
   width: 14px;
   height: 14px;
 }
+
+/* ============================================
+   Billing-specific styles
+   ============================================ */
+.tab-btn {
+  font-family: var(--font-label);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding-bottom: 12px;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--on-surface-variant);
+  cursor: pointer;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.tab-btn:hover {
+  color: var(--on-surface);
+}
+
+.tab-btn.active {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.tab-content {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.subscription-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.subscription-card.accent {
+  background: var(--surface-dim);
+  border-color: rgba(184, 52, 28, 0.3);
+}
+
+.subscription-badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 16px;
+  border-radius: var(--radius-full);
+  background: var(--tertiary);
+  color: var(--on-tertiary);
+  font-family: var(--font-label);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.subscription-badge.accent {
+  background: var(--tertiary);
+  color: var(--on-tertiary);
+}
+
+.purchase-row {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: background 0.2s ease;
+}
+
+.purchase-row:hover {
+  background: var(--surface-container);
+}
+
+.purchase-status {
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+}
+
+.purchase-status.completed {
+  background: rgba(109, 94, 0, 0.1);
+  color: var(--tertiary);
+}
+
+.purchase-status.pending {
+  background: var(--surface-container-highest);
+  color: var(--on-surface-variant);
+}
+
+.purchase-status.failed {
+  background: rgba(186, 26, 26, 0.1);
+  color: var(--danger);
+}

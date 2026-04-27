@@ -32,73 +32,192 @@
 
   <main class="main-content">
     <div class="page-header">
-      <h1>Credits & Billing</h1>
+      <h1>Account Balance</h1>
       <p>Manage your credit balance and purchase more.</p>
     </div>
 
-    <!-- Credit Balance -->
-    <div class="card" style="background: linear-gradient(135deg, rgba(124,92,252,0.1) 0%, transparent 100%); border-color: rgba(124,92,252,0.2);">
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 4px;">Credit Balance</p>
-          <div style="display: flex; align-items: baseline; gap: 8px;">
-            <span id="credit-balance" style="font-size: 40px; font-weight: 800; color: var(--accent-primary);">0.00</span>
-            <span style="font-size: 16px; color: var(--text-secondary);">credits</span>
-          </div>
-        </div>
-        <div style="text-align: right;">
-          <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 4px;">Total Used</p>
-          <div id="total-used" style="font-size: 24px; font-weight: 700; color: var(--text-secondary);">0.00</div>
-        </div>
-      </div>
+    <!-- Tabs -->
+    <div style="display: flex; gap: 16px; margin-bottom: 32px; border-bottom: 1px solid var(--ghost-border);">
+      <button id="tab-purchase" class="tab-btn active">Purchase Credits</button>
+      <button id="tab-history" class="tab-btn">Purchase History</button>
     </div>
 
-    <!-- Purchase Credits -->
-    <h2 style="font-size: 18px; font-weight: 700; margin-bottom: 16px;">Buy More Credits</h2>
-    <div class="grid-cards" id="packages-container" style="margin-bottom: 32px; grid-template-columns: repeat(3, 1fr);">
-      <!-- Populated by JS -->
-    </div>
-
-    <!-- Usage Summary -->
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;">
-      <div class="card">
-        <h3>Usage Summary</h3>
-        <div id="usage-stats">
-          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color); font-size: 14px;">
-            <span style="color: var(--text-secondary);">Total Credits Purchased</span>
-            <span id="stat-purchased" style="font-weight: 600;">0</span>
+    <!-- Purchase Tab Content -->
+    <div id="content-purchase" class="tab-content">
+      <!-- Credit Balance -->
+      <div class="settings-card" style="background: var(--surface-dim); position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 0; right: 0; padding: 24px; opacity: 0.1;">
+          <svg width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary);">
+            <path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"/>
+            <path d="M4 6v12c0 1.1.9 2 2 2h14v-4"/>
+            <path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"/>
+          </svg>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <p style="font-family: var(--font-label); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant); margin-bottom: 8px;">Credit Balance</p>
+            <div style="display: flex; align-items: baseline; gap: 12px;">
+              <span id="credit-balance" style="font-family: var(--font-headline); font-size: 48px; font-weight: 600; color: var(--primary);">0.00</span>
+              <span style="font-family: var(--font-body); font-size: 18px; color: var(--on-surface-variant);">credits</span>
+            </div>
           </div>
-          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color); font-size: 14px;">
-            <span style="color: var(--text-secondary);">AI Requests Made</span>
-            <span id="stat-requests" style="font-weight: 600;">0</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color); font-size: 14px;">
-            <span style="color: var(--text-secondary);">Tools Created</span>
-            <span id="stat-tools" style="font-weight: 600;">0</span>
+          <div style="text-align: right;">
+            <p style="font-family: var(--font-label); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant); margin-bottom: 8px;">Total Used</p>
+            <div id="total-used" style="font-family: var(--font-headline); font-size: 24px; font-weight: 600; color: var(--on-surface);">0.00</div>
           </div>
         </div>
       </div>
 
-      <div class="card">
-        <h3>Credit Cost by Model</h3>
-        <div>
-          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color); font-size: 14px;">
-            <span style="color: var(--text-secondary);">Gemini 2.5 Flash</span>
-            <span style="font-weight: 600; color: var(--success);">~0.08 credits</span>
+      <!-- Subscription Plans -->
+      <h2 style="font-family: var(--font-headline); font-size: 24px; font-weight: 600; color: var(--on-surface); margin-bottom: 24px;">Subscription Plans</h2>
+      <div class="grid-cards" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 32px;">
+        <div class="card subscription-card">
+          <div class="subscription-badge">Flexible</div>
+          <h3 style="font-family: var(--font-headline); font-size: 24px; font-weight: 600; color: var(--on-surface); margin-bottom: 8px;">Monthly</h3>
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;">
+            <span style="font-family: var(--font-headline); font-size: 36px; font-weight: 600; color: var(--primary);">$19</span>
+            <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">per month</span>
           </div>
-          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color); font-size: 14px;">
-            <span style="color: var(--text-secondary);">Claude Haiku 4</span>
-            <span style="font-weight: 600; color: #5e9cff;">~0.17 credits</span>
+          <p style="font-family: var(--font-label); font-size: 14px; font-weight: 600; color: var(--primary); margin-bottom: 24px;">100 credits/month</p>
+          <ul style="list-style: none; padding: 0; margin-bottom: 32px; flex: 1;">
+            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">100 credits monthly</span>
+            </li>
+            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Rolls over unused credits</span>
+            </li>
+            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">All AI models access</span>
+            </li>
+            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Priority support</span>
+            </li>
+            <li style="display: flex; align-items: start; gap: 12px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Cancel anytime</span>
+            </li>
+          </ul>
+          <button class="btn-secondary" onclick="buyCredits('monthly')">Subscribe</button>
+        </div>
+        <div class="card subscription-card accent">
+          <div class="subscription-badge accent">Save 17%</div>
+          <h3 style="font-family: var(--font-headline); font-size: 24px; font-weight: 600; color: var(--on-surface); margin-bottom: 8px;">Yearly</h3>
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;">
+            <span style="font-family: var(--font-headline); font-size: 36px; font-weight: 600; color: var(--primary);">$190</span>
+            <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">per year</span>
           </div>
-          <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border-color); font-size: 14px;">
-            <span style="color: var(--text-secondary);">Claude Sonnet 4</span>
-            <span style="font-weight: 600; color: var(--accent-primary);">~0.51 credits</span>
+          <p style="font-family: var(--font-label); font-size: 14px; font-weight: 600; color: var(--primary); margin-bottom: 24px;">100 credits/month</p>
+          <ul style="list-style: none; padding: 0; margin-bottom: 32px; flex: 1;">
+            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">100 credits monthly</span>
+            </li>
+            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Rolls over unused credits</span>
+            </li>
+            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">All AI models access</span>
+            </li>
+            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Priority support</span>
+            </li>
+            <li style="display: flex; align-items: start; gap: 12px;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">2 months free</span>
+            </li>
+          </ul>
+          <button class="btn-primary" onclick="buyCredits('yearly')">Subscribe</button>
+        </div>
+      </div>
+
+      <!-- Purchase Credits -->
+      <h2 style="font-family: var(--font-headline); font-size: 24px; font-weight: 600; color: var(--on-surface); margin-bottom: 24px;">Purchase Credits</h2>
+      <div class="grid-cards" id="packages-container" style="margin-bottom: 32px; grid-template-columns: repeat(3, 1fr);">
+        <!-- Populated by JS -->
+      </div>
+
+      <!-- Usage -->
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px;">
+        <div class="card">
+          <h3 style="font-family: var(--font-headline); font-size: 18px; font-weight: 600; color: var(--on-surface); margin-bottom: 24px;">Usage Summary</h3>
+          <div id="usage-stats">
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--ghost-border);">
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Total Credits Purchased</span>
+              <span id="stat-purchased" style="font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--on-surface);">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--ghost-border);">
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Total Credits Used</span>
+              <span id="stat-used" style="font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--on-surface);">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--ghost-border);">
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Free Credits (signup)</span>
+              <span style="font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--on-surface);">10</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--ghost-border);">
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">AI Requests Made</span>
+              <span id="stat-requests" style="font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--on-surface);">0</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Tools Created</span>
+              <span id="stat-tools" style="font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--on-surface);">0</span>
+            </div>
           </div>
-          <div style="display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px;">
-            <span style="color: var(--text-secondary);">GPT-4o</span>
-            <span style="font-weight: 600; color: var(--accent-primary);">~0.35 credits</span>
+        </div>
+
+        <div class="card">
+          <h3 style="font-family: var(--font-headline); font-size: 18px; font-weight: 600; color: var(--on-surface); margin-bottom: 24px;">Credit Cost by Model</h3>
+          <div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--ghost-border);">
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Gemini 2.5 Flash</span>
+              <span style="font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--tertiary);">~0.08 credits</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--ghost-border);">
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Claude Haiku 4</span>
+              <span style="font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--primary);">~0.17 credits</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--ghost-border);">
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Gemini 2.5 Pro</span>
+              <span style="font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--primary);">~0.33 credits</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--ghost-border);">
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Claude Sonnet 4</span>
+              <span style="font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--primary);">~0.51 credits</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 12px 0;">
+              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">GPT-4o</span>
+              <span style="font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--primary);">~0.35 credits</span>
+            </div>
+            <p style="font-family: var(--font-label); font-size: 11px; color: var(--on-surface-muted); margin-top: 16px;">Cost per typical tool generation (~2K input, ~3K output tokens)</p>
           </div>
-          <p style="font-size: 10px; color: var(--text-muted); margin-top: 12px;">Cost per typical tool generation (~2K input, ~3K output tokens)</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- History Tab Content -->
+    <div id="content-history" class="tab-content" style="display: none;">
+      <div class="card" style="overflow: hidden;">
+        <div style="padding: 24px; border-bottom: 1px solid var(--ghost-border); display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="font-family: var(--font-headline); font-size: 18px; font-weight: 600; color: var(--on-surface);">Purchase History</h3>
+          <a href="https://app.lemonsqueezy.com/my-orders" target="_blank" rel="noopener noreferrer" style="font-family: var(--font-label); font-size: 13px; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Manage Billing
+          </a>
+        </div>
+        <div id="purchases-container">
+          <div style="padding: 48px; text-align: center;">
+            <div style="width: 64px; height: 64px; border-radius: var(--radius-full); background: var(--surface-container-highest); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--on-surface-variant);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            </div>
+            <h4 style="font-family: var(--font-headline); font-size: 18px; font-weight: 600; color: var(--on-surface); margin-bottom: 8px;">No purchases yet</h4>
+            <p style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Your purchase history will appear here.</p>
+          </div>
         </div>
       </div>
     </div>

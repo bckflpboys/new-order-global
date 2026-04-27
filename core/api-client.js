@@ -236,6 +236,11 @@ const NewOrderAPI = (() => {
     return data;
   }
 
+  async function getPurchases() {
+    const data = await request('/api/billing/purchases');
+    return data;
+  }
+
   async function createCheckout(packageId) {
     const data = await request('/api/billing/checkout', {
       method: 'POST',
@@ -287,6 +292,7 @@ const NewOrderAPI = (() => {
 
     // Billing
     getCredits,
+    getPurchases,
     createCheckout,
 
     // Generic request (for model loading etc)
