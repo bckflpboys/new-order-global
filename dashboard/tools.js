@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const tools = stats.tools || [];
     
     if (tools.length === 0) {
-      container.innerHTML = '<div style="color: var(--text-muted); padding: 20px;">No tools created yet. Go to the AI Builder to make one!</div>';
+      container.innerHTML = '<div style="color: var(--on-surface-variant); padding: 48px; text-align: center;">No tools created yet. Go to the AI Builder to make one!</div>';
       return;
     }
 
@@ -35,12 +35,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     card.className = 'tool-card';
     card.innerHTML = `
       <div class="tool-card-header">
-        <div class="tool-icon" style="background: rgba(124,92,252,0.1); color: var(--accent-primary);">
+        <div class="tool-icon" style="background: rgba(184, 52, 28, 0.1); color: var(--primary);">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
         </div>
         <div>
           <div class="tool-title">${tool.name}</div>
-          <div style="font-size: 11px; color: var(--success); margin-top: 4px;">Active</div>
+          <div style="font-size: 11px; color: var(--tertiary); margin-top: 4px;">Active</div>
         </div>
       </div>
       <div class="tool-desc">${tool.description || 'Custom AI Tool'}</div>
@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
   } catch (err) {
     console.error('Tools: Error loading tools:', err);
-    container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--accent-red);">Error loading tools. Please check your connection.</div>';
+    container.innerHTML = '<div style="padding: 48px; text-align: center; color: var(--danger);">Error loading tools. Please check your connection.</div>';
   } finally {
     setTimeout(() => {
       if (loadingOverlay) loadingOverlay.classList.add('hidden');
