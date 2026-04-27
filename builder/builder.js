@@ -405,7 +405,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (tools.length === 0) {
       container.innerHTML = `
         <div class="empty-tools">
-          <div class="empty-icon">✨</div>
+          <div class="empty-icon"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></div>
           <p>No custom tools yet</p>
           <span>Describe what you want below and AI will build it!</span>
         </div>
@@ -465,9 +465,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       btn.innerHTML = `
         <div class="convo-title">${escapeHtml(c.title || 'New Conversation')}</div>
         <div class="convo-meta">
-          ${c.toolName ? `<span>🔧 ${escapeHtml(c.toolName)}</span>` : ''}
-          <span>💰 ${(c.totalCreditsUsed || 0).toFixed(2)}</span>
-          <span>${c.messageCount || 0} msgs</span>
+          ${c.toolName ? `<span class="meta-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> ${escapeHtml(c.toolName)}</span>` : ''}
+          <span class="meta-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg> ${(c.totalCreditsUsed || 0).toFixed(2)}</span>
+          <span class="meta-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> ${c.messageCount || 0}</span>
         </div>
       `;
       btn.addEventListener('click', () => selectConversation(c.id));
@@ -587,7 +587,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             linkBtn.style.cssText = 'display:flex; flex-direction:column; justify-content:center; align-items:center; padding:0 16px; border:1px solid var(--border-focus); background:var(--bg-card); border-radius:12px; color:var(--text-primary); text-decoration:none; transition:0.2s;';
             linkBtn.onmouseover = () => linkBtn.style.background = 'var(--bg-card-hover)';
             linkBtn.onmouseout = () => linkBtn.style.background = 'var(--bg-card)';
-            linkBtn.innerHTML = `<span style="font-size:20px;">↗️</span><span style="font-size:10px; opacity:0.7; margin-top:4px;">Manage</span>`;
+            linkBtn.innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg><span style="font-size:10px; opacity:0.7; margin-top:4px;">Manage</span>`;
 
             btnGroup.appendChild(btn);
             btnGroup.appendChild(linkBtn);
@@ -649,7 +649,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check credits
     const user = NewOrderAuth.getCurrentUser();
     if (!user || (user.credits || 0) <= 0) {
-      addMessage('ai', '⚠️ You have no credits remaining. Visit global-order.32d.one/dashboard/billing to buy more.');
+      addMessage('ai', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> You have no credits remaining. Visit global-order.32d.one/dashboard/billing to buy more.');
       return;
     }
 
@@ -866,8 +866,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (opts.creditsUsed && opts.creditsUsed > 0) {
       const meta = document.createElement('div');
       meta.className = 'message-meta';
-      meta.innerHTML = `💰 <span class="meta-credits">${opts.creditsUsed.toFixed(4)}</span> credits`;
-      if (opts.model) meta.innerHTML += ` · 🤖 ${opts.model}`;
+      meta.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle;"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg> <span class="meta-credits">${opts.creditsUsed.toFixed(4)}</span> credits`;
+      if (opts.model) meta.innerHTML += ` · <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:4px;margin-right:4px;vertical-align:middle;"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg> ${opts.model}`;
       bubble.appendChild(meta);
     }
 
@@ -967,7 +967,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-reject-tool').addEventListener('click', () => {
     toolPreview.style.display = 'none';
     currentTool = null;
-    addMessage('ai', '🗑️ Tool discarded. Tell me what to build next!');
+    addMessage('ai', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Tool discarded. Tell me what to build next!');
   });
 
   // Test tool
