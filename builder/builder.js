@@ -89,7 +89,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const badge = document.getElementById('context-badge');
       if (contextEl && badge) {
         contextEl.style.display = 'flex';
-        badge.innerHTML = `🔧 Editing: <strong>${toolToEdit.name}</strong>`;
+        badge.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Editing: <strong>${toolToEdit.name}</strong>`;
         document.getElementById('context-remove').onclick = () => {
           contextEl.style.display = 'none';
           currentTool = null;
@@ -185,9 +185,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="model-modal">
           <div class="model-modal-header">
             <div class="model-tabs">
-              <button class="model-tab" data-group="FREE">⚡ Free</button>
-              <button class="model-tab active" data-group="STANDARD">🚀 Standard</button>
-              <button class="model-tab" data-group="PREMIUM">💎 Premium</button>
+              <button class="model-tab" data-group="FREE"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Free</button>
+              <button class="model-tab active" data-group="STANDARD"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg> Standard</button>
+              <button class="model-tab" data-group="PREMIUM"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M6 3h12v4l-6 6-6-6V3zM20 9h-4l-2 2-2-2H8l-2 2-2-2H0l4 4v9h16v-9l4-4h-4z"/><path d="M12 13l-2 2-2-2 2-2 2 2z"/></svg> Premium</button>
             </div>
           </div>
           <div class="model-modal-body" id="model-modal-list"></div>
@@ -242,7 +242,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="model-card-info">
             <div class="model-card-name">${m.name}</div>
             <div class="model-card-tags">${tags.join('')}</div>
-            <div class="model-card-pricing">⚡ ${m.estimatedToolCost.toFixed(2)} In / ${(m.estimatedToolCost * 2).toFixed(2)} Out / 1K</div>
+            <div class="model-card-pricing"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> ${m.estimatedToolCost.toFixed(2)} In / ${(m.estimatedToolCost * 2).toFixed(2)} Out / 1K</div>
           </div>
         </div>
       `;
@@ -419,7 +419,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const card = document.createElement('div');
       card.className = 'tool-card';
       card.innerHTML = `
-        <div class="tool-icon">${tool.icon || '🔧'}</div>
+        <div class="tool-icon">${tool.icon || '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>'}</div>
         <div class="tool-info">
           <div class="tool-name">${escapeHtml(tool.name)}</div>
           <div class="tool-desc">${escapeHtml(tool.description || tool.targetSites?.join(', ') || 'Custom tool')}</div>
@@ -534,7 +534,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const badge = document.getElementById('context-badge');
             if (contextEl && badge) {
                 contextEl.style.display = 'flex';
-                badge.innerHTML = `🔧 Editing: <strong>${currentTool.name.replace(/</g, "&lt;")}</strong>`;
+                badge.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Editing: <strong>${currentTool.name.replace(/</g, "&lt;")}</strong>`;
                 document.getElementById('context-remove').onclick = () => {
                     contextEl.style.display = 'none';
                     currentTool = null;
@@ -547,7 +547,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const toolMsg = document.createElement('div');
             toolMsg.className = 'message ai';
             toolMsg.innerHTML = `
-                <div class="message-avatar">⚡</div>
+                <div class="message-avatar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
                 <div class="message-bubble">
                     <div class="message-content">
                         <div style="font-style:italic; font-size:13px; color:var(--text-secondary); margin-bottom:10px;">Tool attached to this chat:</div>
@@ -569,7 +569,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             btn.onmouseout = () => btn.style.background = 'var(--bg-card)';
             
             btn.innerHTML = `
-                <div style="font-size:24px; background:rgba(124, 92, 252, 0.1); padding:8px; border-radius:8px;">📦</div> 
+                <div style="font-size:24px; background:rgba(124, 92, 252, 0.1); padding:8px; border-radius:8px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div> 
                 <div>
                     <div style="font-weight:700; font-size:14px; color:var(--accent-primary);">${currentTool.name.replace(/</g, "&lt;")}</div>
                     <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Click to view files/code or iterate</div>
@@ -701,7 +701,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const creditsUsed = result.usage?.creditsUsed || 0;
         totalCreditsUsed += creditsUsed;
 
-        addMessage('ai', `✅ I've created **"${result.tool.name}"** for you!\n\n${result.tool.description}\n\n📍 **Target:** ${result.tool.targetSites?.join(', ') || 'All websites'}\n\nCheck the preview below.`, {
+        addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg> I've created **"${result.tool.name}"** for you!\n\n${result.tool.description}\n\n<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> **Target:** ${result.tool.targetSites?.join(', ') || 'All websites'}\n\nCheck the preview below.`, {
           creditsUsed,
           model: result.usage?.model || selectedModelId,
           tool: currentTool
@@ -718,7 +718,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     } catch (err) {
       typingEl.remove();
-      addMessage('ai', `❌ Error: ${err.message}`);
+      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Error: ${err.message}`);
     } finally {
       isGenerating = false;
       updateSendButton();
@@ -789,7 +789,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const user = NewOrderAuth.getCurrentUser();
       avatar.textContent = user?.displayName?.[0]?.toUpperCase() || 'U';
     } else {
-      avatar.textContent = '⚡';
+      avatar.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>';
     }
 
     const bubble = document.createElement('div');
@@ -799,7 +799,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (opts.queued) {
       const queueLabel = document.createElement('div');
       queueLabel.className = 'queue-label';
-      queueLabel.textContent = '⏳ Queued — will send when AI is ready';
+      queueLabel.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Queued — will send when AI is ready';
       bubble.appendChild(queueLabel);
     }
 
@@ -821,7 +821,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.onmouseout = () => btn.style.background = 'var(--bg-card)';
         
         btn.innerHTML = `
-            <div style="font-size:24px; background:rgba(124, 92, 252, 0.1); padding:8px; border-radius:8px;">📦</div> 
+            <div style="font-size:24px; background:rgba(124, 92, 252, 0.1); padding:8px; border-radius:8px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div> 
             <div>
                 <div style="font-weight:700; font-size:14px; color:var(--accent-primary);">${opts.tool.name.replace(/</g, "&lt;")}</div>
                 <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Click to view files/code or iterate</div>
@@ -837,7 +837,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const badge = document.getElementById('context-badge');
             if (contextEl && badge) {
                 contextEl.style.display = 'flex';
-                badge.innerHTML = `🔧 Editing: <strong>${currentTool.name.replace(/</g, "&lt;")}</strong>`;
+                badge.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Editing: <strong>${currentTool.name.replace(/</g, "&lt;")}</strong>`;
                 document.getElementById('context-remove').onclick = () => {
                     contextEl.style.display = 'none';
                     currentTool = null;
@@ -918,7 +918,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       tool.targetSites.forEach(site => {
         const tag = document.createElement('span');
         tag.className = 'meta-tag';
-        tag.textContent = `🌐 ${site}`;
+        tag.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> ${site}`;
         metaEl.appendChild(tag);
       });
     }
@@ -954,12 +954,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('Cloud save failed (will sync later):', err.message);
       }
 
-      addMessage('ai', `🎉 **"${currentTool.name}"** has been saved and activated! It will run on the target site(s).`);
+      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg> **"${currentTool.name}"** has been saved and activated! It will run on the target site(s).`);
 
       toolPreview.style.display = 'none'; // Collapse the code preview UI, but keep editing context active
       loadInstalledTools();
     } catch (err) {
-      addMessage('ai', `❌ Error saving tool: ${err.message}`);
+      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Error saving tool: ${err.message}`);
     }
   });
 
@@ -978,10 +978,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tabs[0]) {
         await ToolManager.injectToolIntoTab(tabs[0].id, currentTool);
-        addMessage('ai', `🧪 Testing **"${currentTool.name}"** on the current tab. Switch to the tab to see it!`);
+        addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M9 12h6M9 16h6M9 8h6M5 20h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg> Testing **"${currentTool.name}"** on the current tab. Switch to the tab to see it!`);
       }
     } catch (err) {
-      addMessage('ai', `❌ Test failed: ${err.message}`);
+      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Test failed: ${err.message}`);
     }
   });
 

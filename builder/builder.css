@@ -450,6 +450,7 @@ body {
 .tool-card:hover {
   background: var(--surface-container);
   transform: translateY(-1px);
+  border-color: var(--primary);
 }
 
 .tool-card.builtin {
@@ -462,7 +463,6 @@ body {
 }
 
 .tool-icon {
-  font-size: 22px;
   width: 40px;
   height: 40px;
   display: flex;
@@ -471,13 +471,14 @@ body {
   background: var(--surface-container-high);
   border-radius: var(--radius-md);
   flex-shrink: 0;
+  color: var(--primary);
 }
 
 .tool-info { flex: 1; min-width: 0; }
 
 .tool-name {
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--on-surface);
   white-space: nowrap;
@@ -486,21 +487,21 @@ body {
 }
 
 .tool-desc {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--on-surface-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-top: 2px;
+  margin-top: 3px;
 }
 
 .tool-status {
   font-family: var(--font-label);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  padding: 4px 10px;
+  padding: 5px 12px;
   border-radius: var(--radius-full);
   flex-shrink: 0;
 }
@@ -508,11 +509,13 @@ body {
 .tool-status.active {
   background: rgba(46, 125, 79, 0.12);
   color: var(--success);
+  border: 1px solid rgba(46, 125, 79, 0.3);
 }
 
 .tool-status.inactive {
   background: var(--error-container);
   color: var(--on-error-container);
+  border: 1px solid rgba(186, 26, 26, 0.3);
 }
 
 .empty-tools {
