@@ -557,7 +557,174 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         // Rebroadcast to all extension pages
         return false; // Don't block
     }
+
+    // ============================================
+    // Global Executive — Agent Messages
+    // ============================================
+
+    // Execute an action inside a tab's content script
+    if (message.type === 'ge-execute-in-tab') {
+        (async () => {
+            try {
+                const { tabId, action, params } = message;
+
+                // Ensure agent runtime is injected
+                await ensureAgentRuntime(tabId);
+
+                // Send action to the content script
+                const result = await chrome.tabs.sendMessage(tabId, {
+                    type: 'ge-action',
+                    action,
+                    params: params || {}
+                });
+
+                sendResponse(result || { success: false, error: 'No response from tab' });
+            } catch (err) {
+                console.error('[Global Executive] Execute error:', err);
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Open a new tab
+    if (message.type === 'ge-open-tab') {
+        (async () => {
+            try {
+                const tab = await chrome.tabs.create({ url: message.url, active: false });
+                // Wait for the tab to finish loading
+                await waitForTabLoad(tab.id, 15000);
+                sendResponse({ tabId: tab.id, url: tab.url, title: tab.title });
+            } catch (err) {
+                console.error('[Global Executive] Open tab error:', err);
+                sendResponse({ error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Switch to a tab
+    if (message.type === 'ge-switch-tab') {
+        (async () => {
+            try {
+                await chrome.tabs.update(message.tabId, { active: true });
+                sendResponse({ success: true });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Close a tab
+    if (message.type === 'ge-close-tab') {
+        (async () => {
+            try {
+                await chrome.tabs.remove(message.tabId);
+                sendResponse({ success: true });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Download a file by URL
+    if (message.type === 'ge-download') {
+        (async () => {
+            try {
+                const downloadId = await chrome.downloads.download({
+                    url: message.url,
+                    filename: message.filename || undefined,
+                    saveAs: false
+                });
+                sendResponse({ success: true, downloadId });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Download generated content (creates a data URL)
+    if (message.type === 'ge-download-content') {
+        (async () => {
+            try {
+                const { content, filename, mimeType } = message;
+                const blob = new Blob([content], { type: mimeType || 'text/plain' });
+                const reader = new FileReader();
+                reader.onload = async () => {
+                    try {
+                        const downloadId = await chrome.downloads.download({
+                            url: reader.result,
+                            filename: filename || 'download.txt',
+                            saveAs: false
+                        });
+                        sendResponse({ success: true, downloadId });
+                    } catch (err) {
+                        sendResponse({ success: false, error: err.message });
+                    }
+                };
+                reader.readAsDataURL(blob);
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
 });
+
+// ============================================
+// Global Executive — Helper Functions
+// ============================================
+
+// Ensure agent runtime content script is injected into a tab
+async function ensureAgentRuntime(tabId) {
+    try {
+        const response = await chrome.tabs.sendMessage(tabId, { type: 'ge-ping' });
+        if (response && response.agentRuntime) return; // Already injected
+    } catch {
+        // Not injected, proceed
+    }
+
+    await chrome.scripting.executeScript({
+        target: { tabId },
+        files: ['core/agent-runtime.js']
+    });
+    console.log(`[Global Executive] Agent runtime injected into tab ${tabId}`);
+}
+
+// Wait for a tab to finish loading
+function waitForTabLoad(tabId, timeout = 15000) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            chrome.tabs.onUpdated.removeListener(listener);
+            resolve(); // Resolve anyway after timeout
+        }, timeout);
+
+        function listener(updatedTabId, changeInfo) {
+            if (updatedTabId === tabId && changeInfo.status === 'complete') {
+                clearTimeout(timer);
+                chrome.tabs.onUpdated.removeListener(listener);
+                resolve();
+            }
+        }
+
+        chrome.tabs.onUpdated.addListener(listener);
+
+        // Check if already complete
+        chrome.tabs.get(tabId).then(tab => {
+            if (tab.status === 'complete') {
+                clearTimeout(timer);
+                chrome.tabs.onUpdated.removeListener(listener);
+                resolve();
+            }
+        }).catch(() => {
+            clearTimeout(timer);
+            reject(new Error('Tab not found'));
+        });
+    });
+}
 
 // ============================================
 // Configure Side Panel Behavior

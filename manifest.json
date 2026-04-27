@@ -9,7 +9,8 @@
         "tabs",
         "scripting",
         "activeTab",
-        "sidePanel"
+        "sidePanel",
+        "downloads"
     ],
     "content_scripts": [
         {

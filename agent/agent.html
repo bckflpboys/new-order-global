@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Global Executive — Browser Agent</title>
+  <link rel="stylesheet" href="agent.css">
+</head>
+
+<body>
+  <div class="agent-app" id="agent-app">
+    <!-- Top Bar -->
+    <header class="agent-header">
+      <div class="header-left">
+        <button class="btn-icon" id="btn-toggle-history" title="Task History">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+        <img src="../icons/logo.png" alt="New Order" class="header-logo">
+        <div class="header-title">
+          <h1>Global <span class="accent">Executive</span></h1>
+          <span class="header-subtitle">Browser Agent</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="user-info" id="user-info" style="display:none;">
+          <span class="user-plan" id="user-plan">0.00</span>
+          <span class="user-name" id="user-name">User</span>
+        </div>
+        <button class="btn-icon" id="btn-settings" title="Settings">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="agent-body">
+      <!-- Task History Sidebar -->
+      <aside class="history-sidebar" id="history-sidebar">
+        <div class="sidebar-header">
+          <h3>Task History</h3>
+          <button class="sidebar-close" id="history-close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="history-list" id="history-list">
+          <div class="empty-history">No tasks yet</div>
+        </div>
+      </aside>
+
+      <!-- Main Area -->
+      <main class="agent-main">
+        <!-- Welcome Screen -->
+        <div class="welcome-screen" id="welcome-screen">
+          <div class="welcome-content">
+            <div class="welcome-logo-glow">
+              <img src="../icons/logo.png" alt="" class="welcome-logo">
+            </div>
+            <h2>What task should I execute?</h2>
+            <p class="welcome-sub">Describe a browser task and I'll automate it across tabs — scraping, filling forms, creating documents, sending messages.<br>
+              <em>"Your autonomous browser agent."</em></p>
+
+            <div class="example-prompts">
+              <button class="example-prompt" data-prompt="Go to my current Facebook Marketplace tab, scroll through the listings and extract all items under $200, then create a list of what you found">
+                <span class="example-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+                <span>Scrape Facebook Marketplace listings</span>
+              </button>
+              <button class="example-prompt" data-prompt="Open Google Sheets, create a new spreadsheet, and fill it with sample data for a weekly budget tracker">
+                <span class="example-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg></span>
+                <span>Create a Google Sheets budget</span>
+              </button>
+              <button class="example-prompt" data-prompt="Search Google for 'best restaurants near me', extract the top 10 results with names and ratings, then compile them into a list">
+                <span class="example-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+                <span>Search Google & extract results</span>
+              </button>
+              <button class="example-prompt" data-prompt="Open WhatsApp Web, find my most recent chat, and send a message saying 'The report is ready, check your email'">
+                <span class="example-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+                <span>Send a WhatsApp message</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task Execution View -->
+        <div class="task-view" id="task-view" style="display:none;">
+          <!-- Task Header -->
+          <div class="task-header" id="task-header">
+            <div class="task-info">
+              <div class="task-status-badge" id="task-status">
+                <span class="status-dot"></span>
+                <span class="status-text">Running</span>
+              </div>
+              <h3 class="task-title" id="task-title">Task</h3>
+            </div>
+            <div class="task-controls">
+              <span class="task-credits" id="task-credits">0.00 credits</span>
+              <span class="task-steps" id="task-step-counter">Step 0/50</span>
+              <button class="btn-stop" id="btn-stop-task" title="Stop Task">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
+                Stop
+              </button>
+            </div>
+          </div>
+
+          <!-- Tab Tracker -->
+          <div class="tab-tracker" id="tab-tracker">
+            <!-- Tabs will be rendered here -->
+          </div>
+
+          <!-- Step Log -->
+          <div class="step-log" id="step-log">
+            <!-- Steps will be rendered here -->
+          </div>
+
+          <!-- Stored Data Preview -->
+          <div class="stored-data-panel" id="stored-data-panel" style="display:none;">
+            <div class="data-panel-header">
+              <h4>Collected Data</h4>
+              <button class="btn-icon-sm" id="btn-toggle-data" title="Toggle">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+            </div>
+            <div class="data-panel-body" id="data-panel-body"></div>
+          </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+          <div class="input-wrapper">
+            <div class="input-container-main">
+              <textarea id="task-input" placeholder="Describe a task to automate..." rows="1"></textarea>
+              <button class="btn-send" id="btn-send" title="Start Task">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div class="model-selector-container" id="model-selector-container">
+            <!-- Model selector rendered by JS -->
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Auth Modal -->
+    <div class="modal-overlay" id="auth-modal" style="display:none;">
+      <div class="modal">
+        <div class="modal-header">
+          <img src="../icons/logo.png" alt="" class="modal-logo">
+          <h2>Sign In to Global Executive</h2>
+          <p>Your autonomous browser agent</p>
+        </div>
+        <div class="modal-body">
+          <div class="auth-tabs">
+            <button class="auth-tab active" data-tab="login">Sign In</button>
+            <button class="auth-tab" data-tab="register">Create Account</button>
+          </div>
+          <form class="auth-form" id="login-form">
+            <div class="form-group">
+              <label for="login-email">Email</label>
+              <input type="email" id="login-email" placeholder="your@email.com" required>
+            </div>
+            <div class="form-group">
+              <label for="login-password">Password</label>
+              <input type="password" id="login-password" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="btn-auth-submit">Sign In</button>
+            <div class="auth-error" id="login-error" style="display:none;"></div>
+          </form>
+          <form class="auth-form" id="register-form" style="display:none;">
+            <div class="form-group">
+              <label for="register-name">Display Name</label>
+              <input type="text" id="register-name" placeholder="Your name" required>
+            </div>
+            <div class="form-group">
+              <label for="register-email">Email</label>
+              <input type="email" id="register-email" placeholder="your@email.com" required>
+            </div>
+            <div class="form-group">
+              <label for="register-password">Password</label>
+              <input type="password" id="register-password" placeholder="••••••••" minlength="8" required>
+            </div>
+            <button type="submit" class="btn-auth-submit">Create Account</button>
+            <div class="auth-error" id="register-error" style="display:none;"></div>
+          </form>
+        </div>
+        <button class="modal-close" id="auth-modal-close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Initial Loading Overlay -->
+  <div class="initial-loading-overlay" id="initial-loading-overlay">
+    <div class="loading-content">
+      <div class="loading-logo-container">
+        <div class="loading-glow"></div>
+        <img src="../icons/logo.png" alt="Global Executive" class="loading-logo">
+      </div>
+      <div class="loading-text">
+        <h2 id="loading-status">Initializing Agent</h2>
+        <div class="loading-bar"><div class="loading-bar-progress"></div></div>
+        <p id="loading-subtext">Preparing workspace...</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="../core/api-client.js"></script>
+  <script src="../core/auth.js"></script>
+  <script src="agent.js"></script>
+</body>
+
+</html>
