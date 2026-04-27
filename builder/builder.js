@@ -387,7 +387,10 @@ document.addEventListener('DOMContentLoaded', async () => {
               targetSites: ct.targetSites,
               contentScript: ct.contentScript,
               styles: ct.styles,
-              config: ct.config
+              config: ct.config,
+              dashboardHTML: ct.dashboardHTML || '',
+              storageSchema: ct.storageSchema || {},
+              conversationId: ct.conversationId || null
             });
             changed = true;
           }
@@ -569,7 +572,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             btn.onmouseout = () => btn.style.background = 'var(--bg-card)';
             
             btn.innerHTML = `
-                <div style="font-size:24px; background:rgba(124, 92, 252, 0.1); padding:8px; border-radius:8px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div> 
+                <div style="font-size:24px; background:rgba(184, 52, 28, 0.1); padding:8px; border-radius:8px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div> 
                 <div>
                     <div style="font-weight:700; font-size:14px; color:var(--accent-primary);">${currentTool.name.replace(/</g, "&lt;")}</div>
                     <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Click to view files/code or iterate</div>
@@ -709,7 +712,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         showToolPreview(result.tool);
       } else if (result.message) {
-        addMessage('ai', result.message);
+        const creditsUsed = result.usage?.creditsUsed || 0;
+        totalCreditsUsed += creditsUsed;
+        addMessage('ai', result.message, {
+          creditsUsed,
+          model: result.usage?.model || selectedModelId
+        });
+        chatHistory.push({ role: 'assistant', content: result.message });
       }
 
       updateCreditsDisplay();
@@ -821,7 +830,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btn.onmouseout = () => btn.style.background = 'var(--bg-card)';
         
         btn.innerHTML = `
-            <div style="font-size:24px; background:rgba(124, 92, 252, 0.1); padding:8px; border-radius:8px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div> 
+            <div style="font-size:24px; background:rgba(184, 52, 28, 0.1); padding:8px; border-radius:8px;"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div> 
             <div>
                 <div style="font-weight:700; font-size:14px; color:var(--accent-primary);">${opts.tool.name.replace(/</g, "&lt;")}</div>
                 <div style="font-size:12px; color:var(--text-secondary); margin-top:2px;">Click to view files/code or iterate</div>

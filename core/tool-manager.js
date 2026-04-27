@@ -258,7 +258,7 @@ const ToolManager = (() => {
     toast.className = 'no-tool-toast';
     toast.setAttribute('data-no-tool', TOOL_ID);
     toast.textContent = message;
-    toast.style.cssText = 'position:fixed;bottom:30px;right:30px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;padding:14px 24px;border-radius:12px;font-size:14px;font-weight:600;box-shadow:0 8px 32px rgba(102,126,234,0.4);z-index:999999;font-family:sans-serif;pointer-events:none;transition:0.3s;';
+    toast.style.cssText = 'position:fixed;bottom:30px;right:30px;background:#b8341c;color:white;padding:14px 24px;border-radius:12px;font-size:14px;font-weight:600;box-shadow:0 8px 28px rgba(184,52,28,0.3);z-index:999999;font-family:system-ui,-apple-system,Inter,sans-serif;pointer-events:none;transition:0.3s;';
 
     if (!document.getElementById('no-toast-style')) {
       const style = document.createElement('style');
@@ -431,8 +431,15 @@ const ToolManager = (() => {
       
       if (!Array.isArray(cloudTools)) return await getStats();
 
-      // Save each tool locally
-      for (const tool of cloudTools) {
+      // Save each tool locally — map _id to id for local storage compatibility
+      for (const ct of cloudTools) {
+        const tool = {
+          ...ct,
+          id: ct._id || ct.id,
+          dashboardHTML: ct.dashboardHTML || '',
+          storageSchema: ct.storageSchema || {},
+          conversationId: ct.conversationId || null
+        };
         await installTool(tool);
       }
 

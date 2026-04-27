@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const tools = await ToolManager.getInstalledTools();
-  const tool = tools.find(t => t.id === toolId);
+  let tool = tools.find(t => t.id === toolId || t._id === toolId);
   
   if (!tool) {
     document.getElementById('tool-name').textContent = 'Tool Not Found';
@@ -19,11 +19,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  // If dashboardHTML is missing locally, try fetching from cloud
+  if (!tool.dashboardHTML && typeof NewOrderAuth !== 'undefined' && NewOrderAuth.isAuthenticated()) {
+    try {
+      const cloudTool = await NewOrderAPI.getToolById(toolId);
+      if (cloudTool && cloudTool.dashboardHTML) {
+        tool.dashboardHTML = cloudTool.dashboardHTML;
+        // Persist it locally so we don't need to fetch again
+        await ToolManager.installTool({ ...tool, dashboardHTML: cloudTool.dashboardHTML });
+      }
+    } catch (e) {
+      console.log('Could not fetch dashboard from cloud:', e);
+    }
+  }
+
   // ============================================
   // Header
   // ============================================
   document.getElementById('tool-name').innerHTML = `
-    <span style="display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; background:rgba(124,92,252,0.1); border-radius:10px; margin-right:12px; font-size:20px; vertical-align:middle;">${tool.icon || '🔧'}</span>
+    <span style="display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; background:rgba(184,52,28,0.1); border-radius:10px; margin-right:12px; font-size:20px; vertical-align:middle;">${tool.icon || '🔧'}</span>
     ${escapeHtml(tool.name)}
   `;
   document.getElementById('tool-desc').textContent = tool.description || 'Custom AI Tool running on ' + (tool.targetSites?.join(', ') || 'all sites');
@@ -394,42 +408,107 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (noMsg) noMsg.style.display = 'none';
 
-    // Create sandboxed iframe with the dashboard HTML
+    // Inject initial data directly into the dashboard HTML so it's available immediately
+    // This avoids the postMessage race condition where iframe JS isn't ready yet
+    const dataPayload = JSON.stringify({
+      type: 'toolData',
+      data: toolData,
+      toolName: tool.name,
+      toolId: tool.id
+    });
+    const dataInjectionScript = `<script>
+      window.__noInitialData = ${dataPayload.replace(/<\/script>/gi, '<\\/script>')};
+      window.__noDataReceived = false;
+      window.addEventListener('message', function(e) {
+        if (e.data && e.data.type === 'toolData') {
+          window.__noDataReceived = true;
+        }
+      });
+      // Dispatch the data as a message event so existing listeners pick it up
+      function __noDispatchData() {
+        if (window.__noDataReceived || !window.__noInitialData) return;
+        try {
+          window.dispatchEvent(new MessageEvent('message', { data: window.__noInitialData }));
+        } catch(e) {}
+      }
+      // Fire at multiple points to catch listeners registered at different times
+      document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(__noDispatchData, 0);
+        setTimeout(__noDispatchData, 100);
+        setTimeout(__noDispatchData, 300);
+      });
+      window.addEventListener('load', function() {
+        setTimeout(__noDispatchData, 0);
+        setTimeout(__noDispatchData, 200);
+        setTimeout(__noDispatchData, 500);
+        setTimeout(__noDispatchData, 1000);
+      });
+    </script>`;
+
+    // Insert the data injection script right before </head> or at the start
+    let modifiedHTML = dashHTML;
+    if (modifiedHTML.includes('</head>')) {
+      modifiedHTML = modifiedHTML.replace('</head>', dataInjectionScript + '</head>');
+    } else if (modifiedHTML.includes('<body')) {
+      modifiedHTML = modifiedHTML.replace('<body', dataInjectionScript + '<body');
+    } else {
+      modifiedHTML = dataInjectionScript + modifiedHTML;
+    }
+
+    // Create iframe — no sandbox to allow proper postMessage communication
     dashboardIframe = document.createElement('iframe');
-    dashboardIframe.sandbox = 'allow-scripts allow-same-origin';
     dashboardIframe.style.cssText = 'width:100%;min-height:520px;border:none;display:block;border-radius:0 0 10px 10px;';
     
     // Write the dashboard HTML into the iframe via srcdoc
-    dashboardIframe.srcdoc = dashHTML;
+    dashboardIframe.srcdoc = modifiedHTML;
 
     container.appendChild(dashboardIframe);
 
-    // Wait for iframe to load, then send data
+    // Also send data via postMessage after load as a secondary mechanism
     dashboardIframe.addEventListener('load', () => {
+      // Send multiple times with delays to handle race conditions
       sendDataToIframe();
+      setTimeout(() => sendDataToIframe(), 200);
+      setTimeout(() => sendDataToIframe(), 600);
     });
   }
 
   function sendDataToIframe() {
     if (!dashboardIframe || !dashboardIframe.contentWindow) return;
     
-    dashboardIframe.contentWindow.postMessage({
-      type: 'toolData',
-      data: toolData,
-      toolName: tool.name,
-      toolId: tool.id
-    }, '*');
+    try {
+      dashboardIframe.contentWindow.postMessage({
+        type: 'toolData',
+        data: toolData,
+        toolName: tool.name,
+        toolId: tool.id
+      }, '*');
+    } catch (e) {
+      console.log('postMessage to dashboard iframe failed:', e);
+    }
   }
 
   // ============================================
   // Listen for messages from the dashboard iframe
   // ============================================
   window.addEventListener('message', async (event) => {
-    // Only handle messages from our iframe
-    if (!dashboardIframe || event.source !== dashboardIframe.contentWindow) return;
+    // Accept messages from our dashboard iframe
+    // Use relaxed check: if we have a dashboardIframe, accept messages that look like dashboard commands
+    if (!dashboardIframe) return;
+    
+    // Try to match event.source, but also accept if source is null (srcdoc iframes)
+    const isFromIframe = (event.source === dashboardIframe.contentWindow) || 
+                         (event.source === null) ||
+                         (event.origin === 'null') ||
+                         (event.origin === '');
+    if (!isFromIframe) return;
 
     const msg = event.data;
     if (!msg || !msg.type) return;
+
+    // Only handle known dashboard message types
+    const knownTypes = ['requestData', 'exportData', 'clearData', 'updateData', 'deleteData'];
+    if (!knownTypes.includes(msg.type)) return;
 
     const prefix = 'toolData_' + tool.id + '_';
 
