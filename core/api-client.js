@@ -249,6 +249,21 @@ const NewOrderAPI = (() => {
     return data;
   }
 
+  async function createSubscription(planId) {
+    const data = await request('/api/billing/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ planId })
+    });
+    return data;
+  }
+
+  async function cancelSubscription() {
+    const data = await request('/api/billing/cancel-subscription', {
+      method: 'POST'
+    });
+    return data;
+  }
+
   // ============================================
   // Conversations
   // ============================================
@@ -294,6 +309,8 @@ const NewOrderAPI = (() => {
     getCredits,
     getPurchases,
     createCheckout,
+    createSubscription,
+    cancelSubscription,
 
     // Generic request (for model loading etc)
     request,

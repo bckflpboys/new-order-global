@@ -176,12 +176,21 @@
   async function loadModels() {
     try {
       const data = await NewOrderAPI.request('/api/models');
-      availableModels = data.models || [];
+      // Only show models that are marked as agent-enabled
+      availableModels = (data.models || []).filter(m => m.isAgentModel);
 
       if (availableModels.length > 0) {
         const defaultModel = availableModels.find(m => m.isDefault) || availableModels[0];
-        selectedModelId = defaultModel.modelId;
+        selectedModelId = defaultModel.id || defaultModel.modelId;
         renderModelSelector();
+      } else {
+        // Fallback: if no agent models enabled, show all (for backwards compat)
+        availableModels = data.models || [];
+        if (availableModels.length > 0) {
+          const defaultModel = availableModels.find(m => m.isDefault) || availableModels[0];
+          selectedModelId = defaultModel.id || defaultModel.modelId;
+          renderModelSelector();
+        }
       }
     } catch (err) {
       console.error('[Global Executive] Failed to load models:', err);

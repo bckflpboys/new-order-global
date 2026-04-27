@@ -14,15 +14,21 @@ new order global/
 ├── popup.html / popup.js    # Side panel UI — auth, tool list, AI builder entry point
 │
 ├── core/                   # New Order Global framework
-│   ├── api-client.js       # HTTP client — auth, AI, tools, billing, conversations
+│   ├── api-client.js       # HTTP client — auth, AI, tools, billing, agent, conversations
 │   ├── tool-manager.js     # Install, activate, inject, sync AI-generated tools
 │   ├── tool-runtime.js     # Content script — storage bridge (ISOLATED ↔ MAIN world)
+│   ├── agent-runtime.js    # Content script — DOM reader + action executor for agent
 │   └── auth.js             # Auth state management — login, register, session tracking
 │
 ├── builder/                # AI Tool Builder (full-page chat interface)
 │   ├── builder.html        # Chat UI layout
 │   ├── builder.js          # Conversation flow, code preview, tool acceptance
 │   └── builder.css         # Builder styling
+│
+├── agent/                  # Global Executive — Browser Agent
+│   ├── agent.html          # Task UI — input, step log, tab tracker, auth
+│   ├── agent.js            # Agent loop controller — start → execute → report → next
+│   └── agent.css           # Agent styling (Alexandria editorial theme)
 │
 ├── dashboard/              # Extension dashboard pages
 │   ├── billing.html/js     # Credit balance, purchase packages
@@ -65,6 +71,18 @@ new order global/
 - Multiple AI model selection (Gemini, Claude, GPT-4o, etc.)
 - Conversation history for iterative refinement
 
+### Credit-Based — Global Executive (Browser Agent)
+- Describe a multi-step browser task in plain English
+- AI autonomously plans and executes actions across tabs
+- **17 supported actions:** `readPage`, `extract`, `click`, `type`, `scroll`, `select`, `pressKey`, `clear`, `openTab`, `switchTab`, `closeTab`, `storeData`, `download`, `wait`, `waitForElement`, `think`, `message`, `done`
+- Scrape data from websites (Facebook Marketplace, Google results, etc.)
+- Create documents in Google Sheets/Docs
+- Send messages via WhatsApp Web or other platforms
+- Download extracted data as files
+- Live step-by-step execution log with tab tracking
+- Task history with stored data review
+- Safety limit of 50 steps per task
+
 ---
 
 ## How AI Tools Work
@@ -95,6 +113,54 @@ new order global/
 │  │  └── Bridges postMessage ↔ chrome.storage  │  │
 │  └────────────────────────────────────────────┘  │
 └──────────────────────────────────────────────────┘
+```
+
+---
+
+## How the Global Executive Works
+
+1. **User describes a task** in the Agent UI (e.g. "Scrape Facebook Marketplace listings under $200")
+2. **Extension sends task** to `POST /api/agent/start` with the active tab's URL and title
+3. **Server calls the LLM** (OpenRouter) with a detailed agent system prompt defining 17 available actions
+4. **LLM returns a structured JSON action** (e.g. `{"action": "readPage", "params": {}}`)
+5. **Extension executes the action** — `background.js` injects `agent-runtime.js` into the target tab, which reads DOM state or performs the action
+6. **Extension reports the result** back to `POST /api/agent/step` along with page state
+7. **Server feeds the result + context** back to the LLM for the next action
+8. **Loop repeats** until the LLM returns a `done` action or the 50-step limit is reached
+
+### Agent Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Agent UI (agent.html)                                  │
+│  ├── Task input + model selector                        │
+│  ├── Live step log with action details                  │
+│  ├── Tab tracker (shows open tabs)                      │
+│  └── Task history sidebar                               │
+└────────────────┬────────────────────────────────────────┘
+                 │ chrome.runtime.sendMessage
+┌────────────────▼────────────────────────────────────────┐
+│  background.js                                          │
+│  ├── ge-execute-in-tab → injects + messages tab         │
+│  ├── ge-open-tab / ge-switch-tab / ge-close-tab         │
+│  ├── ge-download / ge-download-content                  │
+│  └── ensureAgentRuntime() — lazy injection               │
+└────────────────┬────────────────────────────────────────┘
+                 │ chrome.tabs.sendMessage
+┌────────────────▼────────────────────────────────────────┐
+│  agent-runtime.js (content script in target tab)        │
+│  ├── readPageState() → structured DOM snapshot          │
+│  ├── executeClick/Type/Scroll/Select/Extract/...        │
+│  └── Responds via sendResponse                          │
+└─────────────────────────────────────────────────────────┘
+                 ↕ HTTP (NewOrderAPI)
+┌─────────────────────────────────────────────────────────┐
+│  Server (/api/agent)                                    │
+│  ├── /start  — create task, get first action from LLM   │
+│  ├── /step   — report result, get next action           │
+│  ├── /stop   — cancel running task                      │
+│  └── /tasks  — list & view past tasks                   │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -143,13 +209,11 @@ const BASE_URL = 'http://localhost:3001'; // local dev
 
 ---
 
-## Credit System
+## Credits & Subscriptions
 
-The extension uses a **credit-based** system for AI tool generation:
+The extension uses both **one-time credit packages** and **recurring subscriptions**.
 
-- **New users** get 10 free credits on signup
-- **Credit cost** is calculated per request based on token usage and model pricing
-- **Credit packages** can be purchased via Lemon Squeezy:
+### One-Time Credit Packages
 
 | Package | Credits | Price |
 |---------|---------|-------|
@@ -157,8 +221,30 @@ The extension uses a **credit-based** system for AI tool generation:
 | Popular | 100 | $8.00 |
 | Pro | 200 | $15.00 |
 
-- **Tool limits**: Free=3, Pro=10, Unlimited=999 saved tools
-- **Daily AI limit**: 50 requests per user per day
+### Subscription Plans
+
+| Plan | Credits | Price | Agent Tier | Tools |
+|------|---------|-------|------------|-------|
+| Monthly Recurring | 100/mo | $6.99/mo | Monthly | 10 |
+| Yearly Archive | 480/yr | $49.99/yr | Yearly | 10 |
+| Super Agent | 300/mo | $20.00/mo | Super | 999 |
+
+### Agent Tier Comparison
+
+| Feature | Free | Monthly | Yearly | Super Agent |
+|---------|------|---------|--------|-------------|
+| Max steps per task | 10 | 20 | 30 | 50 |
+| Simultaneous tabs | 1 | 3 | 5 | 10 |
+| Concurrent tasks | 1 | 2 | 2 | 3 |
+| Daily tasks | 5 | 15 | 25 | 50 |
+| Daily AI requests | 50 | 100 | 100 | 200 |
+| Multi-agent council | — | — | — | ✓ |
+| Temperature | 0.30 | 0.25 | 0.25 | 0.20 |
+
+- **New users** get 10 free credits on signup
+- **Credit cost** is calculated per request based on token usage and model pricing
+- Subscribers get their plan credits on each billing cycle
+- Yearly Archive saves ~40% vs monthly
 
 ---
 

@@ -32,18 +32,19 @@
 
   <main class="main-content">
     <div class="page-header">
-      <h1>Account Balance</h1>
-      <p>Manage your credit balance and purchase more.</p>
+      <h1>Credits & Billing</h1>
+      <p>Manage your subscription, credit balance, and purchases.</p>
     </div>
 
     <!-- Tabs -->
     <div style="display: flex; gap: 16px; margin-bottom: 32px; border-bottom: 1px solid var(--ghost-border);">
-      <button id="tab-purchase" class="tab-btn active">Purchase Credits</button>
+      <button id="tab-purchase" class="tab-btn active">Plans & Credits</button>
       <button id="tab-history" class="tab-btn">Purchase History</button>
     </div>
 
     <!-- Purchase Tab Content -->
     <div id="content-purchase" class="tab-content">
+
       <!-- Credit Balance -->
       <div class="settings-card" style="background: var(--surface-dim); position: relative; overflow: hidden;">
         <div style="position: absolute; top: 0; right: 0; padding: 24px; opacity: 0.1;">
@@ -68,77 +69,104 @@
         </div>
       </div>
 
-      <!-- Subscription Plans -->
-      <h2 style="font-family: var(--font-headline); font-size: 24px; font-weight: 600; color: var(--on-surface); margin-bottom: 24px;">Subscription Plans</h2>
-      <div class="grid-cards" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 32px;">
-        <div class="card subscription-card">
-          <div class="subscription-badge">Flexible</div>
-          <h3 style="font-family: var(--font-headline); font-size: 24px; font-weight: 600; color: var(--on-surface); margin-bottom: 8px;">Monthly</h3>
-          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;">
-            <span style="font-family: var(--font-headline); font-size: 36px; font-weight: 600; color: var(--primary);">$19</span>
-            <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">per month</span>
+      <!-- Active Subscription Banner (hidden by default, shown by JS) -->
+      <div id="active-sub-banner" style="display: none; background: rgba(46, 125, 79, 0.08); border: 1px solid rgba(46, 125, 79, 0.25); border-radius: var(--radius-xl); padding: 20px 24px; margin-bottom: 32px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="width: 44px; height: 44px; border-radius: var(--radius-full); background: rgba(46, 125, 79, 0.15); display: flex; align-items: center; justify-content: center;">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--success);"><polyline points="20 6 9 17 4 12"/></svg>
+            </div>
+            <div>
+              <p style="font-family: var(--font-label); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--success); margin-bottom: 4px;">Active Subscription</p>
+              <p id="active-sub-name" style="font-family: var(--font-headline); font-size: 18px; font-weight: 600; color: var(--on-surface);">Monthly Recurring</p>
+              <p id="active-sub-detail" style="font-family: var(--font-body); font-size: 13px; color: var(--on-surface-variant); margin-top: 2px;">Renews on Jan 1, 2025</p>
+            </div>
           </div>
-          <p style="font-family: var(--font-label); font-size: 14px; font-weight: 600; color: var(--primary); margin-bottom: 24px;">100 credits/month</p>
-          <ul style="list-style: none; padding: 0; margin-bottom: 32px; flex: 1;">
-            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
-              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">100 credits monthly</span>
-            </li>
-            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
-              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Rolls over unused credits</span>
-            </li>
-            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
-              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">All AI models access</span>
-            </li>
-            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
-              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Priority support</span>
-            </li>
-            <li style="display: flex; align-items: start; gap: 12px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
-              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Cancel anytime</span>
-            </li>
-          </ul>
-          <button class="btn-secondary" onclick="buyCredits('monthly')">Subscribe</button>
-        </div>
-        <div class="card subscription-card accent">
-          <div class="subscription-badge accent">Save 17%</div>
-          <h3 style="font-family: var(--font-headline); font-size: 24px; font-weight: 600; color: var(--on-surface); margin-bottom: 8px;">Yearly</h3>
-          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px;">
-            <span style="font-family: var(--font-headline); font-size: 36px; font-weight: 600; color: var(--primary);">$190</span>
-            <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">per year</span>
-          </div>
-          <p style="font-family: var(--font-label); font-size: 14px; font-weight: 600; color: var(--primary); margin-bottom: 24px;">100 credits/month</p>
-          <ul style="list-style: none; padding: 0; margin-bottom: 32px; flex: 1;">
-            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
-              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">100 credits monthly</span>
-            </li>
-            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
-              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Rolls over unused credits</span>
-            </li>
-            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
-              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">All AI models access</span>
-            </li>
-            <li style="display: flex; align-items: start; gap: 12px; margin-bottom: 16px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
-              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">Priority support</span>
-            </li>
-            <li style="display: flex; align-items: start; gap: 12px;">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg>
-              <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">2 months free</span>
-            </li>
-          </ul>
-          <button class="btn-primary" onclick="buyCredits('yearly')">Subscribe</button>
+          <button id="cancel-sub-btn" class="btn-danger" style="font-size: 12px; padding: 8px 16px;">Cancel Subscription</button>
         </div>
       </div>
 
-      <!-- Purchase Credits -->
-      <h2 style="font-family: var(--font-headline); font-size: 24px; font-weight: 600; color: var(--on-surface); margin-bottom: 24px;">Purchase Credits</h2>
+      <!-- Subscription Plans -->
+      <h2 style="font-family: var(--font-headline); font-size: 24px; font-weight: 600; color: var(--on-surface); margin-bottom: 8px;">Subscription Plans</h2>
+      <p style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant); margin-bottom: 24px;">Subscribe for monthly credits, more agent steps, and simultaneous tab control.</p>
+
+      <div id="subscription-plans-container" class="grid-cards" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 40px;">
+
+        <!-- Monthly Recurring -->
+        <div class="card subscription-card" data-plan="monthly">
+          <div class="subscription-badge">Flexible</div>
+          <h3 style="font-family: var(--font-headline); font-size: 22px; font-weight: 600; color: var(--on-surface); margin-bottom: 8px;">Monthly Recurring</h3>
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px;">
+            <span style="font-family: var(--font-headline); font-size: 36px; font-weight: 600; color: var(--primary);">$6.99</span>
+            <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">/ month</span>
+          </div>
+          <p style="font-family: var(--font-label); font-size: 14px; font-weight: 600; color: var(--primary); margin-bottom: 20px;">100 credits / month</p>
+          <ul style="list-style: none; padding: 0; margin-bottom: 24px; flex: 1;">
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span>Up to <strong>3 simultaneous tabs</strong></span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span><strong>20 steps</strong> per agent task</span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span>10 saved tools (Pro)</span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span>100 daily AI requests</span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span>Cancel anytime</span></li>
+          </ul>
+          <button class="btn-secondary sub-btn" data-plan="monthly" style="width: 100%;">Subscribe</button>
+        </div>
+
+        <!-- Yearly Archive -->
+        <div class="card subscription-card accent" data-plan="yearly">
+          <div class="subscription-badge accent">Save 40%</div>
+          <h3 style="font-family: var(--font-headline); font-size: 22px; font-weight: 600; color: var(--on-surface); margin-bottom: 8px;">Yearly Archive</h3>
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px;">
+            <span style="font-family: var(--font-headline); font-size: 36px; font-weight: 600; color: var(--primary);">$49.99</span>
+            <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">/ year</span>
+          </div>
+          <p style="font-family: var(--font-label); font-size: 14px; font-weight: 600; color: var(--primary); margin-bottom: 20px;">480 credits / year</p>
+          <ul style="list-style: none; padding: 0; margin-bottom: 24px; flex: 1;">
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span>Up to <strong>5 simultaneous tabs</strong></span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span><strong>30 steps</strong> per agent task</span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span>10 saved tools (Pro)</span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span>100 daily AI requests</span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span>Best value &mdash; save ~40% vs monthly</span></li>
+          </ul>
+          <button class="btn-primary sub-btn" data-plan="yearly" style="width: 100%;">Subscribe</button>
+        </div>
+
+        <!-- Super Agent -->
+        <div class="card subscription-card" data-plan="super_agent" style="border: 1px solid rgba(184, 52, 28, 0.4); background: linear-gradient(180deg, var(--surface-container-lowest) 0%, rgba(184, 52, 28, 0.04) 100%);">
+          <div class="subscription-badge" style="background: var(--primary);">Best Agent</div>
+          <h3 style="font-family: var(--font-headline); font-size: 22px; font-weight: 600; color: var(--on-surface); margin-bottom: 8px;">Super Agent</h3>
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px;">
+            <span style="font-family: var(--font-headline); font-size: 36px; font-weight: 600; color: var(--primary);">$20</span>
+            <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">/ month</span>
+          </div>
+          <p style="font-family: var(--font-label); font-size: 14px; font-weight: 600; color: var(--primary); margin-bottom: 20px;">300 credits / month</p>
+          <ul style="list-style: none; padding: 0; margin-bottom: 24px; flex: 1;">
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span>Up to <strong>10 simultaneous tabs</strong></span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span><strong>50 steps</strong> per agent task</span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span><strong>Multi-Agent Council</strong> &mdash; 4 AI perspectives per action</span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span>Unlimited saved tools</span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span>200 daily AI requests</span></li>
+            <li class="sub-feature"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary); flex-shrink: 0;"><polyline points="20 6 9 17 4 12"/></svg><span>3 concurrent agent tasks</span></li>
+          </ul>
+          <button class="btn-primary sub-btn" data-plan="super_agent" style="width: 100%;">Subscribe</button>
+        </div>
+      </div>
+
+      <!-- Free Tier Info -->
+      <div class="settings-card" style="margin-bottom: 32px;">
+        <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+          <div style="width: 40px; height: 40px; border-radius: var(--radius-full); background: var(--surface-container); display: flex; align-items: center; justify-content: center;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--on-surface-variant);"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </div>
+          <div>
+            <h3 style="font-family: var(--font-headline); font-size: 16px; font-weight: 600; color: var(--on-surface); margin-bottom: 2px;">Free Tier (No Subscription)</h3>
+            <p style="font-family: var(--font-body); font-size: 13px; color: var(--on-surface-variant); margin: 0;">10 free credits on signup. Agent limited to <strong>1 tab</strong> and <strong>10 steps</strong> per task. 3 saved tools. 50 daily requests.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- One-Time Credit Packages -->
+      <h2 style="font-family: var(--font-headline); font-size: 24px; font-weight: 600; color: var(--on-surface); margin-bottom: 8px;">One-Time Credit Packages</h2>
+      <p style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant); margin-bottom: 24px;">Need more credits without a subscription? Buy a one-time package.</p>
       <div class="grid-cards" id="packages-container" style="margin-bottom: 32px; grid-template-columns: repeat(3, 1fr);">
         <!-- Populated by JS -->
       </div>

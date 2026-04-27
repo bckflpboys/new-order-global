@@ -1,20 +1,127 @@
-// Global functions for tab switching
+// Plan display names
+const PLAN_LABELS = {
+  monthly: 'Monthly Recurring',
+  yearly: 'Yearly Archive',
+  super_agent: 'Super Agent'
+};
+
+// Tab switching
 function switchTab(tab) {
-  // Update tab buttons
   document.getElementById('tab-purchase').classList.remove('active');
   document.getElementById('tab-history').classList.remove('active');
   document.getElementById(`tab-${tab}`).classList.add('active');
 
-  // Update content
   document.getElementById('content-purchase').style.display = tab === 'purchase' ? 'block' : 'none';
   document.getElementById('content-history').style.display = tab === 'history' ? 'block' : 'none';
 
-  // Load purchase history when switching to history tab
-  if (tab === 'history') {
-    loadPurchaseHistory();
+  if (tab === 'history') loadPurchaseHistory();
+}
+
+// Show active subscription banner
+function showSubscriptionBanner(subscription) {
+  if (!subscription || subscription.status === 'none' || subscription.plan === 'none') return;
+
+  const banner = document.getElementById('active-sub-banner');
+  const nameEl = document.getElementById('active-sub-name');
+  const detailEl = document.getElementById('active-sub-detail');
+
+  nameEl.textContent = PLAN_LABELS[subscription.plan] || subscription.plan;
+
+  let detail = '';
+  if (subscription.cancelAtPeriodEnd) {
+    detail = subscription.currentPeriodEnd
+      ? `Cancels on ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`
+      : 'Cancelling at end of period';
+    banner.style.background = 'rgba(138, 109, 0, 0.08)';
+    banner.style.borderColor = 'rgba(138, 109, 0, 0.25)';
+    nameEl.parentElement.querySelector('p:first-child').style.color = 'var(--warning)';
+    nameEl.parentElement.querySelector('p:first-child').textContent = 'Cancelling';
+    document.getElementById('cancel-sub-btn').style.display = 'none';
+  } else if (subscription.status === 'active') {
+    detail = subscription.currentPeriodEnd
+      ? `Renews on ${new Date(subscription.currentPeriodEnd).toLocaleDateString()}`
+      : 'Active';
+  } else if (subscription.status === 'past_due') {
+    detail = 'Payment past due — please update your payment method';
+    banner.style.background = 'rgba(186, 26, 26, 0.08)';
+    banner.style.borderColor = 'rgba(186, 26, 26, 0.25)';
+  }
+
+  detailEl.textContent = detail;
+  banner.style.display = 'block';
+
+  // Disable subscribe buttons for active users
+  document.querySelectorAll('.sub-btn').forEach(btn => {
+    if (subscription.status === 'active') {
+      btn.disabled = true;
+      btn.textContent = subscription.plan === btn.dataset.plan ? 'Current Plan' : 'Subscribed';
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+    }
+  });
+
+  // Highlight current plan card
+  const currentCard = document.querySelector(`.subscription-card[data-plan="${subscription.plan}"]`);
+  if (currentCard) {
+    currentCard.style.border = '2px solid var(--success)';
   }
 }
 
+// Subscribe to a plan
+async function subscribeToPlan(planId) {
+  try {
+    const btn = document.querySelector(`.sub-btn[data-plan="${planId}"]`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Loading...'; }
+
+    const data = await NewOrderAPI.createSubscription(planId);
+    if (data && data.checkoutUrl) {
+      window.open(data.checkoutUrl, '_blank');
+    } else {
+      alert('Failed to start subscription checkout.');
+    }
+
+    if (btn) { btn.disabled = false; btn.textContent = 'Subscribe'; }
+  } catch (err) {
+    alert('Error: ' + (err.message || 'Failed to subscribe'));
+    const btn = document.querySelector(`.sub-btn[data-plan="${planId}"]`);
+    if (btn) { btn.disabled = false; btn.textContent = 'Subscribe'; }
+  }
+}
+
+// Cancel subscription
+async function cancelSubscription() {
+  if (!confirm('Are you sure you want to cancel your subscription? You will keep access until the end of your billing period.')) return;
+
+  const btn = document.getElementById('cancel-sub-btn');
+  btn.disabled = true;
+  btn.textContent = 'Cancelling...';
+
+  try {
+    const data = await NewOrderAPI.cancelSubscription();
+    alert(data.message || 'Subscription cancelled.');
+    window.location.reload();
+  } catch (err) {
+    alert('Error: ' + (err.message || 'Failed to cancel'));
+    btn.disabled = false;
+    btn.textContent = 'Cancel Subscription';
+  }
+}
+
+// Buy one-time credits
+async function buyCredits(pkgId) {
+  try {
+    const data = await NewOrderAPI.createCheckout(pkgId);
+    if (data && data.checkoutUrl) {
+      window.open(data.checkoutUrl, '_blank');
+    } else {
+      alert('Failed to start checkout process.');
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  }
+}
+
+// Load purchase history
 async function loadPurchaseHistory() {
   try {
     const data = await NewOrderAPI.getPurchases();
@@ -36,11 +143,7 @@ async function loadPurchaseHistory() {
 
     container.innerHTML = purchases.map(purchase => {
       const statusClass = purchase.status === 'completed' ? 'completed' : purchase.status === 'pending' ? 'pending' : 'failed';
-      const typeLabels = {
-        'one-time': 'One-time',
-        'monthly': 'Monthly',
-        'yearly': 'Yearly'
-      };
+      const typeLabels = { 'one-time': 'One-time', 'monthly': 'Monthly', 'yearly': 'Yearly', 'subscription': 'Subscription' };
 
       return `
         <div class="purchase-row">
@@ -50,7 +153,7 @@ async function loadPurchaseHistory() {
             </div>
             <div>
               <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
-                <span style="font-family: var(--font-headline); font-size: 16px; font-weight: 600; color: var(--on-surface);">${typeLabels[purchase.type]} Purchase</span>
+                <span style="font-family: var(--font-headline); font-size: 16px; font-weight: 600; color: var(--on-surface);">${typeLabels[purchase.type] || purchase.type} Purchase</span>
                 <span class="purchase-status ${statusClass}">${purchase.status}</span>
               </div>
               <p style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">${new Date(purchase.date).toLocaleDateString()}</p>
@@ -76,19 +179,9 @@ async function loadPurchaseHistory() {
   }
 }
 
-async function buyCredits(pkgId) {
-  try {
-    const data = await NewOrderAPI.createCheckout(pkgId);
-    if (data && data.checkoutUrl) {
-      window.open(data.checkoutUrl, '_blank');
-    } else {
-      alert('Failed to start checkout process.');
-    }
-  } catch (err) {
-    alert('Error: ' + err.message);
-  }
-}
-
+// ============================================
+// Init
+// ============================================
 document.addEventListener('DOMContentLoaded', async () => {
   const user = await NewOrderAuth.init();
   if (!user) {
@@ -96,13 +189,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // Add tab button event listeners
+  // Tab buttons
   document.getElementById('tab-purchase').addEventListener('click', () => switchTab('purchase'));
   document.getElementById('tab-history').addEventListener('click', () => switchTab('history'));
 
+  // Subscribe buttons
+  document.querySelectorAll('.sub-btn').forEach(btn => {
+    btn.addEventListener('click', () => subscribeToPlan(btn.dataset.plan));
+  });
+
+  // Cancel subscription button
+  document.getElementById('cancel-sub-btn').addEventListener('click', cancelSubscription);
+
   try {
     const info = await NewOrderAPI.getCredits();
-    
+
+    // Update balance & stats
     document.getElementById('credit-balance').textContent = (info.credits || 0).toFixed(2);
     document.getElementById('total-used').textContent = (info.totalUsed || 0).toFixed(2);
     document.getElementById('stat-purchased').textContent = info.totalPurchased || 0;
@@ -110,7 +212,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('stat-requests').textContent = info.aiRequestsUsed || 0;
     document.getElementById('stat-tools').textContent = info.toolsCreated || 0;
 
-    // Render purchase credits packages
+    // Show active subscription banner if applicable
+    if (info.subscription) {
+      showSubscriptionBanner(info.subscription);
+    }
+
+    // Render one-time credit packages
     const container = document.getElementById('packages-container');
     const packages = info.packages || [
       { id: 'starter', credits: 40, price: 4, label: 'Starter' },
@@ -121,11 +228,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     packages.forEach(pkg => {
       const hasBadge = pkg.badge ? 'border: 1px solid rgba(184, 52, 28, 0.3); background: var(--surface-dim);' : '';
       const btnStyle = pkg.badge ? 'background: var(--accent-gradient); color: var(--on-primary);' : 'background: var(--surface-container-high); color: var(--primary); border: 1px solid var(--ghost-border);';
-      
+
       const div = document.createElement('div');
       div.className = 'card';
       div.style.cssText = 'position: relative; padding: 24px; ' + hasBadge;
-      
+
       div.innerHTML = `
         ${pkg.badge ? `<div style="position:absolute; top:-12px; left:50%; transform:translateX(-50%); padding: 4px 16px; border-radius: var(--radius-full); background: var(--tertiary); color: var(--on-tertiary); font-family: var(--font-label); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;">${pkg.badge}</div>` : ''}
         <div style="padding-top: 8px; margin-bottom: 20px;">
@@ -139,8 +246,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         <button class="btn-primary" style="width: 100%; ${btnStyle}" data-pkg="${pkg.id}">Buy ${pkg.credits} Credits</button>
       `;
       container.appendChild(div);
-      
-      // Add event listener to the button we just added
+
       const btn = div.querySelector('button');
       btn.addEventListener('click', () => buyCredits(pkg.id));
     });

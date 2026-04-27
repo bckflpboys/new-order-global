@@ -657,3 +657,17 @@ body {
   background: rgba(186, 26, 26, 0.1);
   color: var(--danger);
 }
+
+.sub-feature {
+  display: flex;
+  align-items: start;
+  gap: 10px;
+  margin-bottom: 12px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--on-surface-variant);
+  line-height: 1.4;
+}
+.sub-feature strong {
+  color: var(--on-surface);
+}
