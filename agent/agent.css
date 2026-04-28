@@ -234,6 +234,13 @@ body {
   background: var(--surface-container-low);
   border-radius: var(--radius-full);
   border: 1px solid var(--ghost-border);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.user-info:hover {
+  background: var(--surface-container);
+  border-color: var(--primary);
 }
 
 .user-plan {
@@ -921,6 +928,119 @@ body {
   font-family: var(--font-body);
   font-size: 13px;
   color: var(--on-surface-variant);
+}
+
+/* Markdown-rendered content styles */
+.step-done-content,
+.step-thought,
+.step-message,
+.step-error {
+  line-height: 1.55;
+}
+
+.step-done-content p,
+.step-thought p,
+.step-message p,
+.step-error p {
+  margin: 0 0 6px 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+.step-done-content p:last-child,
+.step-thought p:last-child,
+.step-message p:last-child,
+.step-error p:last-child {
+  margin-bottom: 0;
+}
+
+.step-done-content ul,
+.step-done-content ol,
+.step-thought ul,
+.step-thought ol,
+.step-message ul,
+.step-message ol,
+.step-error ul,
+.step-error ol {
+  margin: 4px 0 8px 16px;
+  padding: 0;
+  font-size: inherit;
+}
+
+.step-done-content li,
+.step-thought li,
+.step-message li,
+.step-error li {
+  margin-bottom: 3px;
+  line-height: 1.45;
+}
+
+.step-done-content strong,
+.step-thought strong,
+.step-message strong,
+.step-error strong {
+  font-weight: 600;
+  color: var(--on-surface);
+}
+
+.step-done-content em,
+.step-thought em,
+.step-message em,
+.step-error em {
+  font-style: italic;
+  color: var(--on-surface-variant);
+}
+
+.step-done-content a,
+.step-thought a,
+.step-message a,
+.step-error a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.step-done-content a:hover,
+.step-thought a:hover,
+.step-message a:hover,
+.step-error a:hover {
+  color: var(--primary-container);
+}
+
+.step-done-content code,
+.step-thought code,
+.step-message code,
+.step-error code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: rgba(60, 64, 75, 0.08);
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--on-surface);
+}
+
+.step-done-content pre,
+.step-thought pre,
+.step-message pre,
+.step-error pre {
+  background: var(--inverse-surface);
+  color: var(--inverse-on-surface);
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  margin: 6px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.step-done-content pre code,
+.step-thought pre code,
+.step-message pre code,
+.step-error pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
 }
 
 .step-thinking {

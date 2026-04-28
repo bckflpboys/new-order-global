@@ -414,7 +414,7 @@
     if (step.action === 'message') {
       const msgEl = document.createElement('div');
       msgEl.className = 'step-message';
-      msgEl.textContent = step.params?.text || step.thought || '';
+      msgEl.innerHTML = formatMarkdown(step.params?.text || step.thought || '');
       stepLog.appendChild(msgEl);
       scrollToBottom();
       return;
@@ -426,7 +426,7 @@
       thinkEl.className = 'step-thinking';
       thinkEl.innerHTML = `
         <div class="thinking-dots"><span></span><span></span><span></span></div>
-        <span>${escapeHtml(step.params?.reasoning || step.thought || 'Thinking...')}</span>
+        <span>${formatMarkdown(step.params?.reasoning || step.thought || 'Thinking...')}</span>
       `;
       stepLog.appendChild(thinkEl);
       scrollToBottom();
@@ -464,9 +464,9 @@
       <div class="step-number">${step.stepNumber}</div>
       <div class="step-body">
         <div class="step-action"><span class="action-name">${escapeHtml(step.action)}</span></div>
-        ${step.thought ? `<div class="step-thought">${escapeHtml(step.thought)}</div>` : ''}
+        ${step.thought ? `<div class="step-thought">${formatMarkdown(step.thought)}</div>` : ''}
         ${detailText ? `<div class="step-detail">${escapeHtml(detailText)}</div>` : ''}
-        ${step.error ? `<div class="step-error">${escapeHtml(step.error)}</div>` : ''}
+        ${step.error ? `<div class="step-error">${formatMarkdown(step.error)}</div>` : ''}
       </div>
     `;
 
@@ -479,7 +479,7 @@
     doneEl.className = 'step-done';
     doneEl.innerHTML = `
       <h4>Task Completed</h4>
-      <p>${escapeHtml(summary)}</p>
+      <div class="step-done-content">${formatMarkdown(summary)}</div>
     `;
     stepLog.appendChild(doneEl);
     scrollToBottom();
@@ -537,6 +537,84 @@
     const div = document.createElement('div');
     div.textContent = text || '';
     return div.innerHTML;
+  }
+
+  // Convert basic markdown to HTML for AI-generated text
+  function formatMarkdown(text) {
+    if (!text) return '';
+
+    // Protect fenced code blocks (extract before escaping)
+    const codeBlocks = [];
+    let processed = text.replace(/```([\s\S]*?)```/g, (match, code) => {
+      const escaped = escapeHtml(code);
+      codeBlocks.push(`<pre><code>${escaped}</code></pre>`);
+      return `__CODEBLOCK_${codeBlocks.length - 1}__`;
+    });
+
+    // Escape everything else
+    processed = escapeHtml(processed);
+
+    // Inline code (must be after escaping)
+    processed = processed.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Bold
+    processed = processed.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+    // Italic
+    processed = processed.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    processed = processed.replace(/_([^_]+)_/g, '<em>$1</em>');
+
+    // Links [text](url)
+    processed = processed.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+    // Process lists line-by-line
+    const lines = processed.split('\n');
+    const out = [];
+    let listType = null;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const ul = line.match(/^(\s*)[-*]\s+(.*)$/);
+      const ol = line.match(/^(\s*)\d+\.\s+(.*)$/);
+
+      if (ul) {
+        if (listType !== 'ul') {
+          if (listType) out.push(`</${listType}>`);
+          listType = 'ul';
+          out.push('<ul>');
+        }
+        out.push(`<li>${ul[2]}</li>`);
+      } else if (ol) {
+        if (listType !== 'ol') {
+          if (listType) out.push(`</${listType}>`);
+          listType = 'ol';
+          out.push('<ol>');
+        }
+        out.push(`<li>${ol[2]}</li>`);
+      } else {
+        if (listType) {
+          out.push(`</${listType}>`);
+          listType = null;
+        }
+        if (line.includes('__CODEBLOCK_')) {
+          out.push(line);
+        } else if (line.trim()) {
+          out.push(`<p>${line}</p>`);
+        } else {
+          out.push('<br>');
+        }
+      }
+    }
+    if (listType) out.push(`</${listType}>`);
+
+    processed = out.join('\n');
+
+    // Restore code blocks
+    codeBlocks.forEach((block, i) => {
+      processed = processed.replace(`__CODEBLOCK_${i}__`, block);
+    });
+
+    return processed;
   }
 
   // ============================================
@@ -746,19 +824,43 @@
           } catch { /* ignore - page state is optional context */ }
         }
 
+        // Truncate page state client-side to avoid body-too-large errors
+        pageState = truncatePageState(pageState, 100000); // ~100KB safety margin
+
         // === Send result to server, get next action ===
         try {
-          const nextData = await NewOrderAPI.request('/api/agent/step', {
-            method: 'POST',
-            body: JSON.stringify({
-              taskId: currentTaskId,
-              stepNumber,
-              result: result || null,
-              error: error || null,
-              pageState: pageState || null,
-              modelId: selectedModelId
-            })
-          });
+          let nextData;
+          try {
+            nextData = await NewOrderAPI.request('/api/agent/step', {
+              method: 'POST',
+              body: JSON.stringify({
+                taskId: currentTaskId,
+                stepNumber,
+                result: result || null,
+                error: error || null,
+                pageState: pageState || null,
+                modelId: selectedModelId
+              })
+            });
+          } catch (firstErr) {
+            // If body too large, aggressively truncate and retry once
+            if (firstErr.message?.includes('too large') || firstErr.message?.includes('413')) {
+              pageState = truncatePageState(pageState, 30000); // ~30KB
+              nextData = await NewOrderAPI.request('/api/agent/step', {
+                method: 'POST',
+                body: JSON.stringify({
+                  taskId: currentTaskId,
+                  stepNumber,
+                  result: result || null,
+                  error: (error ? error + ' | ' : '') + 'Page state was heavily truncated due to size limits.',
+                  pageState: pageState || null,
+                  modelId: selectedModelId
+                })
+              });
+            } else {
+              throw firstErr;
+            }
+          }
 
           if (nextData.usage) {
             updateCreditsDisplay(nextData.usage.creditsRemaining);
@@ -898,6 +1000,56 @@
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  // Truncate page state client-side to prevent body-too-large errors
+  function truncatePageState(pageState, maxChars) {
+    if (!pageState) return pageState;
+    const str = JSON.stringify(pageState);
+    if (str.length <= maxChars) return pageState;
+
+    // Aggressively trim fields while preserving structure
+    const trimmed = {
+      url: pageState.url || '',
+      title: pageState.title || ''
+    };
+
+    if (pageState.visibleText) {
+      trimmed.visibleText = pageState.visibleText.substring(0, Math.floor(maxChars * 0.4));
+    }
+    if (pageState.links && Array.isArray(pageState.links)) {
+      trimmed.links = pageState.links.slice(0, 20);
+    }
+    if (pageState.buttons && Array.isArray(pageState.buttons)) {
+      trimmed.buttons = pageState.buttons.slice(0, 10);
+    }
+    if (pageState.inputs && Array.isArray(pageState.inputs)) {
+      trimmed.inputs = pageState.inputs.slice(0, 10);
+    }
+    if (pageState.forms && Array.isArray(pageState.forms)) {
+      trimmed.forms = pageState.forms.slice(0, 3);
+    }
+    if (pageState.images && Array.isArray(pageState.images)) {
+      trimmed.images = pageState.images.slice(0, 5);
+    }
+    if (pageState.tables && Array.isArray(pageState.tables)) {
+      trimmed.tables = pageState.tables.slice(0, 2);
+    }
+    if (pageState.headings && Array.isArray(pageState.headings)) {
+      trimmed.headings = pageState.headings.slice(0, 10);
+    }
+    trimmed._truncated = true;
+
+    // If still too large, keep only URL, title, and a tiny text snippet
+    if (JSON.stringify(trimmed).length > maxChars) {
+      return {
+        url: trimmed.url,
+        title: trimmed.title,
+        visibleText: (trimmed.visibleText || '').substring(0, Math.floor(maxChars * 0.3)),
+        _truncated: true
+      };
+    }
+    return trimmed;
+  }
+
   // MV3 Service Worker keep-alive: open a long-lived port so the SW doesn't idle-die mid-task
   function startKeepAlive() {
     if (keepAlivePort) return;
@@ -1004,6 +1156,16 @@
     // Stored data panel toggle
     document.getElementById('btn-toggle-data')?.addEventListener('click', () => {
       dataPanelBody.style.display = dataPanelBody.style.display === 'none' ? 'block' : 'none';
+    });
+
+    // Settings button - navigate to settings page
+    document.getElementById('btn-settings')?.addEventListener('click', () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/settings.html') });
+    });
+
+    // User info (credits/name) - navigate to billing page
+    userInfo?.addEventListener('click', () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/billing.html') });
     });
   }
 
