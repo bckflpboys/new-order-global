@@ -11,6 +11,7 @@
   let isRunning = false;
   let selectedModelId = null;
   let availableModels = [];
+  let currentTierMaxSteps = 50;
 
   // DOM References
   const welcomeScreen = document.getElementById('welcome-screen');
@@ -160,6 +161,10 @@
         userInfo.style.display = 'flex';
         userName.textContent = user.displayName || user.email.split('@')[0];
         userPlan.textContent = (user.credits || 0).toFixed(2) + ' credits';
+        // Store tier info from profile
+        if (user.agentTier) {
+          currentTierMaxSteps = user.agentTier.maxSteps || 50;
+        }
       }
     } catch (err) {
       console.error('[Global Executive] Failed to load user:', err);
@@ -175,22 +180,16 @@
   // ============================================
   async function loadModels() {
     try {
-      const data = await NewOrderAPI.request('/api/models');
-      // Only show models that are marked as agent-enabled
-      availableModels = (data.models || []).filter(m => m.isAgentModel);
+      // Request only agent-capable models from the server
+      const data = await NewOrderAPI.request('/api/models?agent=true');
+      availableModels = data.models || [];
 
       if (availableModels.length > 0) {
         const defaultModel = availableModels.find(m => m.isDefault) || availableModels[0];
-        selectedModelId = defaultModel.id || defaultModel.modelId;
+        selectedModelId = defaultModel.id;
         renderModelSelector();
       } else {
-        // Fallback: if no agent models enabled, show all (for backwards compat)
-        availableModels = data.models || [];
-        if (availableModels.length > 0) {
-          const defaultModel = availableModels.find(m => m.isDefault) || availableModels[0];
-          selectedModelId = defaultModel.id || defaultModel.modelId;
-          renderModelSelector();
-        }
+        console.warn('[Global Executive] No agent-capable models found');
       }
     } catch (err) {
       console.error('[Global Executive] Failed to load models:', err);
@@ -198,25 +197,104 @@
   }
 
   function renderModelSelector() {
-    const model = availableModels.find(m => m.modelId === selectedModelId);
-    if (!model) return;
+    const selectedModel = availableModels.find(m => m.id === selectedModelId) || availableModels[0];
+    if (!selectedModel) return;
 
     modelSelectorContainer.innerHTML = `
-      <button class="model-pill" id="model-pill" title="Click to change model">
-        <span class="robot-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a2 2 0 012 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 017 7h1a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a2 2 0 01-2 2H5a2 2 0 01-2-2v-1H2a1 1 0 01-1-1v-3a1 1 0 011-1h1a7 7 0 017-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 012-2zM9.5 16a1.5 1.5 0 100-3 1.5 1.5 0 000 3zm5 0a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg></span>
-        <span>${model.name}</span>
-      </button>
+      <div class="model-pill" id="model-selector-pill">
+        <div class="robot-icon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+            <path d="M12,2A10,10,0,0,0,2,12a9.89,9.89,0,0,0,2.26,6.33l-2,2a1,1,0,0,0,1.42,1.42l2-2A9.94,9.94,0,0,0,12,22a10,10,0,0,0,0-20Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"/>
+            <circle cx="8.5" cy="11.5" r="1.5"/><circle cx="15.5" cy="11.5" r="1.5"/><path d="M8,15a4,4,0,0,0,8,0H8Z"/>
+          </svg>
+        </div>
+        <span>${selectedModel.name}</span>
+      </div>
     `;
 
-    document.getElementById('model-pill')?.addEventListener('click', cycleModel);
+    document.getElementById('model-selector-pill')?.addEventListener('click', openModelSelectorModal);
   }
 
-  function cycleModel() {
-    if (availableModels.length <= 1) return;
-    const idx = availableModels.findIndex(m => m.modelId === selectedModelId);
-    const next = (idx + 1) % availableModels.length;
-    selectedModelId = availableModels[next].modelId;
-    renderModelSelector();
+  function openModelSelectorModal() {
+    let overlay = document.getElementById('model-modal-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'model-modal-overlay';
+      overlay.className = 'model-modal-overlay';
+      overlay.innerHTML = `
+        <div class="model-modal">
+          <div class="model-modal-header">
+            <div class="model-tabs">
+              <button class="model-tab" data-group="FREE"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Free</button>
+              <button class="model-tab active" data-group="STANDARD"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg> Standard</button>
+              <button class="model-tab" data-group="PREMIUM"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M6 3h12v4l-6 6-6-6V3zM20 9h-4l-2 2-2-2H8l-2 2-2-2H0l4 4v9h16v-9l4-4h-4z"/><path d="M12 13l-2 2-2-2 2-2 2 2z"/></svg> Premium</button>
+            </div>
+          </div>
+          <div class="model-modal-body" id="model-modal-list"></div>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+      
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.classList.remove('active');
+      });
+
+      overlay.querySelectorAll('.model-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          overlay.querySelectorAll('.model-tab').forEach(t => t.classList.remove('active'));
+          tab.classList.add('active');
+          renderModelList(tab.dataset.group);
+        });
+      });
+    }
+
+    renderModelList('STANDARD');
+    overlay.classList.add('active');
+  }
+
+  function renderModelList(group) {
+    const list = document.getElementById('model-modal-list');
+    if (!list) return;
+
+    const filteredModels = availableModels.filter(m => {
+      if (group === 'FREE') return m.tier === 'free';
+      if (group === 'STANDARD') return m.tier === 'standard';
+      if (group === 'PREMIUM') return m.tier === 'premium';
+      return true;
+    });
+
+    list.innerHTML = filteredModels.map(m => {
+      const isSelected = m.id === selectedModelId;
+      const tags = [];
+      if (m.name.toLowerCase().includes('reasoning') || m.name.toLowerCase().includes('sonnet')) tags.push('<span class="model-tag reasoning">Reasoning</span>');
+      if (m.name.toLowerCase().includes('vision')) tags.push('<span class="model-tag vision">Vision</span>');
+      if (m.tier === 'free') tags.push('<span class="model-tag fast">Fast</span>');
+      if (m.tier === 'premium') tags.push('<span class="model-tag full">Full</span>');
+
+      return `
+        <div class="model-card ${isSelected ? 'selected' : ''}" data-id="${m.id}">
+          <div class="model-card-icon">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+              <path d="M12,2A10,10,0,0,0,2,12a9.89,9.89,0,0,0,2.26,6.33l-2,2a1,1,0,0,0,1.42,1.42l2-2A9.94,9.94,0,0,0,12,22a10,10,0,0,0,0-20Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"/>
+              <circle cx="8.5" cy="11.5" r="1.5"/><circle cx="15.5" cy="11.5" r="1.5"/><path d="M8,15a4,4,0,0,0,8,0H8Z"/>
+            </svg>
+          </div>
+          <div class="model-card-info">
+            <div class="model-card-name">${m.name}</div>
+            <div class="model-card-tags">${tags.join('')}</div>
+          </div>
+          ${isSelected ? '<div class="model-card-check"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>' : ''}
+        </div>
+      `;
+    }).join('');
+
+    list.querySelectorAll('.model-card').forEach(card => {
+      card.addEventListener('click', () => {
+        selectedModelId = card.dataset.id;
+        renderModelSelector();
+        document.getElementById('model-modal-overlay').classList.remove('active');
+      });
+    });
   }
 
   // ============================================
@@ -470,7 +548,8 @@
       currentTaskId = data.taskId;
       updateCreditsDisplay(data.usage.creditsRemaining);
       taskCredits.textContent = data.usage.totalTaskCredits.toFixed(2) + ' credits';
-      taskStepCounter.textContent = `Step ${data.step.stepNumber}/50`;
+      currentTierMaxSteps = data.tier?.maxSteps || 50;
+      taskStepCounter.textContent = `Step ${data.step.stepNumber}/${currentTierMaxSteps}`;
 
       // Render the first step
       renderStep(data.step);
@@ -656,7 +735,7 @@
 
           // Render the next step
           step = nextData.step;
-          taskStepCounter.textContent = `Step ${step.stepNumber}/50`;
+          taskStepCounter.textContent = `Step ${step.stepNumber}/${currentTierMaxSteps}`;
           renderStep(step);
 
           // Update tab tracker
