@@ -310,18 +310,41 @@
         return;
       }
 
-      historyList.innerHTML = tasks.map(t => `
-        <button class="task-history-item" data-task-id="${t.id}">
-          <div class="history-title">${escapeHtml(t.title)}</div>
-          <div class="history-meta">
-            <span class="history-status ${t.status}"></span>
-            ${t.status} &mdash; ${t.steps} steps &mdash; ${t.creditsUsed.toFixed(2)} cr
-          </div>
-        </button>
-      `).join('');
+      historyList.innerHTML = tasks.map(t => {
+        const isRunning = ['running', 'planning'].includes(t.status);
+        const stopBtn = isRunning
+          ? `<button class="history-stop-btn" data-task-id="${t.id}" title="Stop task">&#10005;</button>`
+          : '';
+        return `
+        <div class="history-row">
+          <button class="task-history-item" data-task-id="${t.id}">
+            <div class="history-title">${escapeHtml(t.title)}</div>
+            <div class="history-meta">
+              <span class="history-status ${t.status}"></span>
+              ${t.status} &mdash; ${t.steps} steps &mdash; ${t.creditsUsed.toFixed(2)} cr
+            </div>
+          </button>
+          ${stopBtn}
+        </div>
+        `;
+      }).join('');
 
       historyList.querySelectorAll('.task-history-item').forEach(btn => {
         btn.addEventListener('click', () => viewPastTask(btn.dataset.taskId));
+      });
+      historyList.querySelectorAll('.history-stop-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          const tid = btn.dataset.taskId;
+          if (tid === currentTaskId) {
+            // Already wired up
+            await stopTask();
+          } else {
+            // Stop this specific task directly
+            await stopTaskById(tid);
+          }
+          await loadTaskHistory();
+        });
       });
     } catch (err) {
       console.error('[Global Executive] Failed to load history:', err);
@@ -334,6 +357,12 @@
       if (!data.task) return;
 
       const task = data.task;
+
+      // Wire up the viewed task so stop works on it
+      currentTaskId = task.id;
+      isRunning = ['running', 'planning'].includes(task.status);
+      btnSend.disabled = isRunning;
+
       showTaskView(task.title);
       updateTaskStatus(task.status);
       taskStepCounter.textContent = `${task.currentStepNumber}/${task.maxSteps} steps`;
@@ -560,7 +589,17 @@
 
     } catch (err) {
       console.error('[Global Executive] Start error:', err);
-      renderDoneStep('Error: ' + err.message);
+
+      // If the server says we're at our concurrent-task limit, refresh
+      // the history sidebar and open it so the user can stop a task.
+      if (err.message?.includes('already have') && err.message?.includes('running')) {
+        await loadTaskHistory();
+        historySidebar.classList.add('open');
+        renderDoneStep('You have running tasks. Stop one in the sidebar (&#10005;) before starting another.');
+      } else {
+        renderDoneStep('Error: ' + err.message);
+      }
+
       updateTaskStatus('failed');
       isRunning = false;
       btnSend.disabled = false;
@@ -789,6 +828,27 @@
     await loadTaskHistory();
   }
 
+  async function stopTaskById(taskId) {
+    try {
+      await NewOrderAPI.request('/api/agent/stop', {
+        method: 'POST',
+        body: JSON.stringify({ taskId })
+      });
+      // If we stopped the currently-wired task, clear state
+      if (taskId === currentTaskId) {
+        isRunning = false;
+        removeExecutingIndicator();
+        updateTaskStatus('cancelled');
+        renderDoneStep('Task cancelled by user');
+        btnSend.disabled = false;
+        currentTaskId = null;
+      }
+    } catch (err) {
+      console.error('[Global Executive] Stop by ID error:', err);
+      alert('Failed to stop task: ' + err.message);
+    }
+  }
+
   // ============================================
   // Communication with background.js
   // ============================================
@@ -830,6 +890,28 @@
   }
 
   // ============================================
+  // Reset to Welcome Screen
+  // ============================================
+  async function resetToWelcome() {
+    // Stop current task if running
+    if (isRunning && currentTaskId) {
+      await stopTask();
+    }
+    currentTaskId = null;
+    isRunning = false;
+    btnSend.disabled = false;
+    removeExecutingIndicator();
+
+    taskView.style.display = 'none';
+    welcomeScreen.style.display = 'flex';
+    stepLog.innerHTML = '';
+    taskInput.value = '';
+    taskInput.style.height = 'auto';
+    tabTracker.innerHTML = '';
+    storedDataPanel.style.display = 'none';
+  }
+
+  // ============================================
   // Event Handlers
   // ============================================
   function setupEventHandlers() {
@@ -856,6 +938,18 @@
 
     // Stop button
     btnStopTask.addEventListener('click', stopTask);
+
+    // New Task button (task header)
+    document.getElementById('btn-new-task')?.addEventListener('click', resetToWelcome);
+
+    // New Task button (navbar)
+    document.getElementById('btn-new-task-nav')?.addEventListener('click', resetToWelcome);
+
+    // New Task button (sidebar)
+    document.getElementById('sidebar-new-task')?.addEventListener('click', () => {
+      historySidebar.classList.remove('open');
+      resetToWelcome();
+    });
 
     // Example prompts
     document.querySelectorAll('.example-prompt').forEach(btn => {
