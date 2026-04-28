@@ -531,8 +531,8 @@
     updateTaskStatus('running');
 
     try {
-      // Get current active tab info
-      const activeTab = await getActiveTab();
+      // Get current web tabs (exclude extension pages)
+      const { activeTab, allTabs } = await getAgentContext();
 
       // Call server to start task
       const data = await NewOrderAPI.request('/api/agent/start', {
@@ -541,7 +541,8 @@
           prompt: trimmed,
           modelId: selectedModelId,
           tabUrl: activeTab?.url || '',
-          tabTitle: activeTab?.title || ''
+          tabTitle: activeTab?.title || '',
+          allTabs: allTabs.map(t => ({ url: t.url, title: t.title, active: t.active }))
         })
       });
 
@@ -567,9 +568,9 @@
   }
 
   async function executeLoop(step, initialTabId) {
-    let currentTabId = initialTabId;
-    let trackedTabs = [{ tabId: currentTabId, tabIndex: 0 }];
-    let activeTabIndex = 0;
+    let currentTabId = initialTabId || null;
+    let trackedTabs = initialTabId ? [{ tabId: currentTabId, tabIndex: 0 }] : [];
+    let activeTabIndex = initialTabId ? 0 : -1;
 
     try {
       while (isRunning) {
@@ -803,12 +804,25 @@
     });
   }
 
-  function getActiveTab() {
-    return new Promise((resolve) => {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        resolve(tabs[0] || null);
-      });
-    });
+  async function getAgentContext() {
+    const allTabs = await chrome.tabs.query({});
+    const webTabs = allTabs.filter(t =>
+      t.url &&
+      !t.url.startsWith('chrome-extension://') &&
+      !t.url.startsWith('chrome://') &&
+      !t.url.startsWith('devtools://') &&
+      !t.url.startsWith('edge://') &&
+      !t.url.startsWith('brave://') &&
+      !t.url.startsWith('about:')
+    );
+
+    // Prefer any active web tab, then the first available web tab.
+    const activeTab =
+      webTabs.find(t => t.active) ||
+      webTabs[0] ||
+      null;
+
+    return { activeTab, allTabs: webTabs };
   }
 
   function sleep(ms) {

@@ -228,13 +228,26 @@ function broadcastToPopup(msg) {
 // ============================================
 // Tab Navigation Listener — inject tools on page load
 // ============================================
+const recentlyInjectedTabs = new Set();
+
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete' && tab.url) {
         // Don't inject into extension pages or chrome pages
         if (tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) return;
 
+        // Prevent duplicate injections into the same tab within a short window
+        const key = `${tabId}-${tab.url}`;
+        if (recentlyInjectedTabs.has(key)) return;
+        recentlyInjectedTabs.add(key);
+        setTimeout(() => recentlyInjectedTabs.delete(key), 5000);
+
         // Inject custom AI tools that match this URL
-        await injectCustomToolsIntoTab(tabId, tab.url);
+        try {
+            await injectCustomToolsIntoTab(tabId, tab.url);
+        } catch (err) {
+            // Tab may have been closed between event firing and injection
+            console.log(`New Order Global: Skipped injection for closed tab ${tabId}`);
+        }
     }
 });
 
@@ -568,6 +581,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             try {
                 const { tabId, action, params } = message;
 
+                if (!tabId) {
+                    sendResponse({ success: false, error: 'No active browser tab available. The agent needs an open web tab to interact with.' });
+                    return;
+                }
+
                 // Ensure agent runtime is injected
                 await ensureAgentRuntime(tabId);
 
@@ -680,6 +698,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Ensure agent runtime content script is injected into a tab
 async function ensureAgentRuntime(tabId) {
+    if (!tabId) return;
+
+    try {
+        // Check tab is a real web page we can inject into
+        const tab = await chrome.tabs.get(tabId);
+        if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
+            throw new Error(`Cannot inject agent runtime into ${tab.url}`);
+        }
+    } catch (e) {
+        throw new Error(`Tab ${tabId} not accessible: ${e.message}`);
+    }
+
     try {
         const response = await chrome.tabs.sendMessage(tabId, { type: 'ge-ping' });
         if (response && response.agentRuntime) return; // Already injected
