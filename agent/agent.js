@@ -12,6 +12,7 @@
   let selectedModelId = null;
   let availableModels = [];
   let currentTierMaxSteps = 50;
+  let keepAlivePort = null; // MV3 SW keep-alive
 
   // DOM References
   const welcomeScreen = document.getElementById('welcome-screen');
@@ -558,6 +559,7 @@
 
     showTaskView(trimmed.length > 60 ? trimmed.substring(0, 57) + '...' : trimmed);
     updateTaskStatus('running');
+    startKeepAlive();
 
     try {
       // Get current web tabs (exclude extension pages)
@@ -603,6 +605,7 @@
       updateTaskStatus('failed');
       isRunning = false;
       btnSend.disabled = false;
+      stopKeepAlive();
     }
   }
 
@@ -631,6 +634,7 @@
             updateTaskStatus('completed');
             isRunning = false;
             btnSend.disabled = false;
+            stopKeepAlive();
             await loadTaskHistory();
             return;
           }
@@ -769,6 +773,7 @@
             }
             isRunning = false;
             btnSend.disabled = false;
+            stopKeepAlive();
             await loadTaskHistory();
             return;
           }
@@ -792,6 +797,7 @@
           updateTaskStatus('failed');
           isRunning = false;
           btnSend.disabled = false;
+          stopKeepAlive();
           return;
         }
       }
@@ -802,6 +808,7 @@
       updateTaskStatus('failed');
       isRunning = false;
       btnSend.disabled = false;
+      stopKeepAlive();
     }
   }
 
@@ -826,6 +833,7 @@
     renderDoneStep('Task cancelled by user');
     btnSend.disabled = false;
     await loadTaskHistory();
+    stopKeepAlive();
   }
 
   async function stopTaskById(taskId) {
@@ -842,6 +850,7 @@
         renderDoneStep('Task cancelled by user');
         btnSend.disabled = false;
         currentTaskId = null;
+        stopKeepAlive();
       }
     } catch (err) {
       console.error('[Global Executive] Stop by ID error:', err);
@@ -887,6 +896,26 @@
 
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // MV3 Service Worker keep-alive: open a long-lived port so the SW doesn't idle-die mid-task
+  function startKeepAlive() {
+    if (keepAlivePort) return;
+    try {
+      keepAlivePort = chrome.runtime.connect({ name: 'ge-keep-alive' });
+      keepAlivePort.onDisconnect.addListener(() => {
+        keepAlivePort = null;
+      });
+    } catch (e) {
+      console.warn('[Global Executive] Keep-alive port failed:', e.message);
+    }
+  }
+
+  function stopKeepAlive() {
+    if (keepAlivePort) {
+      try { keepAlivePort.disconnect(); } catch (e) { /* ignore */ }
+      keepAlivePort = null;
+    }
   }
 
   // ============================================

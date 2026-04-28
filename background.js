@@ -589,8 +589,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // Ensure agent runtime is injected
                 await ensureAgentRuntime(tabId);
 
-                // Send action to the content script
-                const result = await chrome.tabs.sendMessage(tabId, {
+                // Send action to the content script (with retry in case SW woke or script just loaded)
+                const result = await sendMessageToTabWithRetry(tabId, {
                     type: 'ge-action',
                     action,
                     params: params || {}
@@ -693,6 +693,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // ============================================
+// Global Executive — Keep-alive port (MV3 SW)
+// ============================================
+chrome.runtime.onConnect.addListener((port) => {
+    if (port.name === 'ge-keep-alive') {
+        port.onMessage.addListener(() => {
+            // No-op — the open port keeps the SW alive
+        });
+        port.onDisconnect.addListener(() => {
+            // Port closed — SW may now idle-die
+        });
+    }
+});
+
+// ============================================
 // Global Executive — Helper Functions
 // ============================================
 
@@ -722,6 +736,31 @@ async function ensureAgentRuntime(tabId) {
         files: ['core/agent-runtime.js']
     });
     console.log(`[Global Executive] Agent runtime injected into tab ${tabId}`);
+
+    // Wait for the content script to initialize (retry up to 2s)
+    for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 200));
+        try {
+            const response = await chrome.tabs.sendMessage(tabId, { type: 'ge-ping' });
+            if (response && response.agentRuntime) return;
+        } catch {
+            // Still not ready
+        }
+    }
+    throw new Error('Agent runtime failed to initialize in tab');
+}
+
+// Send a message to a tab with retries
+async function sendMessageToTabWithRetry(tabId, message, retries = 2, delay = 300) {
+    for (let i = 0; i <= retries; i++) {
+        try {
+            const result = await chrome.tabs.sendMessage(tabId, message);
+            return result;
+        } catch (err) {
+            if (i === retries) throw err;
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
 }
 
 // Wait for a tab to finish loading
