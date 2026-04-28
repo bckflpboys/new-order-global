@@ -43,6 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const open = (u) => chrome.tabs.create({ url: chrome.runtime.getURL(u) });
     document.getElementById('btn-create').onclick = () => open('builder/builder.html');
     document.getElementById('btn-tools').onclick = () => open('dashboard/tools.html');
+    document.getElementById('btn-agent').onclick = () => open('agent/agent.html');
     document.getElementById('btn-account').onclick = () => open('dashboard/billing.html');
     document.getElementById('btn-settings').onclick = () => open('dashboard/settings.html');
     document.getElementById('btn-yt-settings').onclick = () => chrome.runtime.openOptionsPage();
