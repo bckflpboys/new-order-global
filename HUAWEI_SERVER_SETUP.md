@@ -86,6 +86,19 @@ A record added at DNS provider:
 ### Extension Update
 `BASE_URL` in `core/api-client.js` changed to `https://apiv2.global-order.32d.one`
 
+### Auto-Deploy (GitHub Webhook)
+A webhook listener runs on port 9000, triggered by GitHub pushes to main/master.
+
+- **Script:** `/home/global-order-server/deploy-webhook.js`
+- **PM2 process:** `deploy-webhook`
+- **Webhook URL:** `https://apiv2.global-order.32d.one/deploy`
+- **Secret:** `global-order-deploy-secret-2026`
+- **GitHub webhook config:** `https://github.com/bckflpboys/new-order-global-server/settings/hooks`
+
+How it works: Push to GitHub → GitHub sends POST to `/deploy` → Nginx routes to port 9000 → script runs `git pull` + `pm2 restart global-order-api`.
+
+The `/deploy` location was added to the existing Nginx config at `/etc/nginx/sites-available/apiv2.global-order.32d.one`.
+
 ## Common Commands (run on Huawei server via SSH)
 
 ```bash

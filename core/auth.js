@@ -30,10 +30,56 @@ const NewOrderAuth = (() => {
   }
 
   // ============================================
+  // Local cleanup helper
+  // ============================================
+  async function _wipeLocalTools(includeData = true) {
+    try {
+      if (typeof ToolManager !== 'undefined' && ToolManager.clearAllLocal) {
+        await ToolManager.clearAllLocal({ includeData });
+        return;
+      }
+    } catch (_) {}
+    // Fallback brute-clear if ToolManager isn't loaded on this page
+    return new Promise((resolve) => {
+      chrome.storage.local.get(null, (items) => {
+        const keys = Object.keys(items).filter(k =>
+          k === 'noInstalledTools' ||
+          k === 'noActiveTools' ||
+          k === 'noLastSync' ||
+          k.startsWith('toolCode_') ||
+          k.startsWith('toolRunning_') ||
+          (includeData && k.startsWith('toolData_'))
+        );
+        if (keys.length === 0) return resolve();
+        chrome.storage.local.remove(keys, resolve);
+      });
+    });
+  }
+
+  // ============================================
   // Login
   // ============================================
   async function login(email, password) {
+    // Capture previously cached user (if any) BEFORE login overwrites it
+    const previousUser = await NewOrderAPI.getUser();
+
     const result = await NewOrderAPI.login(email, password);
+
+    // If a different user signed in on this device, wipe the previous
+    // account's tools + tool data so the UI doesn't show the old account's
+    // info. Same user signing back in: keep cache so subscribers don't
+    // lose their data.
+    const prevId = previousUser && (previousUser.id || previousUser._id);
+    const newId = result.user && (result.user.id || result.user._id);
+    if (prevId && newId && String(prevId) !== String(newId)) {
+      await _wipeLocalTools(true);
+    } else if (!prevId) {
+      // No previous user record but stale tool storage might still exist
+      // from a prior install/session — clear lightly without nuking data
+      // so first-time signins are clean.
+      await _wipeLocalTools(false);
+    }
+
     _currentUser = result.user;
     notifyAuthChange('login');
     return result;
@@ -42,8 +88,11 @@ const NewOrderAuth = (() => {
   // ============================================
   // Register
   // ============================================
-  async function register(email, password, displayName) {
-    const result = await NewOrderAPI.register(email, password, displayName);
+  async function register(email, password, displayName, extras = {}) {
+    // Brand-new account → always wipe any stale local tool state
+    await _wipeLocalTools(true);
+
+    const result = await NewOrderAPI.register(email, password, displayName, extras);
     _currentUser = result.user;
     notifyAuthChange('register');
     return result;
@@ -52,7 +101,31 @@ const NewOrderAuth = (() => {
   // ============================================
   // Logout
   // ============================================
-  async function logout() {
+  // options:
+  //   clearTools:    remove cached tool list/code (default: true)
+  //   clearToolData: remove per-tool collected data (default: true)
+  // Subscribers can choose to keep their tools cached locally by passing
+  // { clearTools: false, clearToolData: false }.
+  async function logout(options = {}) {
+    const { clearTools = true, clearToolData = true } = options;
+
+    if (clearTools || clearToolData) {
+      // If user wants to keep tools but drop data, still call wipe with
+      // includeData=clearToolData. If keeping both, skip entirely.
+      if (clearTools) {
+        await _wipeLocalTools(clearToolData);
+      } else if (clearToolData) {
+        // Keep tool list + code but clear data only
+        await new Promise((resolve) => {
+          chrome.storage.local.get(null, (items) => {
+            const keys = Object.keys(items).filter(k => k.startsWith('toolData_'));
+            if (keys.length === 0) return resolve();
+            chrome.storage.local.remove(keys, resolve);
+          });
+        });
+      }
+    }
+
     await NewOrderAPI.logout();
     _currentUser = null;
     _isInitialized = false;

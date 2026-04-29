@@ -242,6 +242,240 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // =========================================================
+    // Onboarding Flow
+    // =========================================================
+    let currentOnboardingStep = 0;
+    let onboardingData = {};
+
+    function showOnboardingFlow() {
+        const cont = document.getElementById('tools-container');
+        if (!cont) return;
+
+        currentOnboardingStep = 0;
+        onboardingData = {};
+        renderOnboardingStep(cont);
+    }
+
+    function renderOnboardingStep(cont) {
+        const steps = [
+            {
+                title: 'Welcome to New Order Global',
+                subtitle: 'Let us know how you found us',
+                content: `
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-family: var(--font-label); font-size: 11px; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant);">Where did you hear about us?</label>
+                        <select id="onboarding-source" style="width: 100%; padding: 11px 14px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border-strong); border-radius: var(--radius-md); color: var(--on-surface); font-family: var(--font-body); font-size: 14px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;">
+                            <option value="">Select an option</option>
+                            <option value="social_media">Social Media</option>
+                            <option value="friend">Friend / Colleague</option>
+                            <option value="search_engine">Search Engine</option>
+                            <option value="product_hunt">Product Hunt</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div id="onboarding-source-other-container" style="margin-bottom: 16px; display: none;">
+                        <label style="display: block; font-family: var(--font-label); font-size: 11px; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant);">Please specify</label>
+                        <input type="text" id="onboarding-source-other" placeholder="Tell us more..." style="width: 100%; padding: 11px 14px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border-strong); border-radius: var(--radius-md); color: var(--on-surface); font-family: var(--font-body); font-size: 14px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;">
+                    </div>
+                `
+            },
+            {
+                title: 'Choose Your Adventure',
+                subtitle: 'Which features interest you most?',
+                content: `
+                    <div style="margin-bottom: 16px;">
+                        <label style="display: block; font-family: var(--font-label); font-size: 11px; margin-bottom: 8px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant);">What do you want to use?</label>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease;">
+                                <input type="checkbox" id="onboarding-feature-tool-builder" value="tool_builder" style="width: 18px; height: 18px; accent-color: var(--primary);">
+                                <div>
+                                    <div style="font-weight: 600; font-size: 14px; color: var(--on-surface);">Tool Builder</div>
+                                    <div style="font-size: 12px; color: var(--on-surface-muted);">Build custom AI-powered tools</div>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease;">
+                                <input type="checkbox" id="onboarding-feature-global-executive" value="global_executive" style="width: 18px; height: 18px; accent-color: var(--primary);">
+                                <div>
+                                    <div style="font-weight: 600; font-size: 14px; color: var(--on-surface);">Global Executive</div>
+                                    <div style="font-size: 12px; color: var(--on-surface-muted);">Browser automation agent</div>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; padding: 12px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border); border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease;">
+                                <input type="checkbox" id="onboarding-feature-both" value="both" style="width: 18px; height: 18px; accent-color: var(--primary);">
+                                <div>
+                                    <div style="font-weight: 600; font-size: 14px; color: var(--on-surface);">Both</div>
+                                    <div style="font-size: 12px; color: var(--on-surface-muted);">Full experience</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                    <div id="onboarding-feature-other-container" style="margin-bottom: 16px; display: none;">
+                        <label style="display: block; font-family: var(--font-label); font-size: 11px; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant);">Other (please specify)</label>
+                        <input type="text" id="onboarding-feature-other" placeholder="Tell us what you're looking for..." style="width: 100%; padding: 11px 14px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border-strong); border-radius: var(--radius-md); color: var(--on-surface); font-family: var(--font-body); font-size: 14px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;">
+                    </div>
+                `
+            },
+            {
+                title: 'Claim Your Free Credits',
+                subtitle: 'You are ready to start!',
+                content: `
+                    <div style="text-align: center; padding: 20px;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">🎉</div>
+                        <div style="font-size: 24px; font-weight: 700; color: var(--primary); margin-bottom: 8px;">10 Free Credits</div>
+                        <div style="font-size: 13px; color: var(--on-surface-muted); margin-bottom: 20px;">Have been added to your account</div>
+                        <div style="font-size: 12px; color: var(--on-surface-variant); line-height: 1.6;">
+                            Use them to build tools or run the Global Executive agent.
+                        </div>
+                    </div>
+                `,
+                isFinal: true
+            }
+        ];
+
+        const step = steps[currentOnboardingStep];
+
+        cont.innerHTML = `
+            <div style="background: var(--surface-container-lowest); border: 1px solid var(--ghost-border); border-radius: var(--radius-lg); padding: 24px; box-shadow: var(--shadow-xs);">
+                <div style="margin-bottom: 20px;">
+                    <div style="font-family: var(--font-headline); font-size: 20px; font-weight: 600; color: var(--on-surface); margin-bottom: 4px;">${step.title}</div>
+                    <div style="font-size: 13px; color: var(--on-surface-muted);">${step.subtitle}</div>
+                </div>
+                ${step.content}
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    ${currentOnboardingStep > 0 ? `
+                        <button id="onboarding-back" style="flex: 1; padding: 13px; background: transparent; color: var(--on-surface); border: 1px solid var(--ghost-border-strong); border-radius: var(--radius-md); font-family: var(--font-label); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;">Back</button>
+                    ` : ''}
+                    <button id="onboarding-next" style="flex: 1; padding: 13px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%); color: var(--on-primary); border: none; border-radius: var(--radius-md); font-family: var(--font-label); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease; box-shadow: var(--shadow-xs);">${step.isFinal ? 'Start' : 'Next'}</button>
+                </div>
+                <div id="onboarding-error" style="color: var(--on-error-container); font-size: 13px; margin-top: 14px; padding: 11px 14px; background: var(--error-container); border-radius: var(--radius-md); text-align: center; display: none;"></div>
+            </div>
+        `;
+
+        // Add event listeners
+        const nextBtn = document.getElementById('onboarding-next');
+        const backBtn = document.getElementById('onboarding-back');
+        const errorEl = document.getElementById('onboarding-error');
+
+        if (currentOnboardingStep === 0) {
+            const sourceSelect = document.getElementById('onboarding-source');
+            const sourceOtherContainer = document.getElementById('onboarding-source-other-container');
+            
+            sourceSelect.addEventListener('change', () => {
+                if (sourceSelect.value === 'other') {
+                    sourceOtherContainer.style.display = 'block';
+                } else {
+                    sourceOtherContainer.style.display = 'none';
+                }
+            });
+        }
+
+        if (currentOnboardingStep === 1) {
+            const featureCheckboxes = document.querySelectorAll('[id^="onboarding-feature-"]');
+            const featureOtherContainer = document.getElementById('onboarding-feature-other-container');
+            
+            featureCheckboxes.forEach(cb => {
+                cb.addEventListener('change', () => {
+                    const anyChecked = Array.from(featureCheckboxes).some(c => c.checked);
+                    featureOtherContainer.style.display = anyChecked ? 'none' : 'block';
+                });
+            });
+        }
+
+        nextBtn.addEventListener('click', async () => {
+            errorEl.style.display = 'none';
+            
+            // Validate and collect data
+            if (currentOnboardingStep === 0) {
+                const source = document.getElementById('onboarding-source').value;
+                const sourceOther = document.getElementById('onboarding-source-other').value;
+                
+                if (!source) {
+                    errorEl.textContent = 'Please select an option';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+                
+                onboardingData.whereDidYouHearAboutUs = source;
+                onboardingData.whereDidYouHearAboutUsOther = source === 'other' ? sourceOther : '';
+            }
+            
+            if (currentOnboardingStep === 1) {
+                const toolBuilder = document.getElementById('onboarding-feature-tool-builder').checked;
+                const globalExecutive = document.getElementById('onboarding-feature-global-executive').checked;
+                const both = document.getElementById('onboarding-feature-both').checked;
+                const featureOther = document.getElementById('onboarding-feature-other').value;
+                
+                const features = [];
+                if (toolBuilder) features.push('tool_builder');
+                if (globalExecutive) features.push('global_executive');
+                if (both) features.push('both');
+                
+                if (features.length === 0 && !featureOther) {
+                    errorEl.textContent = 'Please select at least one feature';
+                    errorEl.style.display = 'block';
+                    return;
+                }
+                
+                onboardingData.intendedFeatures = features.length > 0 ? features : ['other'];
+                onboardingData.intendedFeaturesOther = featureOther;
+            }
+
+            if (step.isFinal) {
+                // Complete onboarding
+                try {
+                    nextBtn.textContent = 'Saving...';
+                    nextBtn.disabled = true;
+
+                    try {
+                        await NewOrderAPI.updateOnboarding({
+                            ...onboardingData,
+                            currentStep: 999
+                        });
+                    } catch (e) {
+                        console.warn('updateOnboarding failed (non-fatal):', e.message);
+                    }
+
+                    try {
+                        await NewOrderAPI.completeOnboarding();
+                    } catch (e) {
+                        console.warn('completeOnboarding failed (non-fatal):', e.message);
+                    }
+
+                    // Mark local user as onboarded so loadTools doesn't loop back here
+                    try {
+                        const user = await NewOrderAPI.getUser();
+                        if (user) {
+                            user.onboardingCompleted = true;
+                            await new Promise(resolve => chrome.storage.local.set({ noUser: user }, resolve));
+                        }
+                        // Refresh from server in background (best effort)
+                        NewOrderAPI.getProfile().catch(() => {});
+                    } catch (_) {}
+
+                    loadTools(true);
+                } catch (err) {
+                    nextBtn.textContent = 'Start';
+                    nextBtn.disabled = false;
+                    errorEl.textContent = err.message;
+                    errorEl.style.display = 'block';
+                }
+                return;
+            }
+
+            // Move to next step
+            currentOnboardingStep++;
+            renderOnboardingStep(cont);
+        });
+
+        if (backBtn) {
+            backBtn.addEventListener('click', () => {
+                currentOnboardingStep--;
+                renderOnboardingStep(cont);
+            });
+        }
+    }
+
+    // =========================================================
     // Run Timer Helpers
     // =========================================================
     const runTimers = {}; // toolId -> { startTime, intervalId, el }
@@ -465,6 +699,18 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <label style="display: block; font-family: var(--font-label); font-size: 11px; margin-bottom: 6px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--on-surface-variant);">Password</label>
                                 <input type="password" id="popup-register-password" minlength="8" required placeholder="••••••••" style="width: 100%; padding: 11px 14px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border-strong); border-radius: var(--radius-md); color: var(--on-surface); font-family: var(--font-body); font-size: 14px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;">
                             </div>
+                            <div style="margin-bottom: 12px;">
+                                <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12px; color: var(--on-surface-variant); line-height: 1.4;">
+                                    <input type="checkbox" id="popup-register-tos" required style="margin-top: 2px; flex-shrink: 0;">
+                                    <span>I have read and agree to the <a href="https://global-order.32d.one/tos" target="_blank" style="color: var(--primary); text-decoration: none;">Terms of Service</a></span>
+                                </label>
+                            </div>
+                            <div style="margin-bottom: 14px;">
+                                <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12px; color: var(--on-surface-variant); line-height: 1.4;">
+                                    <input type="checkbox" id="popup-register-privacy" required style="margin-top: 2px; flex-shrink: 0;">
+                                    <span>I have read and agree to the <a href="https://global-order.32d.one/privacy-policy" target="_blank" style="color: var(--primary); text-decoration: none;">Privacy Policy</a></span>
+                                </label>
+                            </div>
                             <button type="submit" style="width: 100%; padding: 13px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%); color: var(--on-primary); border: none; border-radius: var(--radius-md); font-family: var(--font-label); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease; margin-top: 10px; box-shadow: var(--shadow-xs);">Create Account</button>
                             <div id="popup-register-error" style="color: var(--on-error-container); font-size: 13px; margin-top: 14px; padding: 11px 14px; background: var(--error-container); border-radius: var(--radius-md); text-align: center; display: none;"></div>
                         </form>
@@ -516,14 +762,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     const name = document.getElementById('popup-register-name').value;
                     const email = document.getElementById('popup-register-email').value;
                     const password = document.getElementById('popup-register-password').value;
+                    const tosChecked = document.getElementById('popup-register-tos').checked;
+                    const privacyChecked = document.getElementById('popup-register-privacy').checked;
                     const errorEl = document.getElementById('popup-register-error');
                     errorEl.style.display = 'none';
+
+                    if (!tosChecked || !privacyChecked) {
+                        errorEl.textContent = 'You must agree to both the Terms of Service and Privacy Policy';
+                        errorEl.style.display = 'block';
+                        return;
+                    }
+
                     try {
                         const submitBtn = registerForm.querySelector('button[type="submit"]');
                         submitBtn.textContent = 'Creating...';
                         submitBtn.disabled = true;
-                        await NewOrderAuth.register(email, password, name);
-                        loadTools(true);
+                        const result = await NewOrderAuth.register(email, password, name, { tosAccepted: tosChecked, privacyAccepted: privacyChecked });
+                        
+                        if (!result.onboardingCompleted) {
+                            showOnboardingFlow();
+                        } else {
+                            loadTools(true);
+                        }
                     } catch (err) {
                         const submitBtn = registerForm.querySelector('button[type="submit"]');
                         submitBtn.textContent = 'Create Account';
@@ -533,6 +793,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
+                return;
+            }
+
+            // If logged in but onboarding not completed, show onboarding flow
+            const currentUser = NewOrderAuth.getCurrentUser();
+            if (currentUser && currentUser.onboardingCompleted === false) {
+                showOnboardingFlow();
                 return;
             }
 

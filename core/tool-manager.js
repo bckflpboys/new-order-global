@@ -457,6 +457,41 @@ const ToolManager = (() => {
   }
 
   // ============================================
+  // Local Wipe (used on user switch / sign out)
+  // ============================================
+  // Clears tools + per-tool wrapped code from chrome.storage.local.
+  // If includeData is true, ALSO clears each tool's collected data (toolData_*).
+  // If includeData is false, the tool data stays so subscribers can keep it
+  // around for when they sign back in.
+  async function clearAllLocal(options = {}) {
+    const { includeData = true } = options;
+
+    // Best-effort: unregister any registered content scripts so nothing keeps
+    // running on the previous account's behalf.
+    try {
+      const tools = await getInstalledTools();
+      for (const t of tools) {
+        try { await chrome.scripting.unregisterContentScripts({ ids: [`no-tool-${t.id}`] }); } catch (_) {}
+      }
+    } catch (_) {}
+
+    return new Promise((resolve) => {
+      chrome.storage.local.get(null, (items) => {
+        const keys = Object.keys(items).filter(k =>
+          k === TOOLS_STORAGE_KEY ||
+          k === ACTIVE_TOOLS_KEY ||
+          k === LAST_SYNC_KEY ||
+          k.startsWith('toolCode_') ||
+          k.startsWith('toolRunning_') ||
+          (includeData && k.startsWith('toolData_'))
+        );
+        if (keys.length === 0) return resolve();
+        chrome.storage.local.remove(keys, resolve);
+      });
+    });
+  }
+
+  // ============================================
   // Public API
   // ============================================
   return {
@@ -472,7 +507,8 @@ const ToolManager = (() => {
     getStats,
     getTools: getStats, // Alias for convenience
     syncTools,
-    buildToolWrapper
+    buildToolWrapper,
+    clearAllLocal
   };
 })();
 

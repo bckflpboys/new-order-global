@@ -111,10 +111,16 @@ const NewOrderAPI = (() => {
     return data;
   }
 
-  async function register(email, password, displayName) {
+  async function register(email, password, displayName, extras = {}) {
     const data = await request('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, displayName })
+      body: JSON.stringify({
+        email,
+        password,
+        displayName,
+        tosAccepted: !!extras.tosAccepted,
+        privacyAccepted: !!extras.privacyAccepted
+      })
     });
     await setToken(data.token);
     await setUser(data.user);
@@ -280,6 +286,29 @@ const NewOrderAPI = (() => {
   }
 
   // ============================================
+  // Onboarding
+  // ============================================
+  async function getOnboarding() {
+    const data = await request('/api/onboarding');
+    return data;
+  }
+
+  async function updateOnboarding(updates) {
+    const data = await request('/api/onboarding', {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+    return data;
+  }
+
+  async function completeOnboarding() {
+    const data = await request('/api/onboarding/complete', {
+      method: 'POST'
+    });
+    return data;
+  }
+
+  // ============================================
   // Public API
   // ============================================
   return {
@@ -306,6 +335,11 @@ const NewOrderAPI = (() => {
     // Conversations
     getConversations,
     getConversationById,
+
+    // Onboarding
+    getOnboarding,
+    updateOnboarding,
+    completeOnboarding,
 
     // Billing
     getCredits,

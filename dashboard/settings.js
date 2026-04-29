@@ -115,9 +115,277 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  // Logout handler
+  // Logout handler — themed modal, plan-aware
   document.getElementById('btn-logout').addEventListener('click', () => {
-    NewOrderAuth.logout();
-    window.location.href = '../builder/builder.html';
+    showSignOutModal(user);
   });
 });
+
+// ============================================
+// Sign-Out Modal (themed, plan-aware)
+// ============================================
+function isSubscriberUser(u) {
+  if (!u) return false;
+  if (u.subscription && u.subscription.status === 'active') return true;
+  if (u.plan && u.plan !== 'free' && u.plan !== 'none') return true;
+  return false;
+}
+
+function ensureSignOutModalStyles() {
+  if (document.getElementById('no-signout-modal-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'no-signout-modal-styles';
+  style.textContent = `
+    .no-modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(27, 28, 29, 0.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999;
+      animation: noModalFadeIn 0.2s ease;
+      font-family: var(--font-body, 'Inter', system-ui, sans-serif);
+    }
+    @keyframes noModalFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes noModalSlideIn {
+      from { transform: translateY(12px) scale(0.98); opacity: 0; }
+      to   { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .no-modal-card {
+      width: min(92vw, 520px);
+      max-height: 90vh;
+      overflow-y: auto;
+      background: var(--surface-container-lowest, #ffffff);
+      border: 1px solid var(--ghost-border, rgba(60,64,75,0.32));
+      border-radius: var(--radius-xl, 1rem);
+      box-shadow: var(--shadow-lg, 0 24px 48px rgba(27,28,29,0.20));
+      padding: 28px 28px 24px;
+      animation: noModalSlideIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .no-modal-eyebrow {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-family: var(--font-label, 'Public Sans', sans-serif);
+      font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--primary, #b8341c);
+      margin-bottom: 10px;
+    }
+    .no-modal-eyebrow::before {
+      content: ''; width: 6px; height: 6px; border-radius: 50%;
+      background: var(--primary, #b8341c);
+      box-shadow: 0 0 0 4px rgba(184,52,28,0.12);
+    }
+    .no-modal-title {
+      font-family: var(--font-headline, 'Noto Serif', Georgia, serif);
+      font-size: 24px; font-weight: 600; letter-spacing: -0.01em;
+      color: var(--on-surface, #1b1c1d);
+      margin: 0 0 6px;
+    }
+    .no-modal-subtitle {
+      font-size: 14px; line-height: 1.55;
+      color: var(--on-surface-variant, #434653);
+      margin: 0 0 20px;
+    }
+    .no-modal-callout {
+      background: rgba(184, 52, 28, 0.06);
+      border: 1px solid rgba(184, 52, 28, 0.18);
+      border-radius: var(--radius-md, 0.5rem);
+      padding: 12px 14px;
+      font-size: 13px; line-height: 1.55;
+      color: var(--on-surface, #1b1c1d);
+      margin-bottom: 18px;
+    }
+    .no-modal-callout strong { color: var(--primary, #b8341c); }
+    .no-modal-options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 22px; }
+    .no-modal-option {
+      display: flex; align-items: flex-start; gap: 12px;
+      padding: 14px 16px;
+      background: var(--surface-container-low, #e4e2e3);
+      border: 1.5px solid transparent;
+      border-radius: var(--radius-lg, 0.75rem);
+      cursor: pointer;
+      transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+    }
+    .no-modal-option:hover { transform: translateY(-1px); background: var(--surface-container, #d8d6d7); }
+    .no-modal-option.selected {
+      border-color: var(--primary, #b8341c);
+      background: var(--surface-container-lowest, #ffffff);
+      box-shadow: 0 0 0 4px rgba(184,52,28,0.08);
+    }
+    .no-modal-radio {
+      width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px;
+      border: 2px solid var(--ghost-border-strong, rgba(60,64,75,0.5));
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.18s ease;
+    }
+    .no-modal-option.selected .no-modal-radio { border-color: var(--primary, #b8341c); }
+    .no-modal-option.selected .no-modal-radio::after {
+      content: ''; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--primary, #b8341c);
+    }
+    .no-modal-option-body { flex: 1; min-width: 0; }
+    .no-modal-option-title {
+      font-weight: 600; font-size: 14px;
+      color: var(--on-surface, #1b1c1d);
+      margin-bottom: 3px;
+    }
+    .no-modal-option-desc {
+      font-size: 12px; line-height: 1.5;
+      color: var(--on-surface-muted, #737784);
+    }
+    .no-modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    .no-modal-btn {
+      padding: 11px 20px;
+      border-radius: var(--radius-md, 0.5rem);
+      font-family: var(--font-label, 'Public Sans', sans-serif);
+      font-size: 13px; font-weight: 700; letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+      border: 1px solid transparent;
+    }
+    .no-modal-btn-ghost {
+      background: transparent;
+      color: var(--on-surface, #1b1c1d);
+      border-color: var(--ghost-border-strong, rgba(60,64,75,0.5));
+    }
+    .no-modal-btn-ghost:hover { background: var(--surface-container, #d8d6d7); }
+    .no-modal-btn-primary {
+      background: linear-gradient(135deg, var(--primary, #b8341c) 0%, var(--primary-container, #d94734) 100%);
+      color: var(--on-primary, #ffffff);
+      box-shadow: var(--shadow-xs, 0 1px 2px rgba(27,28,29,0.08));
+    }
+    .no-modal-btn-primary:hover { transform: translateY(-1px); }
+    .no-modal-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+  `;
+  document.head.appendChild(style);
+}
+
+function showSignOutModal(user) {
+  ensureSignOutModalStyles();
+
+  const subscriber = isSubscriberUser(user);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'no-modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+
+  const card = document.createElement('div');
+  card.className = 'no-modal-card';
+
+  if (subscriber) {
+    card.innerHTML = `
+      <div class="no-modal-eyebrow">Sign out</div>
+      <h2 class="no-modal-title">Before you go</h2>
+      <p class="no-modal-subtitle">
+        You're on a paid plan. Choose how you want to handle your locally cached
+        tools and tool data on this device.
+      </p>
+
+      <div class="no-modal-options" id="no-signout-options">
+        <div class="no-modal-option selected" data-mode="keep">
+          <div class="no-modal-radio"></div>
+          <div class="no-modal-option-body">
+            <div class="no-modal-option-title">Keep tools cached on this device</div>
+            <div class="no-modal-option-desc">
+              Tools and the data they've collected stay on this browser. Signing
+              back in is instant, and nothing is lost.
+            </div>
+          </div>
+        </div>
+        <div class="no-modal-option" data-mode="reset">
+          <div class="no-modal-radio"></div>
+          <div class="no-modal-option-body">
+            <div class="no-modal-option-title">Reset and re-download next sign-in</div>
+            <div class="no-modal-option-desc">
+              Tools are removed from this device and freshly re-downloaded when
+              you sign back in. <strong>Tool data on this device will be permanently
+              lost</strong> — only the tools themselves are restored from your account.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="no-modal-actions">
+        <button class="no-modal-btn no-modal-btn-ghost" data-action="cancel">Cancel</button>
+        <button class="no-modal-btn no-modal-btn-primary" data-action="confirm">Sign Out</button>
+      </div>
+    `;
+  } else {
+    card.innerHTML = `
+      <div class="no-modal-eyebrow">Sign out</div>
+      <h2 class="no-modal-title">Heads up before signing out</h2>
+      <p class="no-modal-subtitle">
+        You're on the <strong>Free</strong> plan. Your tools live in your account
+        and will sync back in when you return — but anything stored on this
+        device by those tools will be cleared.
+      </p>
+
+      <div class="no-modal-callout">
+        <strong>You'll lose:</strong> the data your tools have collected on this
+        browser (saved entries, preferences, history, etc.).<br>
+        <strong>You'll keep:</strong> the tools themselves — they re-download
+        automatically when you sign back in.
+      </div>
+
+      <div class="no-modal-actions">
+        <button class="no-modal-btn no-modal-btn-ghost" data-action="cancel">Cancel</button>
+        <button class="no-modal-btn no-modal-btn-primary" data-action="confirm">Sign Out</button>
+      </div>
+    `;
+  }
+
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+
+  // Selection state for subscriber options
+  let selectedMode = subscriber ? 'keep' : 'reset';
+
+  if (subscriber) {
+    const options = card.querySelectorAll('.no-modal-option');
+    options.forEach(opt => {
+      opt.addEventListener('click', () => {
+        options.forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+        selectedMode = opt.dataset.mode;
+      });
+    });
+  }
+
+  // Close helpers
+  const close = () => {
+    overlay.style.animation = 'noModalFadeIn 0.18s ease reverse';
+    setTimeout(() => overlay.remove(), 160);
+  };
+
+  card.querySelector('[data-action="cancel"]').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+  document.addEventListener('keydown', function escHandler(e) {
+    if (e.key === 'Escape') {
+      close();
+      document.removeEventListener('keydown', escHandler);
+    }
+  });
+
+  // Confirm handler
+  const confirmBtn = card.querySelector('[data-action="confirm"]');
+  confirmBtn.addEventListener('click', async () => {
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Signing out…';
+
+    // Free users: always wipe both. Subscribers: based on selection.
+    const opts = subscriber && selectedMode === 'keep'
+      ? { clearTools: false, clearToolData: false }
+      : { clearTools: true, clearToolData: true };
+
+    try {
+      await NewOrderAuth.logout(opts);
+    } catch (err) {
+      console.error('Sign-out error:', err);
+    }
+    window.location.href = '../builder/builder.html';
+  });
+}
