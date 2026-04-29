@@ -2,8 +2,10 @@
 // Handles all communication with the backend server
 
 const NewOrderAPI = (() => {
-  // Backend API server URL (deployed on Render)
-  const BASE_URL = 'https://api.global-order.32d.one';
+  // Backend API server URL 
+  const BASE_URL = 'https://apiv2.global-order.32d.one';
+  // For testing (Render):
+  // const BASE_URL = 'https://api.global-order.32d.one';
   // For local development:
   // const BASE_URL = 'http://localhost:3001';
 
