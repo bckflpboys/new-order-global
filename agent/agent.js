@@ -1322,13 +1322,63 @@
   function setupModeToggle() {
     const toggle = document.getElementById('mode-toggle');
     if (!toggle) return;
-    toggle.querySelectorAll('.mode-option').forEach(btn => {
+
+    const slider = toggle.querySelector('.slider');
+    const options = toggle.querySelectorAll('.mode-option');
+    const tooltip = document.getElementById('mode-tooltip');
+
+    function updateSlider() {
+      const activeBtn = toggle.querySelector('.mode-option.active');
+      if (!activeBtn || !slider) return;
+
+      const toggleRect = toggle.getBoundingClientRect();
+      const btnRect = activeBtn.getBoundingClientRect();
+
+      const offsetLeft = btnRect.left - toggleRect.left;
+      const width = btnRect.width;
+
+      slider.style.width = width + 'px';
+      slider.style.transform = `translateX(${offsetLeft}px)`;
+    }
+
+    // Set initial position
+    setTimeout(updateSlider, 0);
+
+    // Update on window resize
+    window.addEventListener('resize', updateSlider);
+
+    // Tooltip handling
+    options.forEach(btn => {
+      btn.addEventListener('mouseenter', () => {
+        const tooltipText = btn.dataset.tooltip;
+        if (tooltipText && tooltip) {
+          tooltip.textContent = tooltipText;
+          tooltip.classList.add('visible');
+        }
+      });
+
+      btn.addEventListener('mouseleave', () => {
+        if (tooltip) {
+          tooltip.classList.remove('visible');
+        }
+      });
+    });
+
+    options.forEach(btn => {
       btn.addEventListener('click', () => {
         const mode = btn.dataset.mode;
         if (!mode) return;
         selectedMode = mode;
         toggle.dataset.mode = mode;
         toggle.querySelectorAll('.mode-option').forEach(b => b.classList.toggle('active', b === btn));
+        updateSlider();
+
+        // Toggle autopilot background
+        if (mode === 'autopilot') {
+          document.body.classList.add('autopilot-mode');
+        } else {
+          document.body.classList.remove('autopilot-mode');
+        }
       });
     });
   }

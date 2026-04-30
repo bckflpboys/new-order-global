@@ -42,15 +42,18 @@
     <!-- Mode Toggle Bar -->
     <div class="mode-toggle-bar">
       <div class="mode-toggle" id="mode-toggle" data-mode="copilot" title="Switch pilot mode">
-        <button class="mode-option active" data-mode="copilot">
+        <div class="slider"></div>
+        <button class="mode-option active" data-mode="copilot" data-tooltip="Co-Pilot: Agent asks for your approval before each action. You stay in control while the agent handles execution.">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
           Co-Pilot
         </button>
-        <button class="mode-option" data-mode="autopilot">
+        <button class="mode-option" data-mode="autopilot" data-tooltip="Auto-Pilot: Agent executes actions autonomously without asking for approval. Faster execution with less intervention.">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
           Auto-Pilot
         </button>
       </div>
+      <!-- Custom Tooltip -->
+      <div class="mode-tooltip" id="mode-tooltip"></div>
     </div>
 
     <!-- Main Content -->
