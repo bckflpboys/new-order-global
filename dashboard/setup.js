@@ -48,15 +48,21 @@
       linkInfo.style.display = 'block';
       $('tg-bot-handle').textContent = t.botUsername ? '@' + t.botUsername : '(your bot)';
       $('tg-link-cmd').textContent = '/link ' + t.linkCode;
-      
-      // On page reload, we don't have the token (it's encrypted), so hide the clickable link
-      // The user needs to re-enter the token and save again to get the clickable link
-      $('tg-webhook-link').href = '#';
-      $('tg-webhook-link').style.display = 'none';
-      
-      // Show message to re-enter token if they want the clickable link
+
+      // Show the full webhook URL with placeholder for token
+      // User needs to re-enter token to get the actual clickable link with real token
+      if (t.fullSetWebhookUrl) {
+        $('tg-webhook-link').href = 'javascript:void(0)';
+        $('tg-webhook-link').textContent = t.fullSetWebhookUrl;
+        $('tg-webhook-link').style.display = 'inline-block';
+        $('tg-webhook-link').style.cursor = 'not-allowed';
+        $('tg-webhook-link').style.color = 'var(--on-surface-muted)';
+        $('tg-webhook-link').title = 'Re-enter your bot token above and click Save to generate the clickable link';
+      }
+
+      // Show cURL with placeholder since we don't have the token on reload
       if (t.webhookUrl) {
-        $('tg-webhook-curl').textContent = `curl -X POST "https://api.telegram.org/bot:BOT_TOKEN/setWebhook" \\\n  -d "url=${t.webhookUrl}"`;
+        $('tg-webhook-curl').textContent = 'curl -X POST "https://api.telegram.org/bot:BOT_TOKEN/setWebhook" \\n  -d "url=' + t.webhookUrl + '"';
       }
       btnUnlink.style.display = 'inline-flex';
     } else {
@@ -122,16 +128,33 @@
       });
       toast('Token accepted! Send /link in your bot.');
       $('tg-token').value = '';
-      await load();
-      // Populate webhook URLs immediately after save
+      // Don't call load() here - it would re-render with placeholder URL
+      // Instead, directly update the DOM elements with the actual data
+      // Update status
+      const status = $('tg-status');
+      status.className = 'status-pill disconnected';
+      status.querySelector('.lbl').textContent = 'Awaiting /link';
+      // Show the link info section
+      $('tg-link-info').style.display = 'block';
+      $('tg-bot-handle').textContent = data.botUsername ? '@' + data.botUsername : '(your bot)';
+      $('tg-link-cmd').textContent = '/link ' + data.linkCode;
+      // Set the actual webhook link with token
       if (data.fullSetWebhookUrl) {
-        $('tg-webhook-link').href = data.fullSetWebhookUrl;
-        $('tg-webhook-link').style.display = 'inline-block';
+        const linkEl = $('tg-webhook-link');
+        linkEl.href = data.fullSetWebhookUrl;
+        linkEl.textContent = data.fullSetWebhookUrl;
+        linkEl.style.display = 'inline-block';
+        linkEl.style.cursor = 'pointer';
+        linkEl.style.color = '';
+        linkEl.title = 'Click to open in new tab';
       }
-      if (data.webhookUrl) {
-        const curlCmd = `curl -X POST "https://api.telegram.org/bot${token}/setWebhook" \\\n  -d "url=${data.webhookUrl}"`;
+      // Set cURL command
+      if (data.webhookUrl && token) {
+        const curlCmd = 'curl -X POST "https://api.telegram.org/bot' + token + '/setWebhook" \\n  -d "url=' + data.webhookUrl + '"';
         $('tg-webhook-curl').textContent = curlCmd;
       }
+      // Show unlink button
+      $('btn-tg-unlink').style.display = 'inline-flex';
     } catch (e) { toast('Telegram setup failed: ' + e.message, 'error'); }
   });
 
@@ -154,8 +177,9 @@
     } catch (e) { toast('Test failed: ' + e.message, 'error'); }
   });
 
-  // Click-to-copy
+  // Click-to-copy (exclude webhook link which should open in new tab)
   document.querySelectorAll('.copy-code').forEach(el => {
+    if (el.id === 'tg-webhook-link') return; // Skip webhook link - it should navigate
     el.addEventListener('click', () => {
       const text = el.textContent.trim();
       navigator.clipboard.writeText(text).then(() => toast('Copied: ' + text));
