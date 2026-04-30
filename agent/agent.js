@@ -65,6 +65,7 @@
 
       setupModalHandlers();
       setupModeToggle();
+      setupStageFileButton();
 
       hideLoading();
     } catch (err) {
@@ -1316,6 +1317,32 @@
     document.getElementById('btn-confirm-reject')?.addEventListener('click', () => {
       document.getElementById('confirm-modal').style.display = 'none';
       if (pendingUserReplyResolver) { const r = pendingUserReplyResolver; pendingUserReplyResolver = null; r('reject'); }
+    });
+  }
+
+  function setupStageFileButton() {
+    const btn = document.getElementById('btn-stage-file');
+    const input = document.getElementById('stage-file-input');
+    if (!btn || !input) return;
+    btn.addEventListener('click', () => input.click());
+    input.addEventListener('change', async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const dataUrl = await readFileAsDataURL(file);
+        const ref = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        await sendToBackground('ge-stage-file', {
+          ref,
+          name: file.name,
+          mimeType: file.type,
+          dataUrl
+        });
+        alert(`Staged "${file.name}" as ref:${ref}\nThe agent can now use uploadFile with ref="${ref}".`);
+      } catch (err) {
+        alert('Failed to stage file: ' + (err.message || err));
+      } finally {
+        input.value = '';
+      }
     });
   }
 
