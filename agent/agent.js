@@ -13,6 +13,9 @@
   let availableModels = [];
   let currentTierMaxSteps = 50;
   let keepAlivePort = null; // MV3 SW keep-alive
+  let selectedMode = 'copilot'; // 'copilot' | 'autopilot'
+  let pendingTaskContext = null; // { taskId, plan, requiredInputs, permissionsRequested, allTabs, activeTab }
+  let pendingUserReplyResolver = null; // Promise resolver for askUser/confirmAction modals
 
   // DOM References
   const welcomeScreen = document.getElementById('welcome-screen');
@@ -59,6 +62,9 @@
 
       updateLoadingStatus('Loading history...');
       await loadTaskHistory();
+
+      setupModalHandlers();
+      setupModeToggle();
 
       hideLoading();
     } catch (err) {
@@ -622,68 +628,289 @@
   // ============================================
   async function startTask(prompt) {
     if (isRunning) return;
-    isRunning = true;
 
     const trimmed = prompt.trim();
     if (trimmed.length < 10) {
       alert('Please describe the task in more detail.');
-      isRunning = false;
       return;
     }
 
-    taskInput.value = '';
-    taskInput.style.height = 'auto';
     btnSend.disabled = true;
-
-    showTaskView(trimmed.length > 60 ? trimmed.substring(0, 57) + '...' : trimmed);
-    updateTaskStatus('running');
-    startKeepAlive();
 
     try {
       // Get current web tabs (exclude extension pages)
       const { activeTab, allTabs } = await getAgentContext();
 
-      // Call server to start task
-      const data = await NewOrderAPI.request('/api/agent/start', {
+      // === Phase 0: ask the planner what's needed ===
+      const planData = await NewOrderAPI.request('/api/agent/plan', {
         method: 'POST',
         body: JSON.stringify({
           prompt: trimmed,
           modelId: selectedModelId,
+          mode: selectedMode,
           tabUrl: activeTab?.url || '',
           tabTitle: activeTab?.title || '',
           allTabs: allTabs.map(t => ({ url: t.url, title: t.title, active: t.active }))
         })
       });
 
-      currentTaskId = data.taskId;
-      updateCreditsDisplay(data.usage.creditsRemaining);
-      taskCredits.textContent = data.usage.totalTaskCredits.toFixed(2) + ' credits';
-      currentTierMaxSteps = data.tier?.maxSteps || 50;
-      taskStepCounter.textContent = `Step ${data.step.stepNumber}/${currentTierMaxSteps}`;
+      if (planData.usage) updateCreditsDisplay(planData.usage.creditsRemaining);
 
-      // Render the first step
-      renderStep(data.step);
+      // Save context for later submission
+      pendingTaskContext = {
+        taskId: planData.taskId,
+        plan: planData.plan,
+        requiredInputs: planData.requiredInputs || [],
+        permissionsRequested: planData.permissionsRequested || {},
+        mode: selectedMode,
+        prompt: trimmed,
+        activeTab,
+        allTabs
+      };
+      currentTierMaxSteps = planData.tier?.maxSteps || 50;
 
-      // Start the execution loop
-      await executeLoop(data.step, activeTab?.id);
-
+      // Show plan + briefing modal; user clicks Approve or Cancel
+      showPlanModal(pendingTaskContext);
     } catch (err) {
-      console.error('[Global Executive] Start error:', err);
-
-      // If the server says we're at our concurrent-task limit, refresh
-      // the history sidebar and open it so the user can stop a task.
+      console.error('[Global Executive] Plan error:', err);
+      btnSend.disabled = false;
       if (err.message?.includes('already have') && err.message?.includes('running')) {
         await loadTaskHistory();
         historySidebar.classList.add('open');
-        renderDoneStep('You have running tasks. Stop one in the sidebar (&#10005;) before starting another.');
+        alert('You have running tasks. Stop one in the sidebar (×) before starting another.');
       } else {
-        renderDoneStep('Error: ' + err.message);
+        alert('Failed to plan task: ' + err.message);
       }
+    }
+  }
 
+  // ============================================
+  // Plan / Briefing / Permissions Modal
+  // ============================================
+  function showPlanModal(ctx) {
+    const modal = document.getElementById('plan-modal');
+    if (!modal) { startTaskExecution(ctx, {}, {}); return; }
+
+    document.getElementById('plan-mode-banner').textContent =
+      (ctx.mode === 'autopilot' ? 'Auto-Pilot' : 'Co-Pilot') + ' mode';
+    document.getElementById('plan-goal').textContent = ctx.plan?.goal || ctx.prompt;
+    document.getElementById('plan-summary').textContent = ctx.plan?.summary || '(no summary)';
+
+    // Steps
+    const stepsEl = document.getElementById('plan-steps');
+    stepsEl.innerHTML = '';
+    (ctx.plan?.steps || []).forEach(s => {
+      const li = document.createElement('li');
+      li.className = `risk-${s.risk || 'low'}`;
+      li.innerHTML = `<span class="risk-badge ${s.risk || 'low'}">${(s.risk || 'low')}</span>${escapeHtml(s.description || '')}`;
+      stepsEl.appendChild(li);
+    });
+
+    // Sites & risks
+    const sitesEl = document.getElementById('plan-sites');
+    sitesEl.innerHTML = (ctx.plan?.candidateSites || []).map(s =>
+      `<div>• <a href="${escapeHtml(s)}" target="_blank" rel="noopener">${escapeHtml(s)}</a></div>`
+    ).join('') || '<em>None identified</em>';
+    const risksEl = document.getElementById('plan-risks');
+    risksEl.innerHTML = (ctx.plan?.risks || []).length
+      ? '<h3>Risks</h3>' + ctx.plan.risks.map(r => `<div>⚠ ${escapeHtml(r)}</div>`).join('')
+      : '';
+
+    // Briefing form
+    const briefingSection = document.getElementById('briefing-section');
+    const briefingForm = document.getElementById('briefing-form');
+    briefingForm.innerHTML = '';
+    if (ctx.requiredInputs && ctx.requiredInputs.length) {
+      briefingSection.style.display = 'block';
+      ctx.requiredInputs.forEach(inp => {
+        briefingForm.appendChild(buildBriefingField(inp));
+      });
+    } else {
+      briefingSection.style.display = 'none';
+    }
+
+    // Permissions
+    const permsSection = document.getElementById('permissions-section');
+    const permsList = document.getElementById('permissions-list');
+    const PERM_DEFS = {
+      createAccounts: { name: 'Create accounts', desc: 'Sign up for new accounts on third-party services.' },
+      sendMessages:   { name: 'Send messages',   desc: 'Send emails, DMs, comments, posts, or replies on your behalf.' },
+      postPublicly:   { name: 'Post publicly',   desc: 'Submit publicly visible content (forums, social media).' },
+      makePayments:   { name: 'Make payments',   desc: 'Click "Pay" / "Place order" / "Buy" on payment forms.' },
+      deleteData:     { name: 'Delete data',     desc: 'Delete, archive, or remove items.' },
+      uploadFiles:    { name: 'Upload files',    desc: 'Attach files you have staged into upload inputs.' }
+    };
+    const requested = Object.entries(ctx.permissionsRequested || {}).filter(([, v]) => v).map(([k]) => k);
+    if (requested.length) {
+      permsSection.style.display = 'block';
+      permsList.innerHTML = '';
+      requested.forEach(key => {
+        const def = PERM_DEFS[key];
+        if (!def) return;
+        const lab = document.createElement('label');
+        lab.innerHTML = `
+          <input type="checkbox" name="perm-${key}" data-perm="${key}">
+          <span class="perm-text">
+            <span class="perm-name">${escapeHtml(def.name)}</span>
+            <span class="perm-desc">${escapeHtml(def.desc)}</span>
+          </span>`;
+        permsList.appendChild(lab);
+      });
+    } else {
+      permsSection.style.display = 'none';
+    }
+
+    document.getElementById('plan-error').style.display = 'none';
+    modal.style.display = 'flex';
+  }
+
+  function buildBriefingField(inp) {
+    const wrap = document.createElement('div');
+    wrap.className = 'field';
+    const id = `field-${inp.name}`;
+    let inputHtml = '';
+    const sensitiveTag = inp.sensitive ? '<span class="sensitive-tag">sensitive</span>' : '';
+
+    switch (inp.type) {
+      case 'textarea':
+        inputHtml = `<textarea id="${id}" data-input="${inp.name}" ${inp.required ? 'required' : ''}></textarea>`;
+        break;
+      case 'select':
+        inputHtml = `<select id="${id}" data-input="${inp.name}" ${inp.required ? 'required' : ''}>
+          <option value="">— Select —</option>
+          ${(inp.options || []).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
+        </select>`;
+        break;
+      case 'boolean':
+        inputHtml = `<div class="checkbox-field">
+          <input type="checkbox" id="${id}" data-input="${inp.name}">
+          <span>${escapeHtml(inp.label || inp.name)}</span>
+        </div>`;
+        break;
+      case 'file':
+        inputHtml = `<input type="file" id="${id}" data-input="${inp.name}" data-input-type="file">`;
+        break;
+      case 'password':
+      case 'email':
+      case 'url':
+      case 'text':
+      default:
+        inputHtml = `<input type="${inp.type === 'password' ? 'password' : (inp.type === 'email' ? 'email' : (inp.type === 'url' ? 'url' : 'text'))}" id="${id}" data-input="${inp.name}" ${inp.required ? 'required' : ''}>`;
+    }
+
+    if (inp.type !== 'boolean') {
+      wrap.innerHTML = `<label for="${id}">${escapeHtml(inp.label || inp.name)}${sensitiveTag}${inp.required ? ' *' : ''}</label>
+        ${inp.description ? `<div class="field-desc">${escapeHtml(inp.description)}</div>` : ''}
+        ${inputHtml}`;
+    } else {
+      wrap.innerHTML = `${inputHtml}${inp.description ? `<div class="field-desc">${escapeHtml(inp.description)}</div>` : ''}`;
+    }
+    return wrap;
+  }
+
+  function hidePlanModal() {
+    const modal = document.getElementById('plan-modal');
+    if (modal) modal.style.display = 'none';
+  }
+
+  async function approvePlanAndStart() {
+    if (!pendingTaskContext) return;
+    const ctx = pendingTaskContext;
+    const briefing = {};
+    const permissions = {};
+
+    // Collect briefing values
+    const formEls = document.querySelectorAll('#briefing-form [data-input]');
+    for (const el of formEls) {
+      const name = el.getAttribute('data-input');
+      if (el.getAttribute('data-input-type') === 'file' && el.files && el.files[0]) {
+        // Stage the file via background, store the ref name as the briefing value
+        try {
+          const file = el.files[0];
+          const dataUrl = await readFileAsDataURL(file);
+          await sendToBackground('ge-stage-file', {
+            ref: name,
+            name: file.name,
+            mimeType: file.type,
+            dataUrl
+          });
+          briefing[name] = name; // value is the staged ref
+        } catch (err) {
+          document.getElementById('plan-error').textContent = `Failed to stage file ${name}: ${err.message}`;
+          document.getElementById('plan-error').style.display = 'block';
+          return;
+        }
+      } else if (el.type === 'checkbox') {
+        briefing[name] = el.checked;
+      } else {
+        briefing[name] = el.value;
+      }
+    }
+
+    // Validate required
+    const missing = (ctx.requiredInputs || []).filter(inp =>
+      inp.required && (briefing[inp.name] === undefined || briefing[inp.name] === '' || briefing[inp.name] === null)
+    );
+    if (missing.length) {
+      document.getElementById('plan-error').textContent = `Required: ${missing.map(m => m.label || m.name).join(', ')}`;
+      document.getElementById('plan-error').style.display = 'block';
+      return;
+    }
+
+    // Collect permissions
+    document.querySelectorAll('#permissions-list [data-perm]').forEach(el => {
+      permissions[el.getAttribute('data-perm')] = el.checked;
+    });
+
+    hidePlanModal();
+    startTaskExecution(ctx, briefing, permissions);
+  }
+
+  function readFileAsDataURL(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Failed to read file'));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function startTaskExecution(ctx, briefing, permissions) {
+    isRunning = true;
+    btnSend.disabled = true;
+    showTaskView(ctx.prompt.length > 60 ? ctx.prompt.substring(0, 57) + '...' : ctx.prompt);
+    updateTaskStatus('running');
+    startKeepAlive();
+
+    try {
+      const data = await NewOrderAPI.request('/api/agent/brief', {
+        method: 'POST',
+        body: JSON.stringify({
+          taskId: ctx.taskId,
+          briefing,
+          permissions,
+          modelId: selectedModelId,
+          allTabs: ctx.allTabs?.map(t => ({ url: t.url, title: t.title, active: t.active })) || []
+        })
+      });
+
+      currentTaskId = data.taskId;
+      updateCreditsDisplay(data.usage.creditsRemaining);
+      taskCredits.textContent = data.usage.totalTaskCredits.toFixed(2) + ' credits';
+      currentTierMaxSteps = data.tier?.maxSteps || currentTierMaxSteps;
+      taskStepCounter.textContent = `Step ${data.step.stepNumber}/${currentTierMaxSteps}`;
+
+      renderStep(data.step);
+      await executeLoop(data.step, ctx.activeTab?.id);
+    } catch (err) {
+      console.error('[Global Executive] Brief error:', err);
+      renderDoneStep('Error: ' + err.message);
       updateTaskStatus('failed');
       isRunning = false;
       btnSend.disabled = false;
       stopKeepAlive();
+    } finally {
+      pendingTaskContext = null;
     }
   }
 
@@ -714,6 +941,7 @@
             btnSend.disabled = false;
             stopKeepAlive();
             await loadTaskHistory();
+            sendToBackground('ge-clear-staged-files').catch(() => {});
             return;
           }
 
@@ -775,6 +1003,71 @@
           } else if (action === 'storeData') {
             // Data stored server-side, nothing to do client-side
             result = { success: true, key: params?.key, itemCount: Array.isArray(params?.data) ? params.data.length : 1 };
+          } else if (action === 'goto') {
+            const r = await sendToBackground('ge-goto', { tabId: currentTabId, url: params?.url });
+            if (r?.success) {
+              result = { success: true, url: r.url, title: r.title };
+              // Update tracked tab
+              if (trackedTabs[activeTabIndex]) trackedTabs[activeTabIndex].url = r.url;
+              await sleep(800);
+            } else {
+              error = r?.error || 'Navigation failed';
+            }
+          } else if (action === 'goBack' || action === 'goForward' || action === 'reload') {
+            const r = await sendToBackground('ge-' + action.replace('go', 'go-').toLowerCase(), { tabId: currentTabId });
+            if (r?.success) {
+              result = { success: true, url: r.url, title: r.title };
+              await sleep(600);
+            } else {
+              error = r?.error || `${action} failed`;
+            }
+          } else if (action === 'screenshot') {
+            const r = await sendToBackground('ge-screenshot', { tabId: currentTabId });
+            if (r?.success) {
+              // Don't include the full base64 in result (huge); just URL/title and a note
+              result = { success: true, captured: true, url: r.url, title: r.title };
+            } else {
+              error = r?.error || 'Screenshot failed';
+            }
+          } else if (action === 'askUser' || action === 'confirmAction') {
+            // Server set status='awaiting_user' and persisted the question. Show modal.
+            const reply = action === 'askUser'
+              ? await showAskUserModal(params?.question || 'The agent has a question.', params?.choices || [])
+              : await showConfirmModal(params?.summary || 'Approve this action?', params?.pendingAction || null);
+            if (reply === '__stopped__') {
+              await stopTask();
+              return;
+            }
+            // Submit reply to server, get next step, replace current step and continue
+            try {
+              const answerData = await NewOrderAPI.request('/api/agent/answer', {
+                method: 'POST',
+                body: JSON.stringify({ taskId: currentTaskId, reply })
+              });
+              if (answerData.usage) {
+                updateCreditsDisplay(answerData.usage.creditsRemaining);
+                taskCredits.textContent = answerData.usage.totalTaskCredits.toFixed(2) + ' credits';
+              }
+              if (answerData.done) {
+                renderDoneStep(answerData.summary || 'Task ended');
+                updateTaskStatus(answerData.status || 'completed');
+                isRunning = false;
+                btnSend.disabled = false;
+                stopKeepAlive();
+                await loadTaskHistory();
+                return;
+              }
+              // Mark current entry completed and jump to the next step (no /step round-trip)
+              const lastEntry2 = stepLog.querySelector('.step-entry:last-of-type');
+              if (lastEntry2) lastEntry2.classList.add('completed');
+              step = answerData.step;
+              taskStepCounter.textContent = `Step ${step.stepNumber}/${currentTierMaxSteps}`;
+              renderStep(step);
+              continue; // outer while loop with new step
+            } catch (ansErr) {
+              console.error('[Global Executive] Answer error:', ansErr);
+              error = ansErr.message || 'Failed to send reply';
+            }
           } else {
             // Actions that run in the content script: readPage, click, type, scroll, select, pressKey, clear, extract, waitForElement
             const response = await sendToBackground('ge-execute-in-tab', {
@@ -877,6 +1170,7 @@
             btnSend.disabled = false;
             stopKeepAlive();
             await loadTaskHistory();
+            sendToBackground('ge-clear-staged-files').catch(() => {});
             return;
           }
 
@@ -900,6 +1194,7 @@
           isRunning = false;
           btnSend.disabled = false;
           stopKeepAlive();
+          sendToBackground('ge-clear-staged-files').catch(() => {});
           return;
         }
       }
@@ -911,7 +1206,101 @@
       isRunning = false;
       btnSend.disabled = false;
       stopKeepAlive();
+      sendToBackground('ge-clear-staged-files').catch(() => {});
     }
+  }
+
+  // ============================================
+  // AskUser / Confirm Modals (returns Promise<string> resolving to reply or '__stopped__')
+  // ============================================
+  function showAskUserModal(question, choices) {
+    return new Promise((resolve) => {
+      pendingUserReplyResolver = resolve;
+      const modal = document.getElementById('askuser-modal');
+      const qEl = document.getElementById('askuser-question');
+      const choicesEl = document.getElementById('askuser-choices');
+      const replyEl = document.getElementById('askuser-reply');
+      qEl.textContent = question;
+      replyEl.value = '';
+      choicesEl.innerHTML = '';
+      (choices || []).forEach(choice => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = choice;
+        btn.addEventListener('click', () => {
+          modal.style.display = 'none';
+          if (pendingUserReplyResolver) { const r = pendingUserReplyResolver; pendingUserReplyResolver = null; r(choice); }
+        });
+        choicesEl.appendChild(btn);
+      });
+      modal.style.display = 'flex';
+      setTimeout(() => replyEl.focus(), 50);
+    });
+  }
+
+  function showConfirmModal(summary, pendingAction) {
+    return new Promise((resolve) => {
+      pendingUserReplyResolver = resolve;
+      const modal = document.getElementById('confirm-modal');
+      document.getElementById('confirm-summary').textContent = summary;
+      document.getElementById('confirm-action-detail').textContent = pendingAction
+        ? JSON.stringify(pendingAction, null, 2)
+        : '';
+      modal.style.display = 'flex';
+    });
+  }
+
+  function setupModalHandlers() {
+    // Plan modal
+    document.getElementById('btn-approve-plan')?.addEventListener('click', approvePlanAndStart);
+    document.getElementById('btn-cancel-plan')?.addEventListener('click', () => {
+      hidePlanModal();
+      btnSend.disabled = false;
+      // Cancel the pending task on the server
+      if (pendingTaskContext?.taskId) {
+        NewOrderAPI.request('/api/agent/stop', {
+          method: 'POST',
+          body: JSON.stringify({ taskId: pendingTaskContext.taskId })
+        }).catch(() => { /* ignore */ });
+      }
+      pendingTaskContext = null;
+    });
+
+    // AskUser modal
+    document.getElementById('btn-askuser-send')?.addEventListener('click', () => {
+      const reply = document.getElementById('askuser-reply').value.trim();
+      if (!reply) return;
+      document.getElementById('askuser-modal').style.display = 'none';
+      if (pendingUserReplyResolver) { const r = pendingUserReplyResolver; pendingUserReplyResolver = null; r(reply); }
+    });
+    document.getElementById('btn-askuser-stop')?.addEventListener('click', () => {
+      document.getElementById('askuser-modal').style.display = 'none';
+      if (pendingUserReplyResolver) { const r = pendingUserReplyResolver; pendingUserReplyResolver = null; r('__stopped__'); }
+    });
+
+    // Confirm modal
+    document.getElementById('btn-confirm-approve')?.addEventListener('click', () => {
+      document.getElementById('confirm-modal').style.display = 'none';
+      if (pendingUserReplyResolver) { const r = pendingUserReplyResolver; pendingUserReplyResolver = null; r('approve'); }
+    });
+    document.getElementById('btn-confirm-reject')?.addEventListener('click', () => {
+      document.getElementById('confirm-modal').style.display = 'none';
+      if (pendingUserReplyResolver) { const r = pendingUserReplyResolver; pendingUserReplyResolver = null; r('reject'); }
+    });
+  }
+
+  function setupModeToggle() {
+    const toggle = document.getElementById('mode-toggle');
+    if (!toggle) return;
+    toggle.querySelectorAll('.mode-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.mode;
+        if (!mode) return;
+        selectedMode = mode;
+        toggle.dataset.mode = mode;
+        toggle.querySelectorAll('.mode-option').forEach(b => b.classList.toggle('active', b === btn));
+      });
+    });
   }
 
   // ============================================
@@ -936,6 +1325,8 @@
     btnSend.disabled = false;
     await loadTaskHistory();
     stopKeepAlive();
+    // Clean up staged files
+    sendToBackground('ge-clear-staged-files').catch(() => {});
   }
 
   async function stopTaskById(taskId) {
@@ -953,6 +1344,7 @@
         btnSend.disabled = false;
         currentTaskId = null;
         stopKeepAlive();
+        sendToBackground('ge-clear-staged-files').catch(() => {});
       }
     } catch (err) {
       console.error('[Global Executive] Stop by ID error:', err);

@@ -979,18 +979,267 @@ document.addEventListener('DOMContentLoaded', async () => {
     addMessage('ai', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Tool discarded. Tell me what to build next!');
   });
 
-  // Test tool
+  // Test tool — full test panel with console capture
+  let testActive = false;
+  let testTabId = null;
+  let testCounts = { logs: 0, errors: 0, warnings: 0 };
+
   document.getElementById('btn-test-tool').addEventListener('click', async () => {
     if (!currentTool) return;
 
+    // Find a real web tab (not the builder's own chrome-extension:// tab)
+    const allTabs = await chrome.tabs.query({ currentWindow: true });
+    const webTab = allTabs
+      .filter(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://'))
+      .sort((a, b) => (b.lastAccessed || 0) - (a.lastAccessed || 0))[0];
+
+    if (!webTab) {
+      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> No website tab found. Open a website in another tab first, then test.`);
+      return;
+    }
+
+    const tab = webTab;
+
+    // Reset state
+    testActive = true;
+    testTabId = tab.id;
+    testCounts = { logs: 0, errors: 0, warnings: 0 };
+
+    // Show test panel
+    const overlay = document.getElementById('test-panel-overlay');
+    overlay.style.display = 'flex';
+    document.getElementById('test-panel-tool-name').textContent = `Testing: ${currentTool.name}`;
+    document.getElementById('test-status-text').textContent = 'Running';
+    document.getElementById('test-status').className = 'test-status running';
+    document.getElementById('btn-test-accept').style.display = 'none';
+
+    // Clear console
+    const consoleEl = document.getElementById('test-console');
+    consoleEl.innerHTML = '';
+
+    // Reset summary counts
+    updateTestSummary();
+
+    // Add initial entry
+    addTestConsoleEntry('info', `Injecting "${currentTool.name}" into ${tab.url ? new URL(tab.url).hostname : 'current tab'}...`);
+
     try {
-      const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tabs[0]) {
-        await ToolManager.injectToolIntoTab(tabs[0].id, currentTool);
-        addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M9 12h6M9 16h6M9 8h6M5 20h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2z"/></svg> Testing **"${currentTool.name}"** on the current tab. Switch to the tab to see it!`);
+      // 1. Inject test listener (ISOLATED world) — forwards console output via chrome.runtime.sendMessage
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: () => {
+          if (window.__noTestListener) return;
+          window.__noTestListener = true;
+          window.addEventListener('message', (event) => {
+            if (event.source !== window) return;
+            const d = event.data;
+            if (!d || d.source !== 'no-tool-context' || d.type !== 'test-output') return;
+            chrome.runtime.sendMessage({
+              type: 'no-test-output',
+              toolId: d.toolId,
+              level: d.level,
+              args: d.args,
+              timestamp: d.timestamp
+            }).catch(() => {});
+          });
+          window.addEventListener('message', (event) => {
+            if (event.source !== window) return;
+            const d = event.data;
+            if (!d || d.source !== 'no-tool-context' || d.type !== 'test-done') return;
+            chrome.runtime.sendMessage({
+              type: 'no-test-done',
+              toolId: d.toolId,
+              success: d.success,
+              error: d.error,
+              timestamp: d.timestamp
+            }).catch(() => {});
+          });
+        }
+      });
+
+      // 2. Inject styles
+      if (currentTool.styles) {
+        await chrome.scripting.insertCSS({
+          target: { tabId: tab.id },
+          css: currentTool.styles
+        });
       }
+
+      // 3. Inject the tool in test mode (MAIN world)
+      const testWrappedCode = ToolManager.buildToolWrapper(currentTool, true);
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: (code) => {
+          try {
+            const script = document.createElement('script');
+            script.textContent = code;
+            (document.head || document.documentElement).appendChild(script);
+            script.remove();
+          } catch (e) {
+            console.error('[New Order] Test injection error:', e);
+          }
+        },
+        args: [testWrappedCode],
+        world: 'MAIN'
+      });
+
+      addTestConsoleEntry('info', `Tool injected successfully. Watching for output...`);
     } catch (err) {
-      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Test failed: ${err.message}`);
+      addTestConsoleEntry('error', `Injection failed: ${err.message}`);
+      testActive = false;
+      document.getElementById('test-status-text').textContent = 'Failed';
+      document.getElementById('test-status').className = 'test-status failed';
+    }
+  });
+
+  // Listen for test output from background (forwarded from content script)
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (!testActive || !currentTool) return;
+
+    if (message.type === 'no-test-output' && message.toolId === (currentTool.id || currentTool._id)) {
+      const level = message.level || 'log';
+      const text = message.args || '';
+
+      addTestConsoleEntry(level, text);
+
+      if (level === 'error') testCounts.errors++;
+      else if (level === 'warn') testCounts.warnings++;
+      else testCounts.logs++;
+
+      updateTestSummary();
+    }
+
+    if (message.type === 'no-test-done' && message.toolId === (currentTool.id || currentTool._id)) {
+      testActive = false;
+
+      if (message.success) {
+        addTestConsoleEntry('info', `✓ Tool execution completed successfully.`);
+        document.getElementById('test-status-text').textContent = 'Passed';
+        document.getElementById('test-status').className = 'test-status passed';
+      } else {
+        addTestConsoleEntry('error', `✗ Tool execution failed: ${message.error || 'Unknown error'}`);
+        document.getElementById('test-status-text').textContent = 'Failed';
+        document.getElementById('test-status').className = 'test-status failed';
+      }
+
+      // Show accept button if no errors (or even with errors, let user decide)
+      document.getElementById('btn-test-accept').style.display = 'flex';
+      updateTestSummary();
+    }
+  });
+
+  function addTestConsoleEntry(level, text) {
+    const consoleEl = document.getElementById('test-console');
+    const entry = document.createElement('div');
+    entry.className = `test-console-entry ${level}`;
+
+    const now = new Date();
+    const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+
+    let iconSvg = '';
+    if (level === 'error') {
+      iconSvg = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+    } else if (level === 'warn') {
+      iconSvg = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+    } else if (level === 'info') {
+      iconSvg = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+    } else {
+      iconSvg = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>';
+    }
+
+    entry.innerHTML = `
+      <span class="test-console-time">${time}</span>
+      <span class="test-console-icon">${iconSvg}</span>
+      <span class="test-console-msg">${escapeHtml(text)}</span>
+    `;
+
+    consoleEl.appendChild(entry);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  function updateTestSummary() {
+    const logsEl = document.querySelector('#test-summary-logs span');
+    const errorsEl = document.querySelector('#test-summary-errors span');
+    const warningsEl = document.querySelector('#test-summary-warnings span');
+    if (logsEl) logsEl.textContent = testCounts.logs;
+    if (errorsEl) errorsEl.textContent = testCounts.errors;
+    if (warningsEl) warningsEl.textContent = testCounts.warnings;
+  }
+
+  // Stop test button
+  document.getElementById('btn-stop-test').addEventListener('click', async () => {
+    if (!testActive || !currentTool || !testTabId) return;
+
+    try {
+      const toolSlug = (currentTool.id || currentTool._id).replace(/[^a-zA-Z0-9]/g, '_');
+      await chrome.scripting.executeScript({
+        target: { tabId: testTabId },
+        func: (slug, id) => {
+          if (typeof window['__noToolCleanup_' + slug] === 'function') {
+            window['__noToolCleanup_' + slug]();
+          }
+          document.querySelectorAll(`[data-no-tool="${id}"]`).forEach(el => el.remove());
+          delete window.__noTestListener;
+        },
+        args: [toolSlug, currentTool.id || currentTool._id],
+        world: 'MAIN'
+      });
+    } catch (err) {
+      console.error('Stop test error:', err);
+    }
+
+    testActive = false;
+    addTestConsoleEntry('info', 'Test stopped by user.');
+    document.getElementById('test-status-text').textContent = 'Stopped';
+    document.getElementById('test-status').className = 'test-status stopped';
+    document.getElementById('btn-test-accept').style.display = 'flex';
+  });
+
+  // Close test panel
+  document.getElementById('test-panel-close').addEventListener('click', async () => {
+    // Stop test if still running
+    if (testActive && currentTool && testTabId) {
+      try {
+        const toolSlug = (currentTool.id || currentTool._id).replace(/[^a-zA-Z0-9]/g, '_');
+        await chrome.scripting.executeScript({
+          target: { tabId: testTabId },
+          func: (slug, id) => {
+            if (typeof window['__noToolCleanup_' + slug] === 'function') {
+              window['__noToolCleanup_' + slug]();
+            }
+            document.querySelectorAll(`[data-no-tool="${id}"]`).forEach(el => el.remove());
+            delete window.__noTestListener;
+          },
+          args: [toolSlug, currentTool.id || currentTool._id],
+          world: 'MAIN'
+        });
+      } catch (err) {}
+      testActive = false;
+    }
+
+    document.getElementById('test-panel-overlay').style.display = 'none';
+  });
+
+  // Test accept button — save the tool after successful test
+  document.getElementById('btn-test-accept').addEventListener('click', async () => {
+    if (!currentTool) return;
+
+    try {
+      await ToolManager.installTool(currentTool);
+
+      try {
+        await NewOrderAPI.saveToolToCloud(currentTool);
+      } catch (err) {
+        console.log('Cloud save failed (will sync later):', err.message);
+      }
+
+      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg> **"${currentTool.name}"** has been saved and activated! It will run on the target site(s).`);
+
+      toolPreview.style.display = 'none';
+      document.getElementById('test-panel-overlay').style.display = 'none';
+      loadInstalledTools();
+    } catch (err) {
+      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Error saving tool: ${err.message}`);
     }
   });
 

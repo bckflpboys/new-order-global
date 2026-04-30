@@ -681,6 +681,19 @@
             height: 16px;
         }
 
+        .run-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: var(--surface-container-high);
+            color: var(--on-surface-muted);
+        }
+
+        .run-btn:disabled:hover {
+            background: var(--surface-container-high);
+            color: var(--on-surface-muted);
+            transform: none;
+        }
+
         .tool-card-bottom {
             display: flex;
             align-items: center;

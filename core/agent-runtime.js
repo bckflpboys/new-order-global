@@ -281,6 +281,67 @@
     return { success: true, key, target: buildSelector(activeEl) };
   }
 
+  function executeHover(params) {
+    const elements = findElements(params.selector, params.text);
+    if (!elements || elements.length === 0) {
+      return { success: false, error: `No element found for: ${params.selector}` };
+    }
+    const el = elements[params.index || 0];
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    const opts = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y };
+    el.dispatchEvent(new MouseEvent('mouseover', opts));
+    el.dispatchEvent(new MouseEvent('mouseenter', opts));
+    el.dispatchEvent(new MouseEvent('mousemove', opts));
+    return { success: true, hovered: buildSelector(el) };
+  }
+
+  // Upload a user-staged file into a file input.
+  // params: { selector, fileRef, index? }
+  function executeUploadFile(params) {
+    return new Promise((resolve) => {
+      try {
+        const elements = findElements(params.selector);
+        if (!elements || elements.length === 0) {
+          return resolve({ success: false, error: `No file input found: ${params.selector}` });
+        }
+        const input = elements[params.index || 0];
+        if (!input || input.tagName !== 'INPUT' || input.type !== 'file') {
+          return resolve({ success: false, error: `Element is not a file input: ${params.selector}` });
+        }
+
+        chrome.runtime.sendMessage({ type: 'ge-get-staged-file', ref: params.fileRef }, async (resp) => {
+          if (!resp || !resp.success) {
+            return resolve({ success: false, error: resp?.error || 'Failed to load staged file' });
+          }
+          try {
+            const { name, mimeType, dataUrl } = resp.file;
+            // Convert dataUrl to a File object
+            const fetchRes = await fetch(dataUrl);
+            const blob = await fetchRes.blob();
+            const file = new File([blob], name || 'upload', { type: mimeType || blob.type || 'application/octet-stream' });
+
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            input.files = dt.files;
+
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+
+            resolve({ success: true, uploaded: { name: file.name, size: file.size, type: file.type, into: buildSelector(input) } });
+          } catch (err) {
+            resolve({ success: false, error: 'Failed to attach file: ' + err.message });
+          }
+        });
+      } catch (err) {
+        resolve({ success: false, error: err.message });
+      }
+    });
+  }
+
   function executeClear(params) {
     const el = document.querySelector(params.selector);
     if (!el) {
@@ -375,18 +436,54 @@
     return tag;
   }
 
+  // Pierce shadow roots and same-origin iframes when looking for elements.
+  // Returns Array<Element>. Falls back gracefully if shadow DOM not present.
+  function deepQuerySelectorAll(selector, root) {
+    const results = [];
+    const seen = new Set();
+    function visit(node) {
+      if (!node || seen.has(node)) return;
+      seen.add(node);
+      try {
+        const matches = node.querySelectorAll ? node.querySelectorAll(selector) : [];
+        for (const m of matches) results.push(m);
+      } catch (e) { /* ignore invalid selector at this level */ }
+      // Recurse into shadow roots
+      const all = node.querySelectorAll ? node.querySelectorAll('*') : [];
+      for (const el of all) {
+        if (el.shadowRoot) visit(el.shadowRoot);
+      }
+      // Recurse into same-origin iframes
+      const iframes = node.querySelectorAll ? node.querySelectorAll('iframe') : [];
+      for (const f of iframes) {
+        try {
+          const doc = f.contentDocument;
+          if (doc) visit(doc);
+        } catch (e) { /* cross-origin, skip */ }
+      }
+    }
+    visit(root || document);
+    return results;
+  }
+
   function findElements(selector, text) {
     let elements = [];
     try {
+      // Light path first — fast on large pages
       elements = Array.from(document.querySelectorAll(selector));
+      if (elements.length === 0) {
+        // Fallback to deep search across shadow DOM / iframes
+        elements = deepQuerySelectorAll(selector, document);
+      }
     } catch (e) {
       console.warn('[Global Executive] Invalid selector:', selector);
       return [];
     }
 
     if (text) {
+      const needle = text.toLowerCase();
       elements = elements.filter(el =>
-        el.textContent.toLowerCase().includes(text.toLowerCase())
+        (el.textContent || '').toLowerCase().includes(needle)
       );
     }
 
@@ -449,6 +546,12 @@
             break;
           case 'waitForElement':
             result = await executeWaitForElement(params);
+            break;
+          case 'hover':
+            result = executeHover(params);
+            break;
+          case 'uploadFile':
+            result = await executeUploadFile(params);
             break;
           default:
             result = { success: false, error: `Unknown action: ${action}` };

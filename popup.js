@@ -612,20 +612,29 @@ document.addEventListener('DOMContentLoaded', () => {
         div.className = 'tool-card-enhanced';
         div.dataset.toolId = tool.id || 'youtube';
 
-        const tagHTML = isBuiltIn
-            ? '<span class="tool-tag built-in">Built-in</span>'
-            : isAutoRun
-                ? '<span class="tool-tag auto-run">Auto</span>'
-                : '<span class="tool-tag manual">Manual</span>';
+        // Check if tool is in draft status
+        const isDraft = tool.status === 'draft';
+        // Draft tools should never be active
+        const effectiveIsActive = isDraft ? false : (tool.isActive || false);
+
+        const tagHTML = isDraft
+            ? '<span class="tool-tag" style="background: var(--surface-container); color: var(--on-surface-muted); border: 1px solid var(--ghost-border);">Draft</span>'
+            : !effectiveIsActive
+                ? '<span class="tool-tag" style="background: var(--surface-container); color: var(--on-surface-muted); border: 1px solid var(--ghost-border);">Off</span>'
+                : isBuiltIn
+                    ? '<span class="tool-tag built-in">Built-in</span>'
+                    : isAutoRun
+                        ? '<span class="tool-tag auto-run">Auto</span>'
+                        : '<span class="tool-tag manual">Manual</span>';
 
         // Run button tooltip varies by type
-        const runBtnTitle = isBuiltIn ? 'Refresh on current tab' : isAutoRun ? 'Re-inject on current tab' : 'Run on current tab';
+        const runBtnTitle = isDraft ? 'Draft tools cannot be run' : (isBuiltIn ? 'Refresh on current tab' : isAutoRun ? 'Re-inject on current tab' : 'Run on current tab');
 
         div.innerHTML = `
             <div class="tool-card-top">
                 <div class="tool-card-info">
                     <div class="tool-name-row">
-                        <span class="tool-status-dot ${isAutoRun ? 'auto' : ''}" data-dot></span>
+                        <span class="tool-status-dot ${isAutoRun && effectiveIsActive ? 'auto' : ''}" data-dot></span>
                         <span class="tool-name">${tool.name || 'Untitled'}</span>
                         ${tagHTML}
                     </div>
@@ -636,7 +645,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                     </button>
                     <label class="toggle-switch">
-                        <input type="checkbox" ${tool.isActive ? 'checked' : ''} data-toggle>
+                        <input type="checkbox" ${effectiveIsActive ? 'checked' : ''} data-toggle>
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -646,7 +655,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
                     <span class="timer-value">0:00</span>
                 </div>
-                <div style="font-size: 11px; color: var(--text-muted);">${isAutoRun ? 'Auto-runs · ▶ to re-inject now' : isBuiltIn ? 'YouTube suite · ▶ to refresh' : 'Click ▶ to run on this page'}</div>
+                <div style="font-size: 11px; color: var(--text-muted);">${isAutoRun && effectiveIsActive ? 'Auto-runs · ▶ to re-inject now' : isBuiltIn ? 'YouTube suite · ▶ to refresh' : 'Click ▶ to run on this page'}</div>
             </div>
         `;
 
@@ -827,7 +836,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // YouTube toggle handler
             const ytToggle = ytCard.querySelector('[data-toggle]');
+            const ytRunBtn = ytCard.querySelector('[data-run]');
             ytToggle.checked = hasYtPerm;
+            // Set initial run button state based on toggle
+            if (ytRunBtn) ytRunBtn.disabled = !ytToggle.checked;
+
             ytToggle.onchange = async (e) => {
                 if (e.target.checked) {
                     try {
@@ -836,6 +849,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (granted) {
                             showToast('YouTube Toolkit enabled', 'success');
                             updateDot(ytCard, true);
+                            // Enable run button when toggle is on
+                            if (ytRunBtn) ytRunBtn.disabled = false;
                         }
                     } catch (err) {
                         e.target.checked = false;
@@ -847,6 +862,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (removed) {
                             showToast('YouTube Toolkit disabled', 'info');
                             updateDot(ytCard, false);
+                            // Disable run button when toggle is off
+                            if (ytRunBtn) ytRunBtn.disabled = true;
                         }
                     } catch (err) {
                         e.target.checked = true;
@@ -861,7 +878,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             // YouTube Run/Re-inject button
-            const ytRunBtn = ytCard.querySelector('[data-run]');
             if (ytRunBtn) {
                 ytRunBtn.addEventListener('click', async (e) => {
                     e.stopPropagation();
@@ -914,36 +930,46 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Determine if this tool auto-runs (has targetSites that match pages)
                     const hasTargetSites = t.targetSites && t.targetSites.length > 0;
                     const isAutoRun = hasTargetSites; // Tools with target sites auto-inject on matching pages
+                    const isDraft = t.status === 'draft';
 
                     const card = createToolCard(t, { isAutoRun });
 
                     // Toggle handler
                     const toggle = card.querySelector('[data-toggle]');
-                    toggle.onchange = async (e) => {
-                        e.stopPropagation();
-                        if (e.target.checked) {
-                            await ToolManager.activateTool(t.id);
-                            showToast(`"${t.name}" activated`, 'success');
-                            if (isAutoRun) {
-                                updateDot(card, true, true); // auto style
-                                showToast(`"${t.name}" will auto-run on matching sites`, 'info', 4000);
+                    const runBtn = card.querySelector('[data-run]');
+                    if (toggle) {
+                        // Set initial run button state based on toggle
+                        if (runBtn) runBtn.disabled = !toggle.checked;
+
+                        toggle.onchange = async (e) => {
+                            e.stopPropagation();
+                            if (e.target.checked) {
+                                await ToolManager.activateTool(t.id);
+                                showToast(`"${t.name}" activated`, 'success');
+                                if (isAutoRun) {
+                                    updateDot(card, true, true); // auto style
+                                    showToast(`"${t.name}" will auto-run on matching sites`, 'info', 4000);
+                                }
+                                // Enable run button when toggle is on
+                                if (runBtn) runBtn.disabled = false;
+                            } else {
+                                await ToolManager.deactivateTool(t.id);
+                                showToast(`"${t.name}" deactivated`, 'info');
+                                updateDot(card, false);
+                                // Stop any running timer
+                                const timerEl = card.querySelector('[data-timer]');
+                                const dotEl = card.querySelector('[data-dot]');
+                                card.classList.remove('is-running');
+                                if (timerEl) timerEl.classList.remove('visible');
+                                if (dotEl) { dotEl.classList.remove('running'); dotEl.classList.remove('auto'); }
+                                stopTimer(t.id);
+                                // Disable run button when toggle is off
+                                if (runBtn) runBtn.disabled = true;
                             }
-                        } else {
-                            await ToolManager.deactivateTool(t.id);
-                            showToast(`"${t.name}" deactivated`, 'info');
-                            updateDot(card, false);
-                            // Stop any running timer
-                            const timerEl = card.querySelector('[data-timer]');
-                            const dotEl = card.querySelector('[data-dot]');
-                            card.classList.remove('is-running');
-                            if (timerEl) timerEl.classList.remove('visible');
-                            if (dotEl) { dotEl.classList.remove('running'); dotEl.classList.remove('auto'); }
-                            stopTimer(t.id);
-                        }
-                    };
+                        };
+                    }
 
                     // Run button handler (for manual tools)
-                    const runBtn = card.querySelector('[data-run]');
                     if (runBtn) {
                         let isRunning = false;
 
@@ -954,6 +980,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             });
                         });
 
+                        // Restore running state if stored
                         if (stored) {
                             // Restore running state
                             isRunning = true;

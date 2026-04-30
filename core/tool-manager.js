@@ -112,6 +112,16 @@ const ToolManager = (() => {
     const tool = tools.find(t => t.id === toolId);
     if (tool) {
       await registerToolScript(tool);
+
+      // Update status to "active" in database
+      try {
+        await NewOrderAPI.updateTool(toolId, { status: 'active' });
+        // Update local tool status
+        tool.status = 'active';
+        await saveInstalledTools(tools);
+      } catch (err) {
+        console.error('Failed to update tool status in database:', err);
+      }
     }
   }
 
@@ -121,6 +131,20 @@ const ToolManager = (() => {
     await setActiveToolIds(activeIds);
 
     await unregisterToolScript(toolId);
+
+    // Update status to "draft" in database
+    try {
+      await NewOrderAPI.updateTool(toolId, { status: 'draft' });
+      // Update local tool status
+      const tools = await getInstalledTools();
+      const tool = tools.find(t => t.id === toolId);
+      if (tool) {
+        tool.status = 'draft';
+        await saveInstalledTools(tools);
+      }
+    } catch (err) {
+      console.error('Failed to update tool status in database:', err);
+    }
   }
 
   async function isToolActive(toolId) {
@@ -170,12 +194,80 @@ const ToolManager = (() => {
     });
   }
 
-  function buildToolWrapper(tool) {
+  function buildToolWrapper(tool, testMode = false) {
     // Wraps the AI-generated code in a safe IIFE with:
     // - Guard against double-injection
     // - Bridge-based storage (works in MAIN world)
     // - A cleanup function
     // - Console namespacing
+    // - Test mode: intercepts console output and sends via postMessage
+
+    const testModeSetup = testMode ? `
+  // === TEST MODE: Intercept console output ===
+  const _origConsoleLog = console.log.bind(console);
+  const _origConsoleWarn = console.warn.bind(console);
+  const _origConsoleError = console.error.bind(console);
+  const _origConsoleInfo = console.info.bind(console);
+
+  function _testSend(level, args) {
+    try {
+      const serialized = Array.from(args).map(a => {
+        if (a instanceof Error) return a.stack || a.message;
+        if (typeof a === 'object') try { return JSON.stringify(a, null, 2); } catch { return String(a); }
+        return String(a);
+      }).join(' ');
+      window.postMessage({
+        source: 'no-tool-context',
+        type: 'test-output',
+        toolId: TOOL_ID,
+        level: level,
+        args: serialized,
+        timestamp: Date.now()
+      }, '*');
+    } catch(e) {}
+  }
+
+  console.log = function() { _testSend('log', arguments); _origConsoleLog.apply(console, arguments); };
+  console.warn = function() { _testSend('warn', arguments); _origConsoleWarn.apply(console, arguments); };
+  console.error = function() { _testSend('error', arguments); _origConsoleError.apply(console, arguments); };
+  console.info = function() { _testSend('info', arguments); _origConsoleInfo.apply(console, arguments); };
+
+  // Capture uncaught errors
+  window.addEventListener('error', function(e) {
+    _testSend('error', ['Uncaught: ' + (e.error ? e.error.stack || e.error.message : e.message)]);
+  });
+  window.addEventListener('unhandledrejection', function(e) {
+    _testSend('error', ['Unhandled Promise: ' + (e.reason ? e.reason.stack || e.reason.message : String(e.reason))]);
+  });
+  // === END TEST MODE ===
+` : '';
+
+    const testModeDone = testMode ? `
+  // Signal test completion
+  try {
+    window.postMessage({
+      source: 'no-tool-context',
+      type: 'test-done',
+      toolId: TOOL_ID,
+      success: true,
+      timestamp: Date.now()
+    }, '*');
+  } catch(e) {}
+` : '';
+
+    const testModeErrorDone = testMode ? `
+    try {
+      window.postMessage({
+        source: 'no-tool-context',
+        type: 'test-done',
+        toolId: TOOL_ID,
+        success: false,
+        error: err.message,
+        timestamp: Date.now()
+      }, '*');
+    } catch(e2) {}
+` : '';
+
     return `
 (function() {
   'use strict';
@@ -188,6 +280,8 @@ const ToolManager = (() => {
   const TOOL_NAME = '${tool.name.replace(/'/g, "\\'")}';
 
   console.log('[New Order] Tool active: ' + TOOL_NAME);
+
+  ${testModeSetup}
 
   // Storage Bridge implementation
   const ToolStorage = (() => {
@@ -285,9 +379,11 @@ const ToolManager = (() => {
   // ============ USER TOOL CODE START ============
   try {
     ${tool.contentScript}
+    ${testModeDone}
   } catch (err) {
     console.error(\'[New Order] Tool error in \' + TOOL_NAME + \':\', err);
     showToolToast(\'Tool error: \' + err.message);
+    ${testModeErrorDone}
   }
   // ============ USER TOOL CODE END ============
 
@@ -428,7 +524,7 @@ const ToolManager = (() => {
     try {
       console.log('New Order Global: Syncing tools from cloud...');
       const cloudTools = await NewOrderAPI.getUserTools();
-      
+
       if (!Array.isArray(cloudTools)) return await getStats();
 
       // Save each tool locally — map _id to id for local storage compatibility
@@ -441,6 +537,15 @@ const ToolManager = (() => {
           conversationId: ct.conversationId || null
         };
         await installTool(tool);
+
+        // Only auto-activate if status is "active" in database
+        if (ct.status !== 'active') {
+          // Remove from active IDs if it was auto-activated
+          let activeIds = await getActiveToolIds();
+          activeIds = activeIds.filter(id => id !== tool.id);
+          await setActiveToolIds(activeIds);
+          await unregisterToolScript(tool.id);
+        }
       }
 
       // Update last sync time

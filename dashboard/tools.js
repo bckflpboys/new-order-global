@@ -33,19 +33,55 @@ document.addEventListener('DOMContentLoaded', async () => {
   tools.forEach(tool => {
     const card = document.createElement('div');
     card.className = 'tool-card';
+
+    // Determine status
+    const isDraft = tool.status === 'draft';
+    const isActive = tool.isActive && !isDraft;
+    const statusText = isDraft ? 'Off (Draft)' : (isActive ? 'Active' : 'Off');
+    const statusColor = isDraft ? 'var(--on-surface-muted)' : (isActive ? 'var(--success)' : 'var(--on-surface-muted)');
+
     card.innerHTML = `
       <div class="tool-card-header">
         <div class="tool-icon" style="background: rgba(184, 52, 28, 0.08); color: var(--primary);">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
         </div>
-        <div>
+        <div style="flex: 1;">
           <div class="tool-title">${tool.name}</div>
-          <div style="font-size: 11px; color: var(--tertiary); margin-top: 4px;">Active</div>
+          <div style="font-size: 11px; color: ${statusColor}; margin-top: 4px; font-weight: 600;">${statusText}</div>
         </div>
+        <label class="tool-toggle-switch">
+          <input type="checkbox" ${isActive ? 'checked' : ''} data-tool-id="${tool.id || tool._id}">
+          <span class="tool-toggle-slider"></span>
+        </label>
       </div>
       <div class="tool-desc">${tool.description || 'Custom AI Tool'}</div>
     `;
-    card.addEventListener('click', () => {
+
+    // Toggle handler
+    const toggle = card.querySelector('[data-tool-id]');
+    if (toggle) {
+      toggle.addEventListener('change', async (e) => {
+        e.stopPropagation();
+        const toolId = tool.id || tool._id;
+        if (e.target.checked) {
+          await ToolManager.activateTool(toolId);
+          // Update status display
+          const statusEl = card.querySelector('.tool-card-header > div > div:last-child');
+          statusEl.textContent = 'Active';
+          statusEl.style.color = 'var(--success)';
+        } else {
+          await ToolManager.deactivateTool(toolId);
+          // Update status display
+          const statusEl = card.querySelector('.tool-card-header > div > div:last-child');
+          statusEl.textContent = 'Off';
+          statusEl.style.color = 'var(--on-surface-muted)';
+        }
+      });
+    }
+
+    card.addEventListener('click', (e) => {
+      // Don't navigate if clicking on toggle
+      if (e.target.closest('.tool-toggle-switch')) return;
       window.location.href = 'tool-detail.html?id=' + (tool.id || tool._id);
     });
     container.appendChild(card);

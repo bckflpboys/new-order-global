@@ -565,6 +565,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // Forward test output from content scripts to extension pages (builder)
+    if (message.type === 'no-test-output' || message.type === 'no-test-done') {
+        // Re-broadcast to all extension pages so the builder can pick it up
+        chrome.runtime.sendMessage(message).catch(() => {});
+        return false;
+    }
+
     // Auth state change broadcast
     if (message.type === 'noAuthChanged') {
         // Rebroadcast to all extension pages
@@ -657,6 +664,115 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     saveAs: false
                 });
                 sendResponse({ success: true, downloadId });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Navigate the current tab to a URL (no new tab)
+    if (message.type === 'ge-goto') {
+        (async () => {
+            try {
+                const { tabId, url } = message;
+                if (!tabId || !url) {
+                    sendResponse({ success: false, error: 'Missing tabId or url' });
+                    return;
+                }
+                await chrome.tabs.update(tabId, { url });
+                await waitForTabLoad(tabId, 15000);
+                const tab = await chrome.tabs.get(tabId);
+                sendResponse({ success: true, tabId, url: tab.url, title: tab.title });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Browser back / forward / reload
+    if (message.type === 'ge-go-back' || message.type === 'ge-go-forward' || message.type === 'ge-reload') {
+        (async () => {
+            try {
+                const { tabId } = message;
+                if (!tabId) { sendResponse({ success: false, error: 'Missing tabId' }); return; }
+                if (message.type === 'ge-go-back') await chrome.tabs.goBack(tabId);
+                else if (message.type === 'ge-go-forward') await chrome.tabs.goForward(tabId);
+                else await chrome.tabs.reload(tabId);
+                await waitForTabLoad(tabId, 10000);
+                const tab = await chrome.tabs.get(tabId);
+                sendResponse({ success: true, url: tab.url, title: tab.title });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Capture visible tab as screenshot (returns base64 PNG data URL)
+    if (message.type === 'ge-screenshot') {
+        (async () => {
+            try {
+                const tab = await chrome.tabs.get(message.tabId);
+                const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+                sendResponse({ success: true, dataUrl, url: tab.url, title: tab.title });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Stage a file (uploaded via the agent UI) for later use by uploadFile actions.
+    // We store a minimal record (name, type, size, base64) keyed by ref name.
+    // The agent runtime asks for it by ref via 'ge-get-staged-file'.
+    if (message.type === 'ge-stage-file') {
+        (async () => {
+            try {
+                const { ref, name, mimeType, dataUrl } = message;
+                if (!ref || !dataUrl) {
+                    sendResponse({ success: false, error: 'Missing ref or dataUrl' });
+                    return;
+                }
+                const data = await chrome.storage.local.get(['ge_staged_files']);
+                const files = data.ge_staged_files || {};
+                files[ref] = { name: name || ref, mimeType: mimeType || 'application/octet-stream', dataUrl };
+                await chrome.storage.local.set({ ge_staged_files: files });
+                sendResponse({ success: true });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Retrieve a staged file (called by agent runtime during uploadFile)
+    if (message.type === 'ge-get-staged-file') {
+        (async () => {
+            try {
+                const { ref } = message;
+                const data = await chrome.storage.local.get(['ge_staged_files']);
+                const files = data.ge_staged_files || {};
+                const file = files[ref];
+                if (!file) {
+                    sendResponse({ success: false, error: `No staged file with ref "${ref}"` });
+                    return;
+                }
+                sendResponse({ success: true, file });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Clear all staged files (e.g., on task end)
+    if (message.type === 'ge-clear-staged-files') {
+        (async () => {
+            try {
+                await chrome.storage.local.remove(['ge_staged_files']);
+                sendResponse({ success: true });
             } catch (err) {
                 sendResponse({ success: false, error: err.message });
             }

@@ -154,8 +154,20 @@
               </button>
             </div>
           </div>
-          <div class="model-selector-container" id="model-selector-container">
-            <!-- Model selector rendered by JS -->
+          <div class="controls-row">
+            <div class="model-selector-container" id="model-selector-container">
+              <!-- Model selector rendered by JS -->
+            </div>
+            <div class="mode-toggle" id="mode-toggle" data-mode="copilot" title="Switch pilot mode">
+              <button class="mode-option active" data-mode="copilot">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                Co-Pilot
+              </button>
+              <button class="mode-option" data-mode="autopilot">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></svg>
+                Auto-Pilot
+              </button>
+            </div>
           </div>
         </div>
       </main>
@@ -206,6 +218,88 @@
         <button class="modal-close" id="auth-modal-close">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Plan / Briefing Modal ===== -->
+  <div class="modal-overlay ge-modal" id="plan-modal" style="display:none;">
+    <div class="modal plan-modal">
+      <div class="modal-header">
+        <h2><span class="accent">Plan</span> &amp; Briefing</h2>
+        <p id="plan-mode-banner" class="plan-mode-banner">Co-Pilot mode</p>
+      </div>
+      <div class="modal-body">
+        <section class="plan-section" id="plan-section">
+          <h3>Goal</h3>
+          <p id="plan-goal"></p>
+          <h3>Approach</h3>
+          <p id="plan-summary"></p>
+
+          <details class="plan-details" open>
+            <summary>Planned Steps</summary>
+            <ol id="plan-steps" class="plan-steps"></ol>
+          </details>
+
+          <details class="plan-details">
+            <summary>Sites &amp; Risks</summary>
+            <div id="plan-sites" class="plan-sites"></div>
+            <div id="plan-risks" class="plan-risks"></div>
+          </details>
+        </section>
+
+        <section class="briefing-section" id="briefing-section" style="display:none;">
+          <h3>I need some information from you</h3>
+          <p class="briefing-help">Provide everything I'll need so I can run without interrupting you.</p>
+          <form id="briefing-form" class="briefing-form"></form>
+        </section>
+
+        <section class="permissions-section" id="permissions-section" style="display:none;">
+          <h3>Permissions</h3>
+          <p class="briefing-help">Grant only what you're comfortable with. The agent will refuse anything not approved.</p>
+          <div id="permissions-list" class="permissions-list"></div>
+        </section>
+
+        <div id="plan-error" class="auth-error" style="display:none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btn-cancel-plan">Cancel</button>
+        <button class="btn-primary" id="btn-approve-plan">Approve &amp; Run</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== AskUser Modal ===== -->
+  <div class="modal-overlay ge-modal" id="askuser-modal" style="display:none;">
+    <div class="modal small">
+      <div class="modal-header">
+        <h2>Agent has a question</h2>
+      </div>
+      <div class="modal-body">
+        <p id="askuser-question" class="askuser-question"></p>
+        <div id="askuser-choices" class="askuser-choices"></div>
+        <textarea id="askuser-reply" class="askuser-reply" rows="3" placeholder="Type your reply…"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btn-askuser-stop">Stop Task</button>
+        <button class="btn-primary" id="btn-askuser-send">Send Reply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Confirm Action Modal ===== -->
+  <div class="modal-overlay ge-modal" id="confirm-modal" style="display:none;">
+    <div class="modal small">
+      <div class="modal-header">
+        <h2>Confirm sensitive action</h2>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-summary" class="askuser-question"></p>
+        <pre id="confirm-action-detail" class="confirm-action-detail"></pre>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btn-confirm-reject">Reject</button>
+        <button class="btn-primary danger" id="btn-confirm-approve">Approve &amp; Execute</button>
       </div>
     </div>
   </div>
