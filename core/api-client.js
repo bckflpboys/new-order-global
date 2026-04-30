@@ -201,6 +201,140 @@ const NewOrderAPI = (() => {
   }
 
   // ============================================
+  // AI Tool Generation — Streaming
+  // ============================================
+  async function generateToolStream(prompt, context = {}, modelId = 'gemini-2-5-flash', conversationId = null, onChunk = null) {
+    const token = await getToken();
+    const url = `${BASE_URL}/api/ai/generate-stream`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        prompt,
+        currentUrl: context.currentUrl || '',
+        currentSite: context.currentSite || '',
+        pageTitle: context.pageTitle || '',
+        modelId,
+        conversationId
+      })
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Request failed (${response.status})`);
+    }
+
+    return parseSSEStream(response, onChunk);
+  }
+
+  async function iterateToolStream(toolId, feedback, currentCode, modelId = 'gemini-2-5-flash', conversationId = null, onChunk = null) {
+    const token = await getToken();
+    const url = `${BASE_URL}/api/ai/iterate-stream`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      },
+      body: JSON.stringify({
+        toolId,
+        feedback,
+        currentCode,
+        modelId,
+        conversationId
+      })
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Request failed (${response.status})`);
+    }
+
+    return parseSSEStream(response, onChunk);
+  }
+
+  async function parseSSEStream(response, onChunk) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalResult = null;
+    let currentEvent = '';
+    let dataBuffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          currentEvent = line.slice(7).trim();
+          dataBuffer = '';
+        } else if (line.startsWith('data: ')) {
+          dataBuffer += line.slice(6);
+        } else if (line === '' && currentEvent && dataBuffer) {
+          // Empty line = end of SSE event, process it now
+          try {
+            const data = JSON.parse(dataBuffer);
+
+            if (currentEvent === 'chunk' && onChunk) {
+              onChunk(data.content, data);
+            } else if (currentEvent === 'start') {
+              if (onChunk) onChunk(null, { type: 'start', model: data.model });
+            } else if (currentEvent === 'done') {
+              finalResult = data;
+              if (data.usage?.creditsRemaining !== undefined) {
+                const user = await getUser();
+                if (user) {
+                  user.credits = data.usage.creditsRemaining;
+                  await setUser(user);
+                }
+              }
+            } else if (currentEvent === 'error') {
+              throw new Error(data.error || 'Streaming error');
+            }
+          } catch (e) {
+            if (e.message && !e.message.includes('JSON')) throw e;
+          }
+          currentEvent = '';
+          dataBuffer = '';
+        }
+      }
+    }
+
+    // Process any remaining event in buffer
+    if (currentEvent && dataBuffer) {
+      try {
+        const data = JSON.parse(dataBuffer);
+        if (currentEvent === 'done') {
+          finalResult = data;
+          if (data.usage?.creditsRemaining !== undefined) {
+            const user = await getUser();
+            if (user) {
+              user.credits = data.usage.creditsRemaining;
+              await setUser(user);
+            }
+          }
+        } else if (currentEvent === 'error') {
+          throw new Error(data.error || 'Streaming error');
+        }
+      } catch (e) {
+        if (e.message && !e.message.includes('JSON')) throw e;
+      }
+    }
+
+    return finalResult;
+  }
+
+  // ============================================
   // Tool CRUD
   // ============================================
   async function saveToolToCloud(tool) {
@@ -324,6 +458,8 @@ const NewOrderAPI = (() => {
     // AI
     generateTool,
     iterateTool,
+    generateToolStream,
+    iterateToolStream,
 
     // Tools
     saveToolToCloud,

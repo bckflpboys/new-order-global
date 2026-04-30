@@ -680,20 +680,67 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function doGenerate(text) {
     isGenerating = true;
     updateSendButton();
+
     const typingEl = addTypingIndicator();
+    let streamMsg = null;
+    let streamContent = null;
+    let streamCursor = null;
+    let accumulated = '';
+    let isToolJSON = false;
 
     try {
       const context = await getCurrentTabContext();
       let result;
-      
+
+      const onChunk = (content, meta) => {
+        if (meta?.type === 'start') return;
+        if (content === null || content === undefined) return;
+
+        accumulated += content;
+        const trimmed = accumulated.trimStart();
+
+        // Detect JSON tool output — keep typing indicator, don't show raw JSON
+        if (!isToolJSON && (trimmed.startsWith('{') || trimmed.startsWith('```'))) {
+          isToolJSON = true;
+        }
+
+        if (isToolJSON) {
+          // Tool JSON — keep the typing dots, don't render raw JSON
+          return;
+        }
+
+        // Conversational text — create a streaming bubble and show text typing in
+        if (!streamMsg) {
+          typingEl.remove();
+          streamMsg = addStreamingMessage();
+          streamContent = streamMsg.querySelector('.stream-content');
+          streamCursor = streamMsg.querySelector('.stream-cursor');
+        }
+
+        streamContent.innerHTML = formatMessage(accumulated);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      };
+
       if (currentTool) {
-        result = await NewOrderAPI.iterateTool(currentTool.id || currentTool._id, text, currentTool.contentScript, selectedModelId, conversationId);
+        result = await NewOrderAPI.iterateToolStream(currentTool.id || currentTool._id, text, currentTool.contentScript, selectedModelId, conversationId, onChunk);
       } else {
-        result = await NewOrderAPI.generateTool(text, context, selectedModelId, conversationId);
+        result = await NewOrderAPI.generateToolStream(text, context, selectedModelId, conversationId, onChunk);
       }
 
-      typingEl.remove();
-      
+      if (!result) {
+        throw new Error('Stream ended without a result');
+      }
+
+      // Clean up: remove typing indicator or streaming bubble
+      if (streamMsg) {
+        // Conversational — remove cursor, keep the streamed text
+        if (streamCursor) streamCursor.remove();
+        streamMsg.classList.remove('streaming');
+      } else {
+        // Tool JSON — remove typing indicator
+        typingEl.remove();
+      }
+
       if (result.conversationId) {
         conversationId = result.conversationId;
       }
@@ -704,6 +751,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const creditsUsed = result.usage?.creditsUsed || 0;
         totalCreditsUsed += creditsUsed;
 
+        // Use the original addMessage for the final tool display
         addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polyline points="20 6 9 17 4 12"/></svg> I've created **"${result.tool.name}"** for you!\n\n${result.tool.description}\n\n<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> **Target:** ${result.tool.targetSites?.join(', ') || 'All websites'}\n\nCheck the preview below.`, {
           creditsUsed,
           model: result.usage?.model || selectedModelId,
@@ -714,19 +762,27 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else if (result.message) {
         const creditsUsed = result.usage?.creditsUsed || 0;
         totalCreditsUsed += creditsUsed;
-        addMessage('ai', result.message, {
-          creditsUsed,
-          model: result.usage?.model || selectedModelId
-        });
+
+        if (streamMsg) {
+          // Text was already streamed live — just add credits meta
+          addCreditsMetaToMessage(streamMsg, creditsUsed, result.usage?.model || selectedModelId);
+        } else {
+          // Fallback: add as a normal message
+          addMessage('ai', result.message, {
+            creditsUsed,
+            model: result.usage?.model || selectedModelId
+          });
+        }
         chatHistory.push({ role: 'assistant', content: result.message });
       }
 
       updateCreditsDisplay();
       updateSessionCredits();
-      loadConversations(); // refresh sidebar
+      loadConversations();
 
     } catch (err) {
       typingEl.remove();
+      if (streamMsg) streamMsg.remove();
       addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Error: ${err.message}`);
     } finally {
       isGenerating = false;
@@ -735,7 +791,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Process queued messages
       if (messageQueue.length > 0) {
         const next = messageQueue.shift();
-        // Remove the queued styling
         const queuedMsgs = chatMessages.querySelectorAll('.message-queued');
         if (queuedMsgs.length > 0) {
           queuedMsgs[0].classList.remove('message-queued');
@@ -749,6 +804,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         doGenerate(next);
       }
     }
+  }
+
+  function addStreamingMessage() {
+    const msg = document.createElement('div');
+    msg.className = 'message ai streaming';
+    msg.innerHTML = `
+      <div class="message-avatar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
+      <div class="message-bubble">
+        <div class="message-content">
+          <span class="stream-content"></span><span class="stream-cursor"></span>
+        </div>
+      </div>
+    `;
+    chatMessages.appendChild(msg);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return msg;
+  }
+
+  function addCreditsMetaToMessage(msgEl, creditsUsed, model) {
+    const bubble = msgEl.querySelector('.message-bubble');
+    if (!bubble || !creditsUsed || creditsUsed <= 0) return;
+
+    const meta = document.createElement('div');
+    meta.className = 'message-meta';
+    meta.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;vertical-align:middle;"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg> <span class="meta-credits">${creditsUsed.toFixed(4)}</span> credits`;
+    if (model) meta.innerHTML += ` · <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:4px;margin-right:4px;vertical-align:middle;"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg> ${model}`;
+    bubble.appendChild(meta);
   }
 
   function updateSendButton() {

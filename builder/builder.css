@@ -772,6 +772,33 @@ body {
   30% { transform: translateY(-7px); opacity: 1; }
 }
 
+/* Streaming cursor — blinking bar that shows AI is still writing */
+.stream-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background: var(--primary);
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  animation: streamBlink 0.8s steps(2) infinite;
+  border-radius: 1px;
+}
+
+.message.ai.streaming .message-bubble {
+  /* Subtle pulse while streaming */
+  box-shadow: 0 0 0 1px rgba(184, 52, 28, 0.08);
+}
+
+@keyframes streamBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* When streaming is done, cursor is removed and this class is added */
+.message.ai:not(.streaming) .stream-cursor {
+  display: none;
+}
+
 /* ============================================
    Tool Preview Panel
    ============================================ */
