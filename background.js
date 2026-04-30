@@ -675,9 +675,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'ge-goto') {
         (async () => {
             try {
-                const { tabId, url } = message;
-                if (!tabId || !url) {
-                    sendResponse({ success: false, error: 'Missing tabId or url' });
+                let { tabId, url } = message;
+                if (!url || typeof url !== 'string') {
+                    sendResponse({ success: false, error: "Missing 'url' parameter — pass params.url as a string starting with http:// or https://" });
+                    return;
+                }
+                // Normalise URL: add https:// if missing scheme
+                if (!/^https?:\/\//i.test(url) && !/^chrome:|^about:/i.test(url)) {
+                    url = 'https://' + url;
+                }
+                // Fall back to the most recently active normal tab if no tabId was provided
+                if (!tabId) {
+                    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                    if (activeTab && activeTab.id) tabId = activeTab.id;
+                }
+                if (!tabId) {
+                    // Last resort: open a new tab
+                    const newTab = await chrome.tabs.create({ url, active: true });
+                    await waitForTabLoad(newTab.id, 15000);
+                    const refreshed = await chrome.tabs.get(newTab.id);
+                    sendResponse({ success: true, tabId: newTab.id, url: refreshed.url, title: refreshed.title, openedNew: true });
                     return;
                 }
                 await chrome.tabs.update(tabId, { url });

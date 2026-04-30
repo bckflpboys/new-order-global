@@ -1990,3 +1990,40 @@ body.autopilot-mode .agent-app {
   overflow-y: auto;
   margin: 0;
 }
+
+/* ============================================
+   Inline Notices (replace popup alerts)
+   ============================================ */
+.ge-inline-notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 24px;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--ghost-border);
+  background: var(--surface-container-low);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--on-surface);
+  animation: fadeIn 0.25s ease;
+  z-index: 10;
+}
+.ge-inline-notice.error { background: var(--danger-bg); color: var(--danger); border-color: rgba(186,26,26,0.3); }
+.ge-inline-notice.warning { background: var(--warning-bg); color: var(--warning); border-color: rgba(180,120,0,0.3); }
+.ge-inline-notice.info { background: var(--info-bg); color: var(--info); border-color: rgba(59,130,246,0.3); }
+.ge-inline-notice-msg { flex: 1; line-height: 1.4; word-break: break-word; }
+.ge-inline-notice-close {
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  opacity: 0.7;
+}
+.ge-inline-notice-close:hover { opacity: 1; background: rgba(0,0,0,0.06); }
+

@@ -708,11 +708,30 @@
       if (err.message?.includes('already have') && err.message?.includes('running')) {
         await loadTaskHistory();
         historySidebar.classList.add('open');
-        alert('You have running tasks. Stop one in the sidebar (×) before starting another.');
+        showInlineNotice('You have running tasks. Stop one in the sidebar (×) before starting another.', 'warning');
       } else {
-        alert('Failed to plan task: ' + err.message);
+        showInlineNotice('Failed to plan task: ' + err.message, 'error');
       }
     }
+  }
+
+  // Persistent inline notice (replaces popup alerts so user can read full error details)
+  function showInlineNotice(message, level) {
+    const existing = document.getElementById('ge-inline-notice');
+    if (existing) existing.remove();
+    const n = document.createElement('div');
+    n.id = 'ge-inline-notice';
+    n.className = 'ge-inline-notice ' + (level || 'info');
+    n.innerHTML = `
+      <span class="ge-inline-notice-msg">${escapeHtml(message)}</span>
+      <button class="ge-inline-notice-close" aria-label="Dismiss">&times;</button>
+    `;
+    n.querySelector('.ge-inline-notice-close').addEventListener('click', () => n.remove());
+    // Insert into task view or welcome screen, whichever is visible
+    const host = (taskView && taskView.style.display !== 'none') ? taskView : document.body;
+    host.prepend(n);
+    // Auto-dismiss after 12s for non-error
+    if (level !== 'error') setTimeout(() => { if (n.parentNode) n.remove(); }, 12000);
   }
 
   // ============================================
@@ -1035,14 +1054,24 @@
             // Data stored server-side, nothing to do client-side
             result = { success: true, key: params?.key, itemCount: Array.isArray(params?.data) ? params.data.length : 1 };
           } else if (action === 'goto') {
-            const r = await sendToBackground('ge-goto', { tabId: currentTabId, url: params?.url });
-            if (r?.success) {
-              result = { success: true, url: r.url, title: r.title };
-              // Update tracked tab
-              if (trackedTabs[activeTabIndex]) trackedTabs[activeTabIndex].url = r.url;
-              await sleep(800);
+            if (!params?.url) {
+              error = "goto requires params.url (e.g. 'https://google.com'). Retry with the url field.";
             } else {
-              error = r?.error || 'Navigation failed';
+              const r = await sendToBackground('ge-goto', { tabId: currentTabId, url: params.url });
+              if (r?.success) {
+                result = { success: true, url: r.url, title: r.title };
+                // If background opened a new tab (no tracked tab existed), adopt it
+                if (r.openedNew && r.tabId) {
+                  trackedTabs.push({ tabId: r.tabId, tabIndex: trackedTabs.length, url: r.url, status: 'active' });
+                  currentTabId = r.tabId;
+                  activeTabIndex = trackedTabs.length - 1;
+                } else if (trackedTabs[activeTabIndex]) {
+                  trackedTabs[activeTabIndex].url = r.url;
+                }
+                await sleep(800);
+              } else {
+                error = r?.error || 'Navigation failed';
+              }
             }
           } else if (action === 'goBack' || action === 'goForward' || action === 'reload') {
             const r = await sendToBackground('ge-' + action.replace('go', 'go-').toLowerCase(), { tabId: currentTabId });
@@ -1151,40 +1180,46 @@
         // Truncate page state client-side to avoid body-too-large errors
         pageState = truncatePageState(pageState, 100000); // ~100KB safety margin
 
-        // === Send result to server, get next action ===
+        // === Send result to server, get next action (with internal retry) ===
         try {
           let nextData;
-          try {
-            nextData = await NewOrderAPI.request('/api/agent/step', {
-              method: 'POST',
-              body: JSON.stringify({
-                taskId: currentTaskId,
-                stepNumber,
-                result: result || null,
-                error: error || null,
-                pageState: pageState || null,
-                modelId: selectedModelId
-              })
-            });
-          } catch (firstErr) {
-            // If body too large, aggressively truncate and retry once
-            if (firstErr.message?.includes('too large') || firstErr.message?.includes('413')) {
-              pageState = truncatePageState(pageState, 30000); // ~30KB
+          let attempt = 0;
+          let lastErr = null;
+          while (attempt < 3 && !nextData) {
+            attempt++;
+            try {
               nextData = await NewOrderAPI.request('/api/agent/step', {
                 method: 'POST',
                 body: JSON.stringify({
                   taskId: currentTaskId,
                   stepNumber,
                   result: result || null,
-                  error: (error ? error + ' | ' : '') + 'Page state was heavily truncated due to size limits.',
+                  error: error || null,
                   pageState: pageState || null,
                   modelId: selectedModelId
                 })
               });
-            } else {
-              throw firstErr;
+            } catch (stepErr) {
+              lastErr = stepErr;
+              const m = stepErr.message || '';
+              // Body too large: aggressively truncate and retry once
+              if (m.includes('too large') || m.includes('413')) {
+                pageState = truncatePageState(pageState, 30000);
+                error = (error ? error + ' | ' : '') + 'Page state was heavily truncated due to size limits.';
+                continue;
+              }
+              // 4xx (other than 413) are not retriable
+              if (m.match(/\b(400|401|403|404)\b/)) throw stepErr;
+              // 5xx / network: surface inline and retry up to 3 times
+              const errEntry = document.createElement('div');
+              errEntry.className = 'step-entry failed';
+              errEntry.innerHTML = `<div class="step-number">!</div><div class="step-body"><div class="step-action">Server error (attempt ${attempt}/3)</div><div class="step-error">${escapeHtml(m)}</div></div>`;
+              stepLog.appendChild(errEntry);
+              await sleep(1000 * attempt); // backoff
             }
           }
+          if (!nextData) throw lastErr || new Error('Failed to get next step after retries');
+          serverErrorStreak = 0; // reset on success
 
           if (nextData.usage) {
             updateCreditsDisplay(nextData.usage.creditsRemaining);
@@ -1219,8 +1254,9 @@
           );
 
         } catch (serverErr) {
-          console.error('[Global Executive] Server error:', serverErr);
-          renderDoneStep('Server error: ' + serverErr.message);
+          console.error('[Global Executive] Server error after retries:', serverErr);
+          const msg = serverErr.message || 'Unknown server error';
+          renderDoneStep('Stopped: ' + msg);
           updateTaskStatus('failed');
           isRunning = false;
           btnSend.disabled = false;
