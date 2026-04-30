@@ -66,6 +66,7 @@
       setupModalHandlers();
       setupModeToggle();
       setupStageFileButton();
+      setupInboxPolling();
 
       hideLoading();
     } catch (err) {
@@ -812,6 +813,18 @@
 
     document.getElementById('plan-error').style.display = 'none';
     modal.style.display = 'flex';
+
+    // If this task came in remotely (Telegram/WhatsApp) AND has no required inputs,
+    // auto-approve so the agent runs without needing the user to click.
+    if (window.__geNextTaskIsRemote && (!ctx.requiredInputs || ctx.requiredInputs.length === 0)) {
+      window.__geNextTaskIsRemote = false;
+      showInlineNotice('No briefing needed — auto-approving remote task.', 'info');
+      setTimeout(() => approvePlanAndStart(), 200);
+    } else if (window.__geNextTaskIsRemote) {
+      // Has required inputs — the user must come back to the page. Notify them.
+      window.__geNextTaskIsRemote = false;
+      showInlineNotice('This task needs briefing inputs. Please fill them in to continue.', 'warning');
+    }
   }
 
   function buildBriefingField(inp) {
@@ -1280,6 +1293,26 @@
   // ============================================
   // AskUser / Confirm Modals (returns Promise<string> resolving to reply or '__stopped__')
   // ============================================
+  // Poll for remote (Telegram/WhatsApp) replies while a modal is open
+  let remoteReplyPoller = null;
+  function startRemoteReplyPolling(onReply) {
+    stopRemoteReplyPolling();
+    if (!currentTaskId) return;
+    remoteReplyPoller = setInterval(async () => {
+      try {
+        const data = await NewOrderAPI.request(`/api/agent/pending-reply/${currentTaskId}`);
+        if (data?.reply) {
+          stopRemoteReplyPolling();
+          onReply(data.reply, data.source);
+        }
+      } catch { /* keep polling */ }
+    }, 4000);
+  }
+  function stopRemoteReplyPolling() {
+    if (remoteReplyPoller) clearInterval(remoteReplyPoller);
+    remoteReplyPoller = null;
+  }
+
   function showAskUserModal(question, choices) {
     return new Promise((resolve) => {
       pendingUserReplyResolver = resolve;
@@ -1295,6 +1328,7 @@
         btn.type = 'button';
         btn.textContent = choice;
         btn.addEventListener('click', () => {
+          stopRemoteReplyPolling();
           modal.style.display = 'none';
           if (pendingUserReplyResolver) { const r = pendingUserReplyResolver; pendingUserReplyResolver = null; r(choice); }
         });
@@ -1302,6 +1336,15 @@
       });
       modal.style.display = 'flex';
       setTimeout(() => replyEl.focus(), 50);
+      // Auto-resolve via remote reply
+      startRemoteReplyPolling((reply, source) => {
+        modal.style.display = 'none';
+        if (pendingUserReplyResolver) {
+          const r = pendingUserReplyResolver; pendingUserReplyResolver = null;
+          showInlineNotice(`Reply received via ${source}: "${reply.substring(0, 80)}"`, 'info');
+          r(reply);
+        }
+      });
     });
   }
 
@@ -1314,6 +1357,25 @@
         ? JSON.stringify(pendingAction, null, 2)
         : '';
       modal.style.display = 'flex';
+      // Remote replies of "approve" / "reject" / "yes" / "no" auto-resolve
+      const handleRemote = (reply, source) => {
+        const norm = reply.trim().toLowerCase();
+        const decision = (['approve', 'approved', 'yes', 'y', 'ok', 'confirm'].includes(norm)) ? 'approve'
+                       : (['reject', 'rejected', 'no', 'n', 'cancel', 'deny'].includes(norm)) ? 'reject'
+                       : null;
+        if (!decision) {
+          showInlineNotice(`${source} reply unclear: "${reply}". Reply approve/reject.`, 'warning');
+          startRemoteReplyPolling(handleRemote);
+          return;
+        }
+        modal.style.display = 'none';
+        if (pendingUserReplyResolver) {
+          const r = pendingUserReplyResolver; pendingUserReplyResolver = null;
+          showInlineNotice(`Decision via ${source}: ${decision}`, 'info');
+          r(decision);
+        }
+      };
+      startRemoteReplyPolling(handleRemote);
     });
   }
 
@@ -1337,23 +1399,61 @@
     document.getElementById('btn-askuser-send')?.addEventListener('click', () => {
       const reply = document.getElementById('askuser-reply').value.trim();
       if (!reply) return;
+      stopRemoteReplyPolling();
       document.getElementById('askuser-modal').style.display = 'none';
       if (pendingUserReplyResolver) { const r = pendingUserReplyResolver; pendingUserReplyResolver = null; r(reply); }
     });
     document.getElementById('btn-askuser-stop')?.addEventListener('click', () => {
+      stopRemoteReplyPolling();
       document.getElementById('askuser-modal').style.display = 'none';
       if (pendingUserReplyResolver) { const r = pendingUserReplyResolver; pendingUserReplyResolver = null; r('__stopped__'); }
     });
 
     // Confirm modal
     document.getElementById('btn-confirm-approve')?.addEventListener('click', () => {
+      stopRemoteReplyPolling();
       document.getElementById('confirm-modal').style.display = 'none';
       if (pendingUserReplyResolver) { const r = pendingUserReplyResolver; pendingUserReplyResolver = null; r('approve'); }
     });
     document.getElementById('btn-confirm-reject')?.addEventListener('click', () => {
+      stopRemoteReplyPolling();
       document.getElementById('confirm-modal').style.display = 'none';
       if (pendingUserReplyResolver) { const r = pendingUserReplyResolver; pendingUserReplyResolver = null; r('reject'); }
     });
+  }
+
+  // Polls /api/integrations/inbox every 20s while agent page is idle.
+  // If a queued prompt arrives from Telegram/WhatsApp, drop it into the textarea
+  // and auto-start (auto-pilot, since the user is remote).
+  function setupInboxPolling() {
+    let lastChecked = 0;
+    const POLL_MS = 20000;
+    const tick = async () => {
+      // Don't poll while a task is running or modal is open
+      if (isRunning || pendingTaskContext) return;
+      if (Date.now() - lastChecked < POLL_MS - 500) return;
+      lastChecked = Date.now();
+      try {
+        const data = await NewOrderAPI.request('/api/integrations/inbox');
+        if (data?.queuedPrompt) {
+          const prompt = data.queuedPrompt;
+          showInlineNotice(`Task received from ${data.source || 'remote'}: starting in auto-pilot…`, 'info');
+          // Force auto-pilot for remote-triggered tasks (user isn't watching)
+          selectedMode = 'autopilot';
+          const toggle = document.getElementById('mode-toggle');
+          if (toggle) {
+            toggle.dataset.mode = 'autopilot';
+            toggle.querySelectorAll('.mode-option').forEach(b => b.classList.toggle('active', b.dataset.mode === 'autopilot'));
+          }
+          // Mark as remote-triggered so plan modal can auto-approve when possible
+          window.__geNextTaskIsRemote = true;
+          startTask(prompt);
+        }
+      } catch { /* ignore */ }
+    };
+    setInterval(tick, POLL_MS);
+    // Run once shortly after init
+    setTimeout(tick, 3000);
   }
 
   function setupStageFileButton() {

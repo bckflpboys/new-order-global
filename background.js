@@ -15,6 +15,27 @@
 importScripts('core/api-client.js', 'core/tool-manager.js', 'core/auth.js');
 
 // ============================================
+// Lightweight authenticated fetch helper for background-side API calls
+// (separate from NewOrderAPI which is window-scoped in pages)
+// ============================================
+const GE_API_BASE = 'https://apiv2.global-order.32d.one';
+async function fetchWithAuth(path, token, options = {}) {
+    const resp = await fetch(GE_API_BASE + path, {
+        method: options.method || 'GET',
+        headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json',
+            ...(options.headers || {})
+        },
+        body: options.body
+    });
+    let data = null;
+    try { data = await resp.json(); } catch {}
+    if (!resp.ok) throw new Error(data?.error || ('HTTP ' + resp.status));
+    return data;
+}
+
+// ============================================
 // Notifications System
 // ============================================
 async function addActivityActivityOrNotification(title, message, type = 'info', icon = '⚙️', isActivity = false) {
@@ -782,6 +803,87 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         })();
         return true;
+    }
+
+    // ============================================
+    // WhatsApp Web bridge (content script <-> server)
+    // ============================================
+
+    // Content script reports it loaded — kick it off if WA is enabled for this user
+    if (message.type === 'ge-wa-watcher-loaded') {
+        (async () => {
+            try {
+                const { authToken } = await chrome.storage.local.get(['authToken']);
+                if (!authToken) { sendResponse({ ok: false, reason: 'not_authed' }); return; }
+                const integ = await fetchWithAuth('/api/integrations', authToken);
+                if (integ?.whatsapp?.enabled && sender.tab?.id) {
+                    chrome.tabs.sendMessage(sender.tab.id, {
+                        type: 'ge-wa-watcher-start',
+                        groupName: integ.whatsapp.groupName || 'My Agent'
+                    });
+                }
+                sendResponse({ ok: true });
+            } catch (e) { sendResponse({ ok: false, error: e.message }); }
+        })();
+        return true;
+    }
+
+    // Verify the WhatsApp group exists in the user's chat list (called by Setup page)
+    if (message.type === 'ge-wa-verify') {
+        (async () => {
+            try {
+                // Find an open WhatsApp Web tab
+                const tabs = await chrome.tabs.query({ url: 'https://web.whatsapp.com/*' });
+                if (!tabs.length) { sendResponse({ found: false, error: 'Open https://web.whatsapp.com first.' }); return; }
+                // Ask the content script to verify
+                chrome.tabs.sendMessage(tabs[0].id, {
+                    type: 'ge-wa-verify-in-page',
+                    groupName: message.groupName
+                }, (reply) => {
+                    if (chrome.runtime.lastError) {
+                        sendResponse({ found: false, error: chrome.runtime.lastError.message });
+                        return;
+                    }
+                    sendResponse(reply || { found: false, error: 'No response from WhatsApp tab' });
+                });
+            } catch (e) { sendResponse({ found: false, error: e.message }); }
+        })();
+        return true;
+    }
+
+    // Content script reports a new incoming message in the My Agent group
+    if (message.type === 'ge-wa-incoming') {
+        (async () => {
+            try {
+                const { authToken } = await chrome.storage.local.get(['authToken']);
+                if (!authToken) { sendResponse({ ok: false }); return; }
+                await fetchWithAuth('/api/integrations/whatsapp/incoming', authToken, {
+                    method: 'POST',
+                    body: JSON.stringify({ text: message.text, messageId: message.messageId })
+                });
+                sendResponse({ ok: true });
+            } catch (e) { sendResponse({ ok: false, error: e.message }); }
+        })();
+        return true;
+    }
+
+    // Content script polls for outbound messages to type into the group
+    if (message.type === 'ge-wa-fetch-outbox') {
+        (async () => {
+            try {
+                const { authToken } = await chrome.storage.local.get(['authToken']);
+                if (!authToken) { sendResponse({ messages: [] }); return; }
+                const data = await fetchWithAuth('/api/integrations/whatsapp/outbox', authToken);
+                sendResponse({ messages: data?.messages || [] });
+            } catch (e) { sendResponse({ messages: [], error: e.message }); }
+        })();
+        return true;
+    }
+
+    // Heartbeat (keeps service worker alive while WhatsApp Web tab is active)
+    if (message.type === 'ge-wa-heartbeat') {
+        sendResponse({ ok: true, t: Date.now() });
+        return false;
     }
 
     // Clear all staged files (e.g., on task end)

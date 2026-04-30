@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>New Order Global - Setup</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <style>
+    .integration-card { background: var(--surface-container); border: 1px solid var(--ghost-border); border-radius: 12px; padding: 24px; margin-bottom: 18px; }
+    .integration-card h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 18px; }
+    .integration-card .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+    .integration-card .status-pill.connected { background: var(--success-bg, #d1fadf); color: var(--success, #027a48); }
+    .integration-card .status-pill.disconnected { background: var(--surface-container-low); color: var(--on-surface-muted); }
+    .integration-card .status-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .integration-card p { color: var(--on-surface-variant); font-size: 14px; margin: 6px 0 14px; line-height: 1.5; }
+    .integration-card .field { margin: 12px 0; }
+    .integration-card label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+    .integration-card .input-text { width: 100%; max-width: 480px; }
+    .integration-card .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+    .integration-card .info-box { background: var(--surface-container-low); border-left: 3px solid var(--primary); padding: 12px 14px; border-radius: 6px; font-size: 13px; line-height: 1.5; margin: 10px 0; }
+    .integration-card .info-box code { background: var(--surface); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    .pref-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+    .pref-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--ghost-border); }
+    .pref-row:last-child { border-bottom: none; }
+    .pref-row input[type=checkbox] { margin-top: 3px; flex-shrink: 0; }
+    .pref-row .pref-text { flex: 1; }
+    .pref-row .pref-name { font-weight: 600; font-size: 14px; }
+    .pref-row .pref-desc { font-size: 12px; color: var(--on-surface-muted); margin-top: 2px; }
+    .pref-row select { width: 200px; }
+    .copy-code { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); padding: 6px 10px; border-radius: 6px; font-family: monospace; font-size: 14px; cursor: pointer; border: 1px solid var(--ghost-border); }
+    .copy-code:hover { background: var(--surface-container-low); }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <img src="../icons/logo.png" alt="Logo" class="sidebar-logo">
+      <div class="sidebar-title">New Order <span>Global</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Dashboard</div>
+      <a href="../builder/builder.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> AI Builder</a>
+      <a href="../agent/agent.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Global Executive</a>
+      <a href="tools.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> My Tools</a>
+      <a href="setup.html" class="nav-link active"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Setup</a>
+      <div class="nav-section">Account</div>
+      <a href="billing.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Credits & Billing</a>
+      <a href="settings.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/></svg> Settings</a>
+      <a href="../youtube.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg> YouTube Settings</a>
+    </nav>
+  </aside>
+
+  <main class="main-content">
+    <div class="page-header">
+      <h1>Setup</h1>
+      <p>Connect Telegram and WhatsApp so the agent can message you, and tune how the agent behaves.</p>
+    </div>
+
+    <!-- ===== Telegram ===== -->
+    <div class="integration-card" id="card-telegram">
+      <h3>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
+        Telegram Bot
+        <span class="status-pill disconnected" id="tg-status"><span class="dot"></span><span class="lbl">Not connected</span></span>
+      </h3>
+      <p>Create a Telegram bot via <a href="https://t.me/BotFather" target="_blank">@BotFather</a>, paste the bot token below, then run <code>/link &lt;code&gt;</code> in your bot to bind it to your account. The agent can then send updates to you and accept tasks via DM.</p>
+
+      <div class="field" id="tg-form">
+        <label for="tg-token">Bot Token</label>
+        <input type="password" id="tg-token" class="input-text" placeholder="123456789:AAH...">
+      </div>
+
+      <div id="tg-link-info" style="display:none;">
+        <div class="info-box">
+          <strong>Almost done.</strong> Open Telegram, find your bot
+          <span id="tg-bot-handle"></span>, press <strong>Start</strong>, then send this message:
+          <div style="margin-top:8px;"><span class="copy-code" id="tg-link-cmd">/link XXXX</span></div>
+          <div style="margin-top:10px; font-size:12px; color: var(--on-surface-muted);">Webhook URL (set this in BotFather → bot settings → Set Webhook):<br>
+            <span class="copy-code" id="tg-webhook-url" style="word-break: break-all;"></span></div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn-primary" id="btn-tg-save">Save Token</button>
+        <button class="btn-secondary" id="btn-tg-test" style="display:none;">Send Test Message</button>
+        <button class="btn-danger" id="btn-tg-unlink" style="display:none;">Unlink</button>
+      </div>
+    </div>
+
+    <!-- ===== WhatsApp ===== -->
+    <div class="integration-card" id="card-whatsapp">
+      <h3>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+        WhatsApp Web
+        <span class="status-pill disconnected" id="wa-status"><span class="dot"></span><span class="lbl">Not connected</span></span>
+      </h3>
+      <p>The agent watches a WhatsApp group you create called <strong id="wa-group-display">"My Agent"</strong>. Only messages in that group will trigger the agent or be visible to it. This keeps your agent isolated from your other chats.</p>
+
+      <div class="info-box">
+        <strong>Setup steps:</strong>
+        <ol style="margin: 8px 0 0 18px; padding: 0;">
+          <li>Open WhatsApp on your phone → New Group → name it exactly <strong id="wa-group-name-tip">My Agent</strong> → add only yourself (you can add a second number temporarily).</li>
+          <li>Open <a href="https://web.whatsapp.com" target="_blank">web.whatsapp.com</a> in this Chrome and scan the QR.</li>
+          <li>Open the <strong>My Agent</strong> group once so it appears in your chat list.</li>
+          <li>Click <strong>Verify</strong> below — the extension will confirm it can see the group.</li>
+        </ol>
+      </div>
+
+      <div class="field">
+        <label for="wa-group-name">Group Name (must match exactly)</label>
+        <input type="text" id="wa-group-name" class="input-text" value="My Agent" placeholder="My Agent">
+      </div>
+
+      <div class="actions">
+        <button class="btn-primary" id="btn-wa-enable">Enable & Save Group Name</button>
+        <button class="btn-secondary" id="btn-wa-verify" style="display:none;">Verify (open WhatsApp Web first)</button>
+        <button class="btn-secondary" id="btn-wa-test" style="display:none;">Send Test Message</button>
+        <button class="btn-danger" id="btn-wa-unlink" style="display:none;">Unlink</button>
+      </div>
+    </div>
+
+    <!-- ===== Notifications ===== -->
+    <div class="integration-card">
+      <h3>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        Notifications
+      </h3>
+      <p>Choose where the agent sends you updates.</p>
+      <div class="field">
+        <label>Notify via</label>
+        <select id="pref-notify-channel">
+          <option value="none">None (silent)</option>
+          <option value="telegram">Telegram</option>
+          <option value="whatsapp">WhatsApp</option>
+        </select>
+      </div>
+      <div class="pref-grid">
+        <label class="pref-row"><input type="checkbox" id="pref-notify-complete"><span class="pref-text"><span class="pref-name">Notify when a task completes</span><span class="pref-desc">Sends a summary of the task result.</span></span></label>
+        <label class="pref-row"><input type="checkbox" id="pref-notify-awaiting"><span class="pref-text"><span class="pref-name">Notify when the agent is waiting on me</span><span class="pref-desc">Co-pilot only — fires when askUser/confirmAction pauses the task.</span></span></label>
+        <label class="pref-row"><input type="checkbox" id="pref-notify-failure"><span class="pref-text"><span class="pref-name">Notify on task failure</span><span class="pref-desc">Sends the failure summary so you know it stopped.</span></span></label>
+      </div>
+    </div>
+
+    <!-- ===== Agent Behaviour ===== -->
+    <div class="integration-card">
+      <h3>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+        Agent Behaviour
+      </h3>
+      <p>Tune what the agent is allowed to do automatically.</p>
+      <div class="pref-grid">
+        <label class="pref-row"><input type="checkbox" id="pref-can-close-tabs"><span class="pref-text"><span class="pref-name">Allow closing tabs</span><span class="pref-desc">When off, the agent will never call the closeTab action.</span></span></label>
+        <label class="pref-row"><input type="checkbox" id="pref-auto-close-limit"><span class="pref-text"><span class="pref-name">Auto-close oldest tab when at the tab limit</span><span class="pref-desc">If the agent needs a new tab and is at its limit, it will close the oldest unused one instead of failing.</span></span></label>
+        <label class="pref-row"><input type="checkbox" id="pref-prefer-current"><span class="pref-text"><span class="pref-name">Prefer navigating in the current tab</span><span class="pref-desc">The agent will use <code>goto</code> instead of <code>openTab</code> whenever possible.</span></span></label>
+        <label class="pref-row"><input type="checkbox" id="pref-auto-confirm-low"><span class="pref-text"><span class="pref-name">Auto-confirm low-risk actions</span><span class="pref-desc">Skips the confirmAction modal for read-only / trivially reversible steps.</span></span></label>
+        <label class="pref-row"><input type="checkbox" id="pref-verbose"><span class="pref-text"><span class="pref-name">Verbose console logging</span><span class="pref-desc">Streams more detail to the browser console for debugging.</span></span></label>
+      </div>
+      <div class="actions">
+        <button class="btn-primary" id="btn-save-prefs">Save Preferences</button>
+      </div>
+    </div>
+
+    <div id="setup-toast" style="position: fixed; bottom: 20px; right: 20px; padding: 12px 18px; border-radius: 8px; background: var(--success-bg, #d1fadf); color: var(--success, #027a48); font-weight: 600; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100;"></div>
+  </main>
+
+  <script src="../core/api-client.js"></script>
+  <script src="../core/auth.js"></script>
+  <script src="setup.js"></script>
+</body>
+</html>

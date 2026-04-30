@@ -17,6 +17,11 @@
             "matches": ["<all_urls>"],
             "js": ["core/tool-runtime.js"],
             "runAt": "document_start"
+        },
+        {
+            "matches": ["https://web.whatsapp.com/*"],
+            "js": ["core/whatsapp-watcher.js"],
+            "runAt": "document_idle"
         }
     ],
     "host_permissions": [
