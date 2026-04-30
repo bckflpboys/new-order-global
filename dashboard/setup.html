@@ -74,8 +74,17 @@
           <strong>Almost done.</strong> Open Telegram, find your bot
           <span id="tg-bot-handle"></span>, press <strong>Start</strong>, then send this message:
           <div style="margin-top:8px;"><span class="copy-code" id="tg-link-cmd">/link XXXX</span></div>
-          <div style="margin-top:10px; font-size:12px; color: var(--on-surface-muted);">Webhook URL (set this in BotFather → bot settings → Set Webhook):<br>
-            <span class="copy-code" id="tg-webhook-url" style="word-break: break-all;"></span></div>
+          
+          <div style="margin-top:14px; padding-top:12px; border-top:1px solid var(--ghost-border);">
+            <strong>Set Webhook — Option 1 (Browser):</strong><br>
+            <span style="font-size:12px; color: var(--on-surface-muted);">Copy this URL, replace <code>:BOT_TOKEN</code> with your actual token, then paste into browser:</span>
+            <div style="margin-top:6px;"><span class="copy-code" id="tg-webhook-url-browser" style="word-break: break-all;"></span></div>
+          </div>
+          
+          <div style="margin-top:12px;">
+            <strong>Option 2 (Terminal / cURL):</strong>
+            <div style="margin-top:6px; background: var(--surface); padding: 10px; border-radius: 6px; font-family: monospace; font-size: 12px; word-break: break-all;" id="tg-webhook-curl"></div>
+          </div>
         </div>
       </div>
 

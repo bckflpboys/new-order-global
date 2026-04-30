@@ -48,7 +48,15 @@
       linkInfo.style.display = 'block';
       $('tg-bot-handle').textContent = t.botUsername ? '@' + t.botUsername : '(your bot)';
       $('tg-link-cmd').textContent = '/link ' + t.linkCode;
-      $('tg-webhook-url').textContent = t.webhookUrl || '(set webhook will be shown after saving token)';
+      
+      // Build webhook URLs with placeholder for token
+      const baseWebhookUrl = t.webhookUrl || '';
+      if (baseWebhookUrl) {
+        const browserUrl = `https://api.telegram.org/bot:BOT_TOKEN/setWebhook?url=${encodeURIComponent(baseWebhookUrl)}`;
+        const curlCmd = `curl -X POST "https://api.telegram.org/bot:BOT_TOKEN/setWebhook" \\\n  -d "url=${baseWebhookUrl}"`;
+        $('tg-webhook-url-browser').textContent = browserUrl;
+        $('tg-webhook-curl').textContent = curlCmd;
+      }
       btnUnlink.style.display = 'inline-flex';
     } else {
       status.className = 'status-pill disconnected';
@@ -114,8 +122,13 @@
       toast('Token accepted! Send /link in your bot.');
       $('tg-token').value = '';
       await load();
-      // Instruction box
-      if (data.webhookUrl) $('tg-webhook-url').textContent = data.webhookUrl;
+      // Populate webhook URLs immediately after save
+      if (data.webhookUrl) {
+        const browserUrl = `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(data.webhookUrl)}`;
+        const curlCmd = `curl -X POST "https://api.telegram.org/bot${token}/setWebhook" \\\n  -d "url=${data.webhookUrl}"`;
+        $('tg-webhook-url-browser').textContent = browserUrl;
+        $('tg-webhook-curl').textContent = curlCmd;
+      }
     } catch (e) { toast('Telegram setup failed: ' + e.message, 'error'); }
   });
 
