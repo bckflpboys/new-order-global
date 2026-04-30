@@ -171,6 +171,23 @@
     <div id="setup-toast" style="position: fixed; bottom: 20px; right: 20px; padding: 12px 18px; border-radius: 8px; background: var(--success-bg, #d1fadf); color: var(--success, #027a48); font-weight: 600; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100;"></div>
   </main>
 
+  <!-- Initial Loading Overlay -->
+  <div class="initial-loading-overlay" id="initial-loading-overlay">
+    <div class="loading-content">
+      <div class="loading-logo-container">
+        <div class="loading-glow"></div>
+        <img src="../icons/logo.png" alt="New Order" class="loading-logo">
+      </div>
+      <div class="loading-text">
+        <h2 id="loading-status">Initializing System</h2>
+        <div class="loading-bar">
+          <div class="loading-bar-progress"></div>
+        </div>
+        <p id="loading-subtext">Fetching your integrations...</p>
+      </div>
+    </div>
+  </div>
+
   <script src="../core/api-client.js"></script>
   <script src="../core/auth.js"></script>
   <script src="setup.js"></script>

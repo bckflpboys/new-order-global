@@ -1,9 +1,24 @@
 // Setup page — wires Telegram, WhatsApp, and agent preference controls.
 
 (async function () {
+  // Loading overlay
+  const loadingOverlay = document.getElementById('initial-loading-overlay');
+  const loadingStatus = document.getElementById('loading-status');
+  const loadingSubtext = document.getElementById('loading-subtext');
+
+  function updateLoading(status, sub) {
+    if (loadingStatus) loadingStatus.textContent = status;
+    if (loadingSubtext) loadingSubtext.textContent = sub;
+  }
+
+  function hideLoading() {
+    if (loadingOverlay) loadingOverlay.style.display = 'none';
+  }
+
   // Auth gate
   const auth = window.NewOrderAuth || window.Auth;
   if (auth && typeof auth.requireAuth === 'function') {
+    updateLoading('Authenticating', 'Checking session...');
     const ok = await auth.requireAuth();
     if (!ok) return;
   }
@@ -20,11 +35,14 @@
 
   async function load() {
     try {
+      updateLoading('Loading Integrations', 'Fetching your setup...');
       const data = await NewOrderAPI.request('/api/integrations');
       renderTelegram(data.telegram);
       renderWhatsApp(data.whatsapp);
       renderPrefs(data.preferences);
+      hideLoading();
     } catch (e) {
+      hideLoading();
       toast('Failed to load integrations: ' + e.message, 'error');
     }
   }
@@ -35,6 +53,7 @@
     const linkInfo = $('tg-link-info');
     const btnTest = $('btn-tg-test');
     const btnUnlink = $('btn-tg-unlink');
+    const storedToken = sessionStorage.getItem('tg_bot_token');
 
     if (t.chatId) {
       status.className = 'status-pill connected';
@@ -49,20 +68,29 @@
       $('tg-bot-handle').textContent = t.botUsername ? '@' + t.botUsername : '(your bot)';
       $('tg-link-cmd').textContent = '/link ' + t.linkCode;
 
-      // Show the full webhook URL with placeholder for token
-      // User needs to re-enter token to get the actual clickable link with real token
+      // Show the full webhook URL - use stored token if available, otherwise placeholder
       if (t.fullSetWebhookUrl) {
-        $('tg-webhook-link').href = 'javascript:void(0)';
-        $('tg-webhook-link').textContent = t.fullSetWebhookUrl;
+        let webhookUrl = t.fullSetWebhookUrl;
+        if (storedToken) {
+          webhookUrl = t.fullSetWebhookUrl.replace(':BOT_TOKEN', storedToken);
+          $('tg-webhook-link').href = webhookUrl;
+          $('tg-webhook-link').style.cursor = 'pointer';
+          $('tg-webhook-link').style.color = '';
+          $('tg-webhook-link').title = 'Click to open in new tab';
+        } else {
+          $('tg-webhook-link').removeAttribute('href');
+          $('tg-webhook-link').style.cursor = 'not-allowed';
+          $('tg-webhook-link').style.color = 'var(--on-surface-muted)';
+          $('tg-webhook-link').title = 'Re-enter your bot token above and click Save to generate the clickable link';
+        }
+        $('tg-webhook-link').textContent = webhookUrl;
         $('tg-webhook-link').style.display = 'inline-block';
-        $('tg-webhook-link').style.cursor = 'not-allowed';
-        $('tg-webhook-link').style.color = 'var(--on-surface-muted)';
-        $('tg-webhook-link').title = 'Re-enter your bot token above and click Save to generate the clickable link';
       }
 
-      // Show cURL with placeholder since we don't have the token on reload
+      // Show cURL with stored token if available, otherwise placeholder
       if (t.webhookUrl) {
-        $('tg-webhook-curl').textContent = 'curl -X POST "https://api.telegram.org/bot:BOT_TOKEN/setWebhook" \\n  -d "url=' + t.webhookUrl + '"';
+        const tokenForCurl = storedToken || ':BOT_TOKEN';
+        $('tg-webhook-curl').textContent = 'curl -X POST "https://api.telegram.org/bot' + tokenForCurl + '/setWebhook" \\n  -d "url=' + t.webhookUrl + '"';
       }
       btnUnlink.style.display = 'inline-flex';
     } else {
@@ -126,35 +154,12 @@
         method: 'POST',
         body: JSON.stringify({ botToken: token })
       });
+      // Store token in sessionStorage for persistence across reloads
+      sessionStorage.setItem('tg_bot_token', token);
       toast('Token accepted! Send /link in your bot.');
       $('tg-token').value = '';
-      // Don't call load() here - it would re-render with placeholder URL
-      // Instead, directly update the DOM elements with the actual data
-      // Update status
-      const status = $('tg-status');
-      status.className = 'status-pill disconnected';
-      status.querySelector('.lbl').textContent = 'Awaiting /link';
-      // Show the link info section
-      $('tg-link-info').style.display = 'block';
-      $('tg-bot-handle').textContent = data.botUsername ? '@' + data.botUsername : '(your bot)';
-      $('tg-link-cmd').textContent = '/link ' + data.linkCode;
-      // Set the actual webhook link with token
-      if (data.fullSetWebhookUrl) {
-        const linkEl = $('tg-webhook-link');
-        linkEl.href = data.fullSetWebhookUrl;
-        linkEl.textContent = data.fullSetWebhookUrl;
-        linkEl.style.display = 'inline-block';
-        linkEl.style.cursor = 'pointer';
-        linkEl.style.color = '';
-        linkEl.title = 'Click to open in new tab';
-      }
-      // Set cURL command
-      if (data.webhookUrl && token) {
-        const curlCmd = 'curl -X POST "https://api.telegram.org/bot' + token + '/setWebhook" \\n  -d "url=' + data.webhookUrl + '"';
-        $('tg-webhook-curl').textContent = curlCmd;
-      }
-      // Show unlink button
-      $('btn-tg-unlink').style.display = 'inline-flex';
+      // Call load() to re-render - renderTelegram now checks sessionStorage for the token
+      await load();
     } catch (e) { toast('Telegram setup failed: ' + e.message, 'error'); }
   });
 
@@ -162,6 +167,7 @@
     if (!confirm('Unlink your Telegram bot?')) return;
     try {
       await NewOrderAPI.request('/api/integrations/telegram/unlink', { method: 'POST' });
+      sessionStorage.removeItem('tg_bot_token');
       toast('Telegram unlinked.');
       await load();
     } catch (e) { toast('Failed to unlink: ' + e.message, 'error'); }
