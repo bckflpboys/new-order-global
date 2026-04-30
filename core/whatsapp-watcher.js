@@ -23,6 +23,11 @@
   const LOG = (...args) => console.log('[GE-WA]', ...args);
   const ERR = (...args) => console.warn('[GE-WA]', ...args);
 
+  // Must match WHATSAPP_AGENT_PREFIX in services/notificationService.js.
+  // Used to (a) prefix outgoing messages so the user can tell them apart,
+  // (b) skip our own messages when we see them echoed back in the bubble list.
+  const AGENT_PREFIX = '🤖 Agent: ';
+
   // ============================================
   // State
   // ============================================
@@ -160,6 +165,9 @@
       if (state.lastSeenIds.has(parsed.id)) return;
       state.lastSeenIds.add(parsed.id);
       if (!parsed.isIncoming) return; // ignore the user's own messages echoed back
+      // Also skip any message that is an agent echo (prefix match), in case
+      // WhatsApp briefly classifies our own send as "incoming" during render.
+      if (parsed.text.startsWith(AGENT_PREFIX)) return;
       // Forward to background → server
       chrome.runtime.sendMessage({
         type: 'ge-wa-incoming',
