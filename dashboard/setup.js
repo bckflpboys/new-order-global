@@ -49,13 +49,14 @@
       $('tg-bot-handle').textContent = t.botUsername ? '@' + t.botUsername : '(your bot)';
       $('tg-link-cmd').textContent = '/link ' + t.linkCode;
       
-      // Build webhook URLs with placeholder for token
-      const baseWebhookUrl = t.webhookUrl || '';
-      if (baseWebhookUrl) {
-        const browserUrl = `https://api.telegram.org/bot:BOT_TOKEN/setWebhook?url=${encodeURIComponent(baseWebhookUrl)}`;
-        const curlCmd = `curl -X POST "https://api.telegram.org/bot:BOT_TOKEN/setWebhook" \\\n  -d "url=${baseWebhookUrl}"`;
-        $('tg-webhook-url-browser').textContent = browserUrl;
-        $('tg-webhook-curl').textContent = curlCmd;
+      // On page reload, we don't have the token (it's encrypted), so hide the clickable link
+      // The user needs to re-enter the token and save again to get the clickable link
+      $('tg-webhook-link').href = '#';
+      $('tg-webhook-link').style.display = 'none';
+      
+      // Show message to re-enter token if they want the clickable link
+      if (t.webhookUrl) {
+        $('tg-webhook-curl').textContent = `curl -X POST "https://api.telegram.org/bot:BOT_TOKEN/setWebhook" \\\n  -d "url=${t.webhookUrl}"`;
       }
       btnUnlink.style.display = 'inline-flex';
     } else {
@@ -123,10 +124,12 @@
       $('tg-token').value = '';
       await load();
       // Populate webhook URLs immediately after save
+      if (data.fullSetWebhookUrl) {
+        $('tg-webhook-link').href = data.fullSetWebhookUrl;
+        $('tg-webhook-link').style.display = 'inline-block';
+      }
       if (data.webhookUrl) {
-        const browserUrl = `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(data.webhookUrl)}`;
         const curlCmd = `curl -X POST "https://api.telegram.org/bot${token}/setWebhook" \\\n  -d "url=${data.webhookUrl}"`;
-        $('tg-webhook-url-browser').textContent = browserUrl;
         $('tg-webhook-curl').textContent = curlCmd;
       }
     } catch (e) { toast('Telegram setup failed: ' + e.message, 'error'); }
