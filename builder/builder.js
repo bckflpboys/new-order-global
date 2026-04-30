@@ -145,8 +145,34 @@ document.addEventListener('DOMContentLoaded', async () => {
       const result = await NewOrderAPI.request('/api/models');
       if (result.models) {
         availableModels = result.models;
-        const defaultModel = availableModels.find(m => m.isDefault) || availableModels[0];
-        if (defaultModel) selectedModelId = defaultModel.id;
+
+        // Try to load user's saved builder model preference
+        let preferredModelId = null;
+        if (NewOrderAuth.isAuthenticated()) {
+          try {
+            const user = await NewOrderAPI.getProfile();
+            preferredModelId = user.builderModel;
+          } catch (e) {
+            console.log('Failed to load user model preference:', e);
+          }
+        }
+
+        // Use saved preference if it exists and is still available, otherwise use default
+        if (preferredModelId) {
+          const preferredModel = availableModels.find(m => m.id === preferredModelId);
+          if (preferredModel) {
+            selectedModelId = preferredModelId;
+          } else {
+            // Saved model no longer available, fall back to default
+            const defaultModel = availableModels.find(m => m.isDefault) || availableModels[0];
+            if (defaultModel) selectedModelId = defaultModel.id;
+          }
+        } else {
+          // No saved preference, use default
+          const defaultModel = availableModels.find(m => m.isDefault) || availableModels[0];
+          if (defaultModel) selectedModelId = defaultModel.id;
+        }
+
         renderModelSelector();
       }
     } catch (err) {
@@ -249,10 +275,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('');
 
     list.querySelectorAll('.model-card').forEach(card => {
-      card.addEventListener('click', () => {
+      card.addEventListener('click', async () => {
         selectedModelId = card.dataset.id;
         document.getElementById('model-modal-overlay').classList.remove('active');
         renderModelSelector();
+
+        // Save model preference to user profile
+        if (NewOrderAuth.isAuthenticated()) {
+          try {
+            await NewOrderAPI.updateModelPreferences(selectedModelId, null);
+          } catch (e) {
+            console.log('Failed to save model preference:', e);
+          }
+        }
       });
     });
   }

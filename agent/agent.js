@@ -192,8 +192,31 @@
       availableModels = data.models || [];
 
       if (availableModels.length > 0) {
-        const defaultModel = availableModels.find(m => m.isDefault) || availableModels[0];
-        selectedModelId = defaultModel.id;
+        // Try to load user's saved agent model preference
+        let preferredModelId = null;
+        try {
+          const user = await NewOrderAPI.getProfile();
+          preferredModelId = user.agentModel;
+        } catch (e) {
+          console.log('[Global Executive] Failed to load user model preference:', e);
+        }
+
+        // Use saved preference if it exists and is still available, otherwise use default
+        if (preferredModelId) {
+          const preferredModel = availableModels.find(m => m.id === preferredModelId);
+          if (preferredModel) {
+            selectedModelId = preferredModelId;
+          } else {
+            // Saved model no longer available, fall back to default
+            const defaultModel = availableModels.find(m => m.isDefault) || availableModels[0];
+            selectedModelId = defaultModel.id;
+          }
+        } else {
+          // No saved preference, use default
+          const defaultModel = availableModels.find(m => m.isDefault) || availableModels[0];
+          selectedModelId = defaultModel.id;
+        }
+
         renderModelSelector();
       } else {
         console.warn('[Global Executive] No agent-capable models found');
@@ -296,10 +319,17 @@
     }).join('');
 
     list.querySelectorAll('.model-card').forEach(card => {
-      card.addEventListener('click', () => {
+      card.addEventListener('click', async () => {
         selectedModelId = card.dataset.id;
         renderModelSelector();
         document.getElementById('model-modal-overlay').classList.remove('active');
+
+        // Save model preference to user profile
+        try {
+          await NewOrderAPI.updateModelPreferences(null, selectedModelId);
+        } catch (e) {
+          console.log('[Global Executive] Failed to save model preference:', e);
+        }
       });
     });
   }

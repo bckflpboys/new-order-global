@@ -149,6 +149,15 @@ const NewOrderAPI = (() => {
     }
   }
 
+  async function updateModelPreferences(builderModel, agentModel) {
+    const data = await request('/api/auth/model-preferences', {
+      method: 'PUT',
+      body: JSON.stringify({ builderModel, agentModel })
+    });
+    await setUser(data.user);
+    return data.user;
+  }
+
   // ============================================
   // AI Tool Generation
   // ============================================
@@ -454,6 +463,7 @@ const NewOrderAPI = (() => {
     isLoggedIn,
     getUser,
     getToken,
+    updateModelPreferences,
 
     // AI
     generateTool,
