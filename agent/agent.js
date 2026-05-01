@@ -982,6 +982,10 @@
     let currentTabId = initialTabId || null;
     let trackedTabs = initialTabId ? [{ tabId: currentTabId, tabIndex: 0 }] : [];
     let activeTabIndex = initialTabId ? 0 : -1;
+    // Consecutive server-error counter. Reset after each successful /step
+    // round and incremented by the catch block below. Declared here so it
+    // survives across iterations of the while-loop.
+    let serverErrorStreak = 0;
 
     try {
       while (isRunning) {

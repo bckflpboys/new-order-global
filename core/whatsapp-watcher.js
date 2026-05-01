@@ -40,7 +40,13 @@
     activeChatNode: null,         // the conversation panel node
     pollOutboxTimer: null,
     heartbeatTimer: null,
-    lastSeenFromServer: ''
+    lastSeenFromServer: '',
+    // Prevents re-forwarding of historical messages on first attach. On the
+    // very first scan after we open the "My Agent" chat we walk every bubble
+    // and add its id to `lastSeenIds` without forwarding — everything older
+    // than the moment the watcher started is treated as already-read. The
+    // next scan onwards only reports brand-new bubbles.
+    seeded: false
   };
 
   // ============================================
@@ -158,24 +164,39 @@
     if (!state.enabled) return;
     const bubbles = getMessageBubbles();
     if (!bubbles.length) return;
-    // Walk from oldest to newest
+    // IMPORTANT: The "My Agent" group is a self-chat (only the user is in it
+    // per the setup instructions). That means EVERY message bubble is
+    // classified by WhatsApp Web as `message-out` — there is no such thing
+    // as an "incoming" message in a solo group. So we cannot filter by the
+    // incoming/outgoing flag; doing so would drop 100% of user messages
+    // (which is what was happening before). Instead we accept every bubble
+    // and rely on the `AGENT_PREFIX` marker to filter out the agent's own
+    // replies that were just typed into the group by `typeAndSend`.
+    const firstScan = !state.seeded;
     bubbles.forEach(b => {
       const parsed = parseBubble(b);
       if (!parsed || !parsed.id || !parsed.text) return;
       if (state.lastSeenIds.has(parsed.id)) return;
       state.lastSeenIds.add(parsed.id);
-      if (!parsed.isIncoming) return; // ignore the user's own messages echoed back
-      // Also skip any message that is an agent echo (prefix match), in case
-      // WhatsApp briefly classifies our own send as "incoming" during render.
+      // On the very first scan, treat everything as historical — mark as
+      // seen but do NOT forward. Otherwise we'd flood the server with every
+      // previous message the first time the user opens WhatsApp Web.
+      if (firstScan) return;
+      // Skip the agent's own messages (prefix applied by the server / this
+      // content script when draining the outbox).
       if (parsed.text.startsWith(AGENT_PREFIX)) return;
-      // Forward to background → server
+      // Forward everything else to background → server
       chrome.runtime.sendMessage({
         type: 'ge-wa-incoming',
         text: parsed.text,
         messageId: parsed.id
       }).catch(() => {});
-      LOG('Forwarded incoming:', parsed.text.substring(0, 80));
+      LOG('Forwarded message:', parsed.text.substring(0, 80));
     });
+    if (firstScan) {
+      state.seeded = true;
+      LOG(`Seeded ${state.lastSeenIds.size} historical messages; will only forward new ones from now on.`);
+    }
     // Cap memory usage
     if (state.lastSeenIds.size > 500) {
       const arr = Array.from(state.lastSeenIds);
