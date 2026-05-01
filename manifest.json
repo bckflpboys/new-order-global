@@ -10,7 +10,8 @@
         "scripting",
         "activeTab",
         "sidePanel",
-        "downloads"
+        "downloads",
+        "alarms"
     ],
     "content_scripts": [
         {
