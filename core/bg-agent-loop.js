@@ -22,6 +22,61 @@
     let _cachedInteg = null;
 
     // ============================================
+    // Service-worker keep-alive
+    // ----------------------------------------------
+    // MV3 suspends the worker after ~30s of inactivity. While a task is in
+    // flight we hold an open port to a content script and send a heartbeat
+    // every 20s; an open port resets the idle timer on every message (up to
+    // Chrome's hard 5-minute cap per port, which we work around by cycling
+    // the port every 4 minutes).
+    // ============================================
+    let _kaPort = null;
+    let _kaTimer = null;
+    let _kaTabId = null;
+    let _kaCycleAt = 0;
+
+    function _kaOpen(tabId) {
+        try {
+            _kaPort = chrome.tabs.connect(tabId, { name: 'ge-bg-keepalive' });
+            _kaCycleAt = Date.now();
+            _kaPort.onDisconnect.addListener(() => {
+                _kaPort = null;
+                // If we're still supposed to be running, try to reopen on next tick.
+                if (_running && _kaTabId) {
+                    setTimeout(() => { if (_running && _kaTabId && !_kaPort) _kaOpen(_kaTabId); }, 500);
+                }
+            });
+        } catch (e) {
+            _kaPort = null;
+        }
+    }
+
+    function startKeepalive(tabId) {
+        if (!tabId) return;
+        stopKeepalive();
+        _kaTabId = tabId;
+        _kaOpen(tabId);
+        _kaTimer = setInterval(() => {
+            if (!_running) { stopKeepalive(); return; }
+            // Cycle the port every ~4 minutes to stay well under Chrome's 5-min port cap.
+            if (_kaPort && (Date.now() - _kaCycleAt) > 4 * 60 * 1000) {
+                try { _kaPort.disconnect(); } catch { /* ignore */ }
+                _kaPort = null;
+            }
+            if (!_kaPort && _kaTabId) _kaOpen(_kaTabId);
+            try { _kaPort && _kaPort.postMessage({ type: 'ge-ka-ping', t: Date.now() }); }
+            catch { try { _kaPort && _kaPort.disconnect(); } catch {} _kaPort = null; }
+        }, 20000);
+    }
+
+    function stopKeepalive() {
+        if (_kaTimer) { clearInterval(_kaTimer); _kaTimer = null; }
+        try { _kaPort && _kaPort.disconnect(); } catch { /* ignore */ }
+        _kaPort = null;
+        _kaTabId = null;
+    }
+
+    // ============================================
     // Auth / HTTP
     // ============================================
     async function getToken() {
@@ -229,107 +284,35 @@
     }
 
     // ============================================
-    // Main loop
+    // Step loop — shared between fresh runs and chat-reply resumes.
+    // Executes `currentStep` in `state`, then rounds through /step until
+    // done, awaiting_user, max steps, or an error.
     // ============================================
-    async function runOneTask({ prompt, source }) {
-        const tabId = await pickOrOpenTargetTab();
-        const state = makeTabState(tabId);
-        let tabInfo;
-        try { tabInfo = await chrome.tabs.get(tabId); } catch { tabInfo = {}; }
-
-        // --- PLAN ---
-        let planResp;
-        try {
-            planResp = await api('/api/agent/plan', {
-                method: 'POST',
-                body: JSON.stringify({
-                    prompt,
-                    source,
-                    runMode: 'background',
-                    mode: 'autopilot', // server may override with user's /copilot /autopilot preference
-                    tabUrl: tabInfo.url || '',
-                    tabTitle: tabInfo.title || '',
-                    allTabs: []
-                })
-            });
-        } catch (err) {
-            console.warn('[GE bg-agent] /plan failed:', err.status, err.message);
-            return { ok: false, stage: 'plan', error: err.message, status: err.status };
-        }
-
-        const taskId = planResp.taskId;
-        if (!taskId) return { ok: false, stage: 'plan', error: 'no_task_id' };
-
-        // If the plan demands user-supplied briefing inputs, we cannot run
-        // unattended. Leave the task in whatever status the server put it in.
-        if (Array.isArray(planResp.requiredInputs) && planResp.requiredInputs.length) {
-            return { ok: false, stage: 'requires_briefing', taskId };
-        }
-
-        const maxSteps = planResp.tier?.maxSteps || 30;
-
-        // --- BRIEF --- (no user inputs, liberal permissions so auto-pilot can
-        // actually perform most tasks; the user explicitly opted-in to remote
-        // execution by enabling Telegram/WhatsApp and paying for the plan).
-        let briefResp;
-        try {
-            briefResp = await api('/api/agent/brief', {
-                method: 'POST',
-                body: JSON.stringify({
-                    taskId,
-                    briefing: {},
-                    permissions: {
-                        createAccounts: false,
-                        sendMessages: true,
-                        postPublicly: false,
-                        makePayments: false,
-                        deleteData: false,
-                        uploadFiles: false
-                    },
-                    runMode: 'background'
-                })
-            });
-        } catch (err) {
-            if (err.status === 403) return { ok: false, stage: 'brief', error: 'not_eligible', taskId };
-            return { ok: false, stage: 'brief', error: err.message, taskId, status: err.status };
-        }
-
-        if (briefResp.done) return { ok: true, stage: 'done', taskId, summary: briefResp.summary };
-        if (!briefResp.step || !briefResp.step.action) return { ok: false, stage: 'brief', error: 'no_first_step', taskId };
-
-        let currentStep = briefResp.step;
+    async function runStepLoop({ taskId, state, currentStep, maxSteps }) {
         let iterations = 0;
-
         while (iterations < maxSteps + 5) {
             iterations++;
 
-            // Execute the current action
+            // Execute current action
             let result = null, error = null;
             try {
                 const out = await executeAction(state, currentStep.action, currentStep.params);
                 if (out && out.success) result = out;
                 else error = (out && out.error) || 'Action failed';
-                // 'done' sentinel from local execute is a no-op; server owns the
-                // lifecycle — we still need to round-trip so the task gets
-                // marked completed. But if action WAS 'done' locally we can
-                // safely stop the loop here.
-                if (currentStep.action === 'done') {
-                    return { ok: true, taskId, stage: 'done_local' };
-                }
+                if (currentStep.action === 'done') return { ok: true, taskId, stage: 'done_local' };
             } catch (e) {
                 error = e.message || String(e);
             }
 
-            // Refresh page state for DOM-affecting actions
+            // Refresh page state after DOM-affecting actions
             let pageState = null;
             const refreshers = ['readPage', 'click', 'type', 'scroll', 'extract', 'waitForElement', 'select', 'pressKey', 'clear', 'goto', 'reload', 'goBack', 'goForward'];
-            if (refreshers.includes(currentStep.action)) {
-                const tid = state.currentTabId;
-                if (tid) pageState = await readPageState(tid);
+            if (refreshers.includes(currentStep.action) && state.currentTabId) {
+                pageState = await readPageState(state.currentTabId);
             }
             pageState = truncatePageState(pageState);
 
-            // --- STEP ---
+            // /step
             let nextData;
             try {
                 nextData = await api('/api/agent/step', {
@@ -344,33 +327,144 @@
                     })
                 });
             } catch (err) {
-                if (err.status === 403) {
-                    // Subscription lapsed mid-run
-                    return { ok: false, stage: 'step', error: 'not_eligible', taskId };
-                }
+                if (err.status === 403) return { ok: false, stage: 'step', error: 'not_eligible', taskId };
                 return { ok: false, stage: 'step', error: err.message, taskId, status: err.status };
             }
 
-            if (nextData.done) {
-                return { ok: true, stage: 'done', taskId, summary: nextData.summary, status: nextData.status };
-            }
-            if (nextData.awaitingUser) {
-                // Server already notified the user on Telegram/WhatsApp.
-                // Their reply will populate pendingQuestion; we do not have
-                // a resume path from the background yet, so we stop here.
-                return { ok: true, stage: 'awaiting_user', taskId };
-            }
-            if (!nextData.step || !nextData.step.action) {
-                return { ok: false, stage: 'step', error: 'no_next_action', taskId };
-            }
+            if (nextData.done) return { ok: true, stage: 'done', taskId, summary: nextData.summary, status: nextData.status };
+            if (nextData.awaitingUser) return { ok: true, stage: 'awaiting_user', taskId };
+            if (!nextData.step || !nextData.step.action) return { ok: false, stage: 'step', error: 'no_next_action', taskId };
+
             currentStep = nextData.step;
         }
-
         return { ok: false, stage: 'max_steps', taskId };
     }
 
     // ============================================
-    // Alarm tick — poll /inbox and run if eligible
+    // Default permissions for background-mode tasks.
+    // Safe-by-default: risky categories stay OFF. `uploadFiles` is allowed
+    // because a common use case is "summarise this doc I sent you". The
+    // agent cannot create accounts, make payments, post publicly, or
+    // delete data without the user approving it from the dashboard.
+    // ============================================
+    const BG_DEFAULT_PERMISSIONS = {
+        createAccounts: false,
+        sendMessages: true,
+        postPublicly: false,
+        makePayments: false,
+        deleteData: false,
+        uploadFiles: true
+    };
+
+    // ============================================
+    // Main loop — fresh task from /inbox queue
+    // ============================================
+    async function runOneTask({ prompt, source }) {
+        const tabId = await pickOrOpenTargetTab();
+        const state = makeTabState(tabId);
+        let tabInfo;
+        try { tabInfo = await chrome.tabs.get(tabId); } catch { tabInfo = {}; }
+        startKeepalive(tabId);
+
+        try {
+            // --- PLAN ---
+            let planResp;
+            try {
+                planResp = await api('/api/agent/plan', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        prompt,
+                        source,
+                        runMode: 'background',
+                        mode: 'autopilot', // server may override with user's /copilot /autopilot preference
+                        tabUrl: tabInfo.url || '',
+                        tabTitle: tabInfo.title || '',
+                        allTabs: []
+                    })
+                });
+            } catch (err) {
+                console.warn('[GE bg-agent] /plan failed:', err.status, err.message);
+                return { ok: false, stage: 'plan', error: err.message, status: err.status };
+            }
+
+            const taskId = planResp.taskId;
+            if (!taskId) return { ok: false, stage: 'plan', error: 'no_task_id' };
+
+            if (Array.isArray(planResp.requiredInputs) && planResp.requiredInputs.length) {
+                return { ok: false, stage: 'requires_briefing', taskId };
+            }
+
+            const maxSteps = planResp.tier?.maxSteps || 30;
+
+            // --- BRIEF ---
+            let briefResp;
+            try {
+                briefResp = await api('/api/agent/brief', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        taskId,
+                        briefing: {},
+                        permissions: BG_DEFAULT_PERMISSIONS,
+                        runMode: 'background'
+                    })
+                });
+            } catch (err) {
+                if (err.status === 403) return { ok: false, stage: 'brief', error: 'not_eligible', taskId };
+                return { ok: false, stage: 'brief', error: err.message, taskId, status: err.status };
+            }
+
+            if (briefResp.done) return { ok: true, stage: 'done', taskId, summary: briefResp.summary };
+            if (!briefResp.step || !briefResp.step.action) return { ok: false, stage: 'brief', error: 'no_first_step', taskId };
+
+            return await runStepLoop({ taskId, state, currentStep: briefResp.step, maxSteps });
+        } finally {
+            stopKeepalive();
+        }
+    }
+
+    // ============================================
+    // Resume any awaiting_user tasks whose chat-replies we haven't consumed
+    // yet. Server owns the queue; we just drain one reply at a time and
+    // round-trip through /api/agent/answer to get the next step.
+    // ============================================
+    async function resumePendingReplies() {
+        let pending;
+        try { pending = await api('/api/agent/pending-chat-reply'); }
+        catch (e) {
+            if (e.status && e.status !== 401 && e.status !== 404) {
+                console.warn('[GE bg-agent] pending-chat-reply failed:', e.message);
+            }
+            return null;
+        }
+        if (!pending || !pending.taskId || !pending.reply) return null;
+
+        const tabId = await pickOrOpenTargetTab();
+        const state = makeTabState(tabId);
+        startKeepalive(tabId);
+        try {
+            let answerResp;
+            try {
+                answerResp = await api('/api/agent/answer', {
+                    method: 'POST',
+                    body: JSON.stringify({ taskId: pending.taskId, reply: pending.reply, runMode: 'background' })
+                });
+            } catch (err) {
+                if (err.status === 403) return { ok: false, stage: 'answer', error: 'not_eligible' };
+                return { ok: false, stage: 'answer', error: err.message };
+            }
+            if (answerResp.done) return { ok: true, stage: 'done', taskId: pending.taskId };
+            if (!answerResp.step || !answerResp.step.action) return { ok: false, stage: 'answer', error: 'no_next_step' };
+
+            // We don't have the original tier info here — use a safe cap.
+            return await runStepLoop({ taskId: pending.taskId, state, currentStep: answerResp.step, maxSteps: 50 });
+        } finally {
+            stopKeepalive();
+        }
+    }
+
+    // ============================================
+    // Alarm tick — poll /inbox and run if eligible. Also drain any pending
+    // chat-replies for tasks that are awaiting the user's answer.
     // ============================================
     async function onTick() {
         if (_running) return;
@@ -383,22 +477,30 @@
         }
         if (!integ?.backgroundAgent?.autoRun) return; // not on a paid plan
 
-        let inbox;
-        try { inbox = await api('/api/integrations/inbox'); }
-        catch (e) {
-            if (e.status !== 401) console.warn('[GE bg-agent] inbox failed:', e.message);
-            return;
-        }
-        if (!inbox || !inbox.queuedPrompt) return;
-        if (!inbox.backgroundEligible) return; // server says no
-
         _running = true;
         try {
+            // 1) Resume any awaiting_user task that has a fresh chat-reply.
+            try {
+                const resumed = await resumePendingReplies();
+                if (resumed) console.log('[GE bg-agent] Resumed awaiting-user task:', resumed);
+            } catch (e) {
+                console.warn('[GE bg-agent] resume error:', e.message);
+            }
+
+            // 2) Start any newly queued task from Telegram/WhatsApp.
+            let inbox;
+            try { inbox = await api('/api/integrations/inbox'); }
+            catch (e) {
+                if (e.status !== 401) console.warn('[GE bg-agent] inbox failed:', e.message);
+                return;
+            }
+            if (!inbox || !inbox.queuedPrompt || !inbox.backgroundEligible) return;
+
             console.log('[GE bg-agent] Running task from', inbox.source, ':', inbox.queuedPrompt.substring(0, 80));
             const r = await runOneTask({ prompt: inbox.queuedPrompt, source: inbox.source });
             console.log('[GE bg-agent] Task finished:', r);
         } catch (e) {
-            console.error('[GE bg-agent] Task crashed:', e);
+            console.error('[GE bg-agent] Tick crashed:', e);
         } finally {
             _running = false;
             // Invalidate integration cache so a newly-lapsed subscription is

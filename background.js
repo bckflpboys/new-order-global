@@ -813,9 +813,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'ge-wa-watcher-loaded') {
         (async () => {
             try {
-                const { authToken } = await chrome.storage.local.get(['authToken']);
-                if (!authToken) { sendResponse({ ok: false, reason: 'not_authed' }); return; }
-                const integ = await fetchWithAuth('/api/integrations', authToken);
+                const { noAuthToken } = await chrome.storage.local.get(['noAuthToken']);
+                if (!noAuthToken) { sendResponse({ ok: false, reason: 'not_authed' }); return; }
+                const integ = await fetchWithAuth('/api/integrations', noAuthToken);
                 if (integ?.whatsapp?.enabled && sender.tab?.id) {
                     chrome.tabs.sendMessage(sender.tab.id, {
                         type: 'ge-wa-watcher-start',
@@ -855,9 +855,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'ge-wa-incoming') {
         (async () => {
             try {
-                const { authToken } = await chrome.storage.local.get(['authToken']);
-                if (!authToken) { sendResponse({ ok: false }); return; }
-                await fetchWithAuth('/api/integrations/whatsapp/incoming', authToken, {
+                const { noAuthToken } = await chrome.storage.local.get(['noAuthToken']);
+                if (!noAuthToken) { sendResponse({ ok: false }); return; }
+                await fetchWithAuth('/api/integrations/whatsapp/incoming', noAuthToken, {
                     method: 'POST',
                     body: JSON.stringify({ text: message.text, messageId: message.messageId })
                 });
@@ -871,9 +871,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'ge-wa-fetch-outbox') {
         (async () => {
             try {
-                const { authToken } = await chrome.storage.local.get(['authToken']);
-                if (!authToken) { sendResponse({ messages: [] }); return; }
-                const data = await fetchWithAuth('/api/integrations/whatsapp/outbox', authToken);
+                const { noAuthToken } = await chrome.storage.local.get(['noAuthToken']);
+                if (!noAuthToken) { sendResponse({ messages: [] }); return; }
+                const data = await fetchWithAuth('/api/integrations/whatsapp/outbox', noAuthToken);
                 sendResponse({ messages: data?.messages || [] });
             } catch (e) { sendResponse({ messages: [], error: e.message }); }
         })();

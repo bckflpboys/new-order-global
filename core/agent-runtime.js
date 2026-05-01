@@ -504,6 +504,18 @@
   }
 
   // ============================================
+  // Keep-alive port — the background service worker connects here while a
+  // background-mode task is running so that the SW's idle timer keeps
+  // getting reset by port-message activity. We just accept the connection
+  // and ignore the heartbeat payload; its mere presence keeps the SW alive.
+  // ============================================
+  chrome.runtime.onConnect.addListener((port) => {
+    if (port.name !== 'ge-bg-keepalive') return;
+    port.onMessage.addListener(() => { /* heartbeat — no-op */ });
+    port.onDisconnect.addListener(() => { /* SW will reopen if still running */ });
+  });
+
+  // ============================================
   // Message Handler — receives commands from background.js
   // ============================================
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
