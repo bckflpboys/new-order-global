@@ -67,6 +67,7 @@
       setupModeToggle();
       setupStageFileButton();
       setupInboxPolling();
+      startPanelPresenceHeartbeat();
 
       hideLoading();
     } catch (err) {
@@ -1424,6 +1425,32 @@
 
   // Polls /api/integrations/inbox every 20s while agent page is idle.
   // If a queued prompt arrives from Telegram/WhatsApp, drop it into the textarea
+  // ============================================
+  // Panel-presence heartbeat
+  // --------------------------------------------
+  // Writes `ge_panel_active_at` to chrome.storage.session every 5s while the
+  // panel is open. The background service worker's agent-loop reads this
+  // value; if it's fresh (<15s old) the worker skips its tick entirely so
+  // we don't double-drive the same task. The key lives in session storage
+  // so it is automatically cleared when the browser restarts (no stale
+  // locks after a crash).
+  // ============================================
+  function startPanelPresenceHeartbeat() {
+    const write = () => {
+      try {
+        if (chrome?.storage?.session) {
+          chrome.storage.session.set({ ge_panel_active_at: Date.now() });
+        }
+      } catch { /* ignore */ }
+    };
+    write();
+    setInterval(write, 5000);
+    // Best-effort clear on tab unload (not guaranteed to fire, but helpful).
+    window.addEventListener('beforeunload', () => {
+      try { chrome?.storage?.session?.remove?.('ge_panel_active_at'); } catch {}
+    });
+  }
+
   // and auto-start (auto-pilot, since the user is remote).
   function setupInboxPolling() {
     let lastChecked = 0;

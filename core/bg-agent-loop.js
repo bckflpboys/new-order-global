@@ -463,11 +463,33 @@
     }
 
     // ============================================
+    // Is the Global Executive panel currently open and driving the agent?
+    // If so, the service worker MUST NOT run its own agent loop — otherwise
+    // both would race on the same task (double /step calls, double
+    // /pending-reply drains, keep-alive port cycling on the same tab, etc.)
+    // The panel writes `ge_panel_active_at` to chrome.storage.session every
+    // 5s while it is open; we treat it as alive if the heartbeat is < 15s
+    // old.
+    // ============================================
+    async function isPanelActive() {
+        try {
+            if (!chrome?.storage?.session) return false;
+            const out = await chrome.storage.session.get(['ge_panel_active_at']);
+            const at = Number(out.ge_panel_active_at || 0);
+            return at > 0 && (Date.now() - at) < 15000;
+        } catch {
+            return false;
+        }
+    }
+
+    // ============================================
     // Alarm tick — poll /inbox and run if eligible. Also drain any pending
     // chat-replies for tasks that are awaiting the user's answer.
     // ============================================
     async function onTick() {
         if (_running) return;
+        // The panel is driving — stay out of its way.
+        if (await isPanelActive()) return;
         let integ;
         try { integ = await fetchIntegrationsCached(); }
         catch (e) {
