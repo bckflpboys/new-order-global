@@ -1101,9 +1101,34 @@
             }
           } else if (action === 'screenshot') {
             const r = await sendToBackground('ge-screenshot', { tabId: currentTabId });
-            if (r?.success) {
-              // Don't include the full base64 in result (huge); just URL/title and a note
-              result = { success: true, captured: true, url: r.url, title: r.title };
+            if (r?.success && r.dataUrl) {
+              // Upload the captured image to the server, which stores it in
+              // Huawei OBS and hands the pre-signed URL to the LLM on the
+              // next /step call. Server enforces tier gating + per-task cap.
+              try {
+                const uploadResp = await NewOrderAPI.request('/api/agent/screenshot', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    taskId: currentTaskId,
+                    stepNumber,
+                    dataUrl: r.dataUrl
+                  })
+                });
+                result = {
+                  success: true,
+                  captured: true,
+                  url: r.url,
+                  title: r.title,
+                  ttlMinutes: uploadResp.ttlMinutes,
+                  screenshotsUsed: uploadResp.screenshotsUsed,
+                  screenshotsMax: uploadResp.screenshotsMax,
+                  note: 'The AI will see this screenshot on its next step.'
+                };
+              } catch (upErr) {
+                // Common cases: 403 (free tier), 429 (cap hit), 503 (OBS down).
+                // Surface the server's own message so the LLM can adapt.
+                error = upErr.message || 'Failed to upload screenshot to server';
+              }
             } else {
               error = r?.error || 'Screenshot failed';
             }
