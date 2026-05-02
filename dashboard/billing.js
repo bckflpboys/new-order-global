@@ -1,3 +1,42 @@
+// Load Credit Cost by Model from /api/models (uses estimatedToolCost
+// computed server-side: ~2K input + 3K output tokens).
+async function loadCreditCosts() {
+  const list = document.getElementById('credit-costs-list');
+  if (!list) return;
+  try {
+    const data = await NewOrderAPI.request('/api/models');
+    const models = (data.models || [])
+      .slice()
+      .sort((a, b) => (a.estimatedToolCost || 0) - (b.estimatedToolCost || 0));
+    if (!models.length) {
+      list.innerHTML = '<div style="padding: 12px 0; color: var(--on-surface-muted); font-size: 13px;">No models configured.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    models.forEach((m, i) => {
+      const last = i === models.length - 1;
+      const color = m.tier === 'free' ? 'var(--tertiary)' : 'var(--primary)';
+      const row = document.createElement('div');
+      row.style.cssText = 'display: flex; justify-content: space-between; padding: 12px 0;' + (last ? '' : ' border-bottom: 1px solid var(--ghost-border);');
+      const tierBadge = m.tier && m.tier !== 'standard'
+        ? ` <span style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--on-surface-muted); font-weight: 600; margin-left: 6px;">${m.tier}</span>`
+        : '';
+      row.innerHTML = `
+        <span style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">${escapeHtmlBilling(m.name)}${tierBadge}</span>
+        <span style="font-family: var(--font-body); font-size: 14px; font-weight: 600; color: ${color};">~${(m.estimatedToolCost || 0).toFixed(2)} credits</span>
+      `;
+      list.appendChild(row);
+    });
+  } catch (err) {
+    console.error('Failed to load model pricing:', err);
+    list.innerHTML = '<div style="padding: 12px 0; color: var(--error, #b42318); font-size: 13px;">Failed to load model pricing.</div>';
+  }
+}
+
+function escapeHtmlBilling(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 // Plan display names
 const PLAN_LABELS = {
   monthly: 'Monthly Recurring',
@@ -253,6 +292,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Load purchase history
     loadPurchaseHistory();
+
+    // Load credit cost by model (live from DB)
+    loadCreditCosts();
   } catch (err) {
     console.error('Failed to load billing info:', err);
   }
