@@ -1,21 +1,88 @@
-MIT License
-
+Global Executive Source-Available License v1.0
 Copyright (c) 2026 NewOrder.Global
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+This Software is source-available. The license is FREE for personal,
+educational, research, and internal use, but commercial redistribution
+or resale requires a paid commercial license.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+==============================================================================
+1.  GRANT — FREE USE
+==============================================================================
+Subject to Sections 2-4, the copyright holder grants you a worldwide,
+royalty-free, non-exclusive, non-transferable license to:
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+  (a) use, run, modify, and self-host the Software for personal use;
+  (b) use the Software inside your own organisation for internal,
+      non-commercial purposes (including non-revenue-generating
+      research, education, evaluation, and personal automation);
+  (c) modify the Software and distribute those modifications under the
+      same terms, provided the original copyright notice and this
+      license file remain intact.
+
+==============================================================================
+2.  COMMERCIAL USE REQUIRES A PAID LICENSE
+==============================================================================
+You MAY NOT do any of the following without a separate written
+commercial license from the copyright holder:
+
+  (a) sell, sublicense, rent, lease, or distribute the Software
+      (modified or unmodified) for a fee or other compensation;
+  (b) embed the Software, in whole or substantial part, into a
+      commercial product, paid SaaS service, or paid extension;
+  (c) offer the Software as a hosted service for paying users or
+      paying organisations;
+  (d) use the Software's name, branding, or trademarks in any paid
+      product or service.
+
+A one-time commercial license fee covers (a)-(c) above. Contact
+license@global-order.32d.one to obtain one.
+
+==============================================================================
+3.  PROHIBITED USES
+==============================================================================
+Regardless of any other section, you may NOT use the Software:
+
+  (a) to violate any applicable law;
+  (b) to harm, harass, surveil, or deceive any person;
+  (c) to scrape, exfiltrate, or misuse data without authorization;
+  (d) to circumvent the security, payment, or rate-limit systems of
+      any third-party site;
+  (e) to train competing AI agents or browser-automation models on
+      data produced or collected by this Software, without an
+      explicit written license.
+
+==============================================================================
+4.  ATTRIBUTION
+==============================================================================
+Any redistribution (whether under this license or a commercial license)
+must retain (i) this license file, (ii) the copyright notice, and (iii)
+clearly visible attribution to "Global Executive by NewOrder.Global"
+in user-visible "About"/credits screens of any derivative.
+
+==============================================================================
+5.  NO WARRANTY
+==============================================================================
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+==============================================================================
+6.  TERMINATION
+==============================================================================
+This license terminates automatically if you breach any term. On
+termination, you must stop all use and destroy all copies of the
+Software in your possession, except copies held under a separate paid
+commercial license.
+
+==============================================================================
+SUMMARY (non-binding)
+==============================================================================
+* Use it for yourself or your organisation: FREE.
+* Self-host with your own API key: FREE.
+* Modify it, fork it, share patches: FREE (under same license).
+* Sell it, resell it, embed it in a paid product: PAY ONCE — email us.
+* Train other AIs on it: not allowed without a license.

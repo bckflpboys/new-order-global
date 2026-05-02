@@ -168,6 +168,177 @@
       </div>
     </div>
 
+    <!-- ===== Agent Settings (limits + custom rules + temperature) ===== -->
+    <div class="integration-card" id="card-agent-settings">
+      <h3>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        Agent Limits & Behaviour
+        <span id="as-tier-pill" class="status-pill disconnected" style="margin-left: auto;"><span class="lbl">…</span></span>
+      </h3>
+      <p>Cap how much the agent can do per task. You can only LOWER below your tier's limit — never raise above. Leave a value blank to use your tier's default.</p>
+
+      <div class="field">
+        <label for="as-max-steps">Max steps per task <span style="color: var(--on-surface-muted); font-weight: 400;">(tier max: <span id="as-max-steps-ceiling">—</span>)</span></label>
+        <input type="number" id="as-max-steps" class="input-text" min="1" placeholder="Use tier default" style="max-width: 200px;">
+      </div>
+      <div class="field">
+        <label for="as-max-screenshots-task">Max screenshots per task <span style="color: var(--on-surface-muted); font-weight: 400;">(tier max: <span id="as-max-ss-task-ceiling">—</span>)</span></label>
+        <input type="number" id="as-max-screenshots-task" class="input-text" min="0" placeholder="Use tier default" style="max-width: 200px;">
+      </div>
+      <div class="field">
+        <label for="as-max-screenshots-step">Max screenshots per single step <span style="color: var(--on-surface-muted); font-weight: 400;">(tier max: <span id="as-max-ss-step-ceiling">—</span>)</span></label>
+        <input type="number" id="as-max-screenshots-step" class="input-text" min="0" placeholder="Use tier default" style="max-width: 200px;">
+      </div>
+      <div class="field">
+        <label for="as-temperature">LLM temperature (0 = deterministic, 1 = creative)</label>
+        <input type="number" id="as-temperature" class="input-text" min="0" max="1" step="0.05" placeholder="Use task default" style="max-width: 200px;">
+      </div>
+      <div class="field">
+        <label for="as-custom-rules">Global custom rules (applied to every task)</label>
+        <textarea id="as-custom-rules" class="input-text" rows="5" maxlength="2000" placeholder="- Always confirm before paying.&#10;- Use my work email by default.&#10;- Prefer Firefox readability mode for articles." style="max-width: 100%; font-family: monospace; font-size: 13px;"></textarea>
+        <div style="font-size: 12px; color: var(--on-surface-muted); margin-top: 4px;">Up to 2000 chars. Injected into the agent system prompt as "USER'S GLOBAL RULES".</div>
+      </div>
+
+      <div id="as-memory-toggles" class="pref-grid" style="margin-top: 12px;">
+        <label class="pref-row"><input type="checkbox" id="as-memory-enabled"><span class="pref-text"><span class="pref-name">Enable long-term memory</span><span class="pref-desc">Inject saved facts about you into every task's system prompt.</span></span></label>
+        <label class="pref-row"><input type="checkbox" id="as-auto-extract"><span class="pref-text"><span class="pref-name">Auto-extract memories from completed tasks</span><span class="pref-desc">After each task, the agent saves any durable facts it learned (preferences, accounts, addresses). Never saves passwords/OTPs.</span></span></label>
+      </div>
+
+      <div id="as-superonly-block" style="display:none; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--ghost-border);">
+        <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">Super Agent extras</div>
+        <div class="field">
+          <label for="as-max-sub-agents">Max parallel sub-agents (1-10)</label>
+          <input type="number" id="as-max-sub-agents" class="input-text" min="1" max="10" style="max-width: 120px;">
+        </div>
+        <label class="pref-row"><input type="checkbox" id="as-session-persistence"><span class="pref-text"><span class="pref-name">Session persistence</span><span class="pref-desc">Keep state of completed tasks so you can ask "resume yesterday's task".</span></span></label>
+
+        <!-- ===== Council role assignment ===== -->
+        <div id="as-council-block" style="margin-top: 14px;">
+          <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px;">Multi-Agent Council Roles</div>
+          <div style="font-size: 12px; color: var(--on-surface-muted); margin-bottom: 10px;">Choose which AI model handles each role on every step. Leave any role on "Default" to use the task's main model.</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="field">
+              <label for="as-role-strategist" style="font-size: 12px;">Strategist <span style="color: var(--on-surface-muted); font-weight: 400;">(big picture)</span></label>
+              <select id="as-role-strategist"><option value="">Default</option></select>
+            </div>
+            <div class="field">
+              <label for="as-role-executor" style="font-size: 12px;">Executor <span style="color: var(--on-surface-muted); font-weight: 400;">(action precision)</span></label>
+              <select id="as-role-executor"><option value="">Default</option></select>
+            </div>
+            <div class="field">
+              <label for="as-role-critic" style="font-size: 12px;">Critic <span style="color: var(--on-surface-muted); font-weight: 400;">(risk &amp; sanity)</span></label>
+              <select id="as-role-critic"><option value="">Default</option></select>
+            </div>
+            <div class="field">
+              <label for="as-role-optimizer" style="font-size: 12px;">Optimizer <span style="color: var(--on-surface-muted); font-weight: 400;">(efficiency)</span></label>
+              <select id="as-role-optimizer"><option value="">Default</option></select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn-primary" id="btn-save-agent-settings">Save Agent Settings</button>
+      </div>
+    </div>
+
+    <!-- ===== Per-Domain Rules ===== -->
+    <div class="integration-card" id="card-domain-rules">
+      <h3>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Per-Domain Rules
+      </h3>
+      <p>Hard rules the agent MUST follow when working on a specific website. Use <code>*</code> for global rules. Subdomain match is automatic — <code>amazon.com</code> covers <code>www.amazon.com</code>.</p>
+
+      <div style="display: grid; grid-template-columns: 1fr 2fr 140px auto; gap: 8px; align-items: end; margin-bottom: 12px;">
+        <div>
+          <label style="display:block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Domain</label>
+          <input type="text" id="dr-domain" class="input-text" placeholder="amazon.com or *">
+        </div>
+        <div>
+          <label style="display:block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Rule</label>
+          <input type="text" id="dr-rule" class="input-text" placeholder="Never place an order without explicit confirmation.">
+        </div>
+        <div>
+          <label style="display:block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Severity</label>
+          <select id="dr-severity">
+            <option value="must">Must (hard)</option>
+            <option value="should">Should</option>
+            <option value="info">Info</option>
+          </select>
+        </div>
+        <button class="btn-primary" id="btn-add-domain-rule">Add</button>
+      </div>
+
+      <div id="domain-rules-list" style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="color: var(--on-surface-muted); font-size: 13px;">Loading…</div>
+      </div>
+    </div>
+
+    <!-- ===== Memory Browser ===== -->
+    <div class="integration-card" id="card-memory">
+      <h3>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Long-term Memory
+      </h3>
+      <p>Things the agent has learned about you across past tasks. You can edit, delete, or confirm pending entries here. Items marked <strong>Pending</strong> are not yet used by the agent until you confirm them.</p>
+
+      <div style="display: grid; grid-template-columns: 1fr 160px 140px auto; gap: 8px; align-items: end; margin-bottom: 12px;">
+        <div>
+          <label style="display:block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Add a memory</label>
+          <input type="text" id="mem-text" class="input-text" placeholder='e.g. "Prefers vegetarian meals."'>
+        </div>
+        <div>
+          <label style="display:block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Domain (optional)</label>
+          <input type="text" id="mem-domain" class="input-text" placeholder="e.g. amazon.com">
+        </div>
+        <div>
+          <label style="display:block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Category</label>
+          <select id="mem-category">
+            <option value="preference">Preference</option>
+            <option value="account">Account</option>
+            <option value="identity">Identity</option>
+            <option value="payment">Payment</option>
+            <option value="habit">Habit</option>
+            <option value="contact">Contact</option>
+            <option value="rule">Rule</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <button class="btn-primary" id="btn-add-memory">Add</button>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+        <button class="btn-secondary" id="btn-refresh-memory" style="font-size: 13px;">Refresh</button>
+        <button class="btn-danger" id="btn-wipe-memory" style="font-size: 13px;">Wipe All</button>
+      </div>
+
+      <div id="memory-list" style="display: flex; flex-direction: column; gap: 8px; max-height: 400px; overflow-y: auto;">
+        <div style="color: var(--on-surface-muted); font-size: 13px;">Loading…</div>
+      </div>
+    </div>
+
+    <!-- ===== Scheduled Tasks ===== -->
+    <div class="integration-card" id="card-scheduled" style="display:none;">
+      <h3>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Scheduled Tasks
+      </h3>
+      <p>Run an agent task on a recurring schedule. Use 5-field cron syntax (UTC). Example: <code>0 9 * * 1</code> = every Monday 9am UTC.</p>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;">
+        <input type="text" id="st-name" class="input-text" placeholder="Name (e.g. Weekly inventory check)">
+        <input type="text" id="st-cron" class="input-text" placeholder="0 9 * * 1">
+      </div>
+      <textarea id="st-prompt" class="input-text" rows="3" placeholder="The prompt the agent should run, e.g. 'Open my Shopify admin, count units sold this week, email me the totals.'" style="margin-bottom: 8px;"></textarea>
+      <div class="actions">
+        <button class="btn-primary" id="btn-add-scheduled">Add Schedule</button>
+      </div>
+      <div style="font-size: 12px; color: var(--on-surface-muted); margin-bottom: 12px;">⚠️ Scheduled-task runner ships in a follow-up release — entries are saved now and will execute once enabled.</div>
+
+      <div id="scheduled-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+    </div>
+
     <div id="setup-toast" style="position: fixed; bottom: 20px; right: 20px; padding: 12px 18px; border-radius: 8px; background: var(--success-bg, #d1fadf); color: var(--success, #027a48); font-weight: 600; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100;"></div>
   </main>
 
