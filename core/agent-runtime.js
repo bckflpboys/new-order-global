@@ -263,6 +263,29 @@
       }
     });
 
+    // === Content signature for server-side diffing ===
+    // Small, stable fingerprint of the page's interactive surface. The
+    // server uses this to detect "same page" (skip re-sending full DOM to
+    // the LLM \u2014 big token win) and to compute deltas. Intentionally
+    // simple: URL + interactive element identities only. Not cryptographic
+    // \u2014 FNV-1a is fine for change detection.
+    try {
+      const parts = [location.origin + location.pathname];
+      for (const b of state.buttons) parts.push('B:' + (b.selector || '') + '|' + (b.text || '').slice(0, 40));
+      for (const l of state.links) parts.push('L:' + (l.href || '').slice(0, 120) + '|' + (l.text || '').slice(0, 40));
+      for (const i of state.inputs) parts.push('I:' + (i.selector || '') + '|' + (i.name || '') + '|' + (i.type || ''));
+      for (const h of state.headings) parts.push('H:' + h.tag + '|' + (h.text || '').slice(0, 60));
+      const sig = parts.join('\n');
+      // FNV-1a 32-bit
+      let h = 0x811c9dc5;
+      for (let i = 0; i < sig.length; i++) {
+        h ^= sig.charCodeAt(i);
+        h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+      }
+      state.contentHash = 'h' + h.toString(16);
+      state.signature = sig.length > 4000 ? sig.slice(0, 4000) : sig;
+    } catch { /* best-effort */ }
+
     return state;
   }
 
