@@ -264,26 +264,77 @@
     });
 
     // === Content signature for server-side diffing ===
-    // Small, stable fingerprint of the page's interactive surface. The
-    // server uses this to detect "same page" (skip re-sending full DOM to
-    // the LLM \u2014 big token win) and to compute deltas. Intentionally
-    // simple: URL + interactive element identities only. Not cryptographic
-    // \u2014 FNV-1a is fine for change detection.
+    // Compact fingerprint of the page's interactive surface + dynamic
+    // state. The server uses this to detect "same page" (skip re-sending
+    // full DOM to the LLM \u2014 big token win) and to compute deltas.
+    //
+    // Must capture EVERY signal the agent needs for correct decisions:
+    //   \u2022 URL (full, including query/hash) \u2014 ?tab=A vs ?tab=B matters
+    //   \u2022 Interactive elements (buttons, links, inputs, headings)
+    //   \u2022 Form input VALUES (masked if password) \u2014 typing changes state
+    //   \u2022 Alerts / toasts / modals / role=alert \u2014 error banners etc.
+    // Not cryptographic; FNV-1a is fine for change detection.
     try {
-      const parts = [location.origin + location.pathname];
+      const parts = [location.href];  // full URL, not just pathname
+
       for (const b of state.buttons) parts.push('B:' + (b.selector || '') + '|' + (b.text || '').slice(0, 40));
       for (const l of state.links) parts.push('L:' + (l.href || '').slice(0, 120) + '|' + (l.text || '').slice(0, 40));
-      for (const i of state.inputs) parts.push('I:' + (i.selector || '') + '|' + (i.name || '') + '|' + (i.type || ''));
       for (const h of state.headings) parts.push('H:' + h.tag + '|' + (h.text || '').slice(0, 60));
+
+      // Inputs: include value so typed state is reflected in the hash.
+      // Mask password / hidden values so we never leak secrets into the
+      // signature (it is stored on the task document server-side).
+      for (const i of state.inputs) {
+        let v = '';
+        try {
+          if (i.type === 'password' || i.type === 'hidden') {
+            v = i.selector ? (document.querySelector(i.selector)?.value ? '***' : '') : '';
+          } else if (i.selector) {
+            const el = document.querySelector(i.selector);
+            const raw = el ? (el.value != null ? String(el.value) : (el.checked ? 'on' : '')) : '';
+            v = raw.slice(0, 60);
+          }
+        } catch { /* selector could be malformed */ }
+        parts.push('I:' + (i.selector || '') + '|' + (i.name || '') + '|' + (i.type || '') + '|' + v);
+      }
+
+      // Alerts / toasts / modals / errors \u2014 any of these appearing MUST
+      // change the hash even if the rest of the page is identical.
+      try {
+        const alertEls = document.querySelectorAll(
+          '[role="alert"], [role="status"], [aria-live="assertive"], [aria-live="polite"], ' +
+          '.alert, .error, .errorMessage, .error-message, .toast, .notification, ' +
+          '[role="dialog"], [role="alertdialog"], dialog[open]'
+        );
+        let alertIdx = 0;
+        for (const el of alertEls) {
+          if (alertIdx >= 10) break;
+          const r = el.getBoundingClientRect();
+          if (r.width < 5 || r.height < 5) continue; // ignore hidden
+          const txt = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 120);
+          if (!txt) continue;
+          parts.push('A:' + (el.getAttribute('role') || el.tagName.toLowerCase()) + '|' + txt);
+          alertIdx++;
+        }
+      } catch { /* best-effort */ }
+
       const sig = parts.join('\n');
       // FNV-1a 32-bit
-      let h = 0x811c9dc5;
+      let hh = 0x811c9dc5;
       for (let i = 0; i < sig.length; i++) {
-        h ^= sig.charCodeAt(i);
-        h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+        hh ^= sig.charCodeAt(i);
+        hh = (hh + ((hh << 1) + (hh << 4) + (hh << 7) + (hh << 8) + (hh << 24))) >>> 0;
       }
-      state.contentHash = 'h' + h.toString(16);
+      state.contentHash = 'h' + hh.toString(16);
       state.signature = sig.length > 4000 ? sig.slice(0, 4000) : sig;
+      // Element counts for server-side collision guard: if hash matches
+      // but counts differ, it's a hash collision, not a true match.
+      state.elementCounts = {
+        buttons: state.buttons.length,
+        links: state.links.length,
+        inputs: state.inputs.length,
+        headings: state.headings.length
+      };
     } catch { /* best-effort */ }
 
     return state;
