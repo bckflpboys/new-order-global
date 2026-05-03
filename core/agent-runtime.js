@@ -723,47 +723,73 @@
     return { success: true, hovered: buildSelector(el) };
   }
 
-  // Upload a user-staged file into a file input.
-  // params: { selector, fileRef, index? }
-  function executeUploadFile(params) {
-    return new Promise((resolve) => {
-      try {
-        const elements = findElements(params.selector);
-        if (!elements || elements.length === 0) {
-          return resolve({ success: false, error: `No file input found: ${params.selector}` });
-        }
-        const input = elements[params.index || 0];
-        if (!input || input.tagName !== 'INPUT' || input.type !== 'file') {
-          return resolve({ success: false, error: `Element is not a file input: ${params.selector}` });
-        }
-
-        chrome.runtime.sendMessage({ type: 'ge-get-staged-file', ref: params.fileRef }, async (resp) => {
-          if (!resp || !resp.success) {
-            return resolve({ success: false, error: resp?.error || 'Failed to load staged file' });
-          }
-          try {
-            const { name, mimeType, dataUrl } = resp.file;
-            // Convert dataUrl to a File object
-            const fetchRes = await fetch(dataUrl);
-            const blob = await fetchRes.blob();
-            const file = new File([blob], name || 'upload', { type: mimeType || blob.type || 'application/octet-stream' });
-
-            const dt = new DataTransfer();
-            dt.items.add(file);
-            input.files = dt.files;
-
-            input.dispatchEvent(new Event('input', { bubbles: true }));
-            input.dispatchEvent(new Event('change', { bubbles: true }));
-
-            resolve({ success: true, uploaded: { name: file.name, size: file.size, type: file.type, into: buildSelector(input) } });
-          } catch (err) {
-            resolve({ success: false, error: 'Failed to attach file: ' + err.message });
-          }
-        });
-      } catch (err) {
-        resolve({ success: false, error: err.message });
+  // Upload a file into a file input. Source priority:
+  //   1. params.fileUrl  \u2014 a signed URL the server injected (e.g. when
+  //      `fileRef` was a captured-file id like "cap_a1b2c3"). Fetched
+  //      directly here without round-tripping through the SW.
+  //   2. params.fileRef  \u2014 a key into the user's staged briefing files.
+  //      Looked up via the SW message bus the original implementation used.
+  // params: { selector, fileRef?, fileUrl?, fileMime?, fileName?, index? }
+  async function executeUploadFile(params) {
+    try {
+      const elements = findElements(params.selector);
+      if (!elements || elements.length === 0) {
+        return { success: false, error: `No file input found: ${params.selector}` };
       }
-    });
+      const input = elements[params.index || 0];
+      if (!input || input.tagName !== 'INPUT' || input.type !== 'file') {
+        return { success: false, error: `Element is not a file input: ${params.selector}` };
+      }
+
+      let blob, name, mimeType;
+
+      if (params.fileUrl && /^https?:\/\//i.test(params.fileUrl)) {
+        // Path 1: server-injected signed URL (captured file).
+        try {
+          const resp = await fetch(params.fileUrl);
+          if (!resp.ok) {
+            return { success: false, error: `Failed to fetch fileUrl: HTTP ${resp.status}`,
+              recovery: 'The signed URL may have expired. Have the agent retry \u2014 the server refreshes URLs on each step.' };
+          }
+          blob = await resp.blob();
+          mimeType = params.fileMime || blob.type || 'application/octet-stream';
+          name = params.fileName || (params.fileRef || 'upload');
+        } catch (e) {
+          return { success: false, error: 'Failed to fetch fileUrl: ' + e.message };
+        }
+      } else {
+        // Path 2: legacy staged-file lookup via SW.
+        const resp = await new Promise((r) => {
+          chrome.runtime.sendMessage({ type: 'ge-get-staged-file', ref: params.fileRef }, r);
+        });
+        if (!resp || !resp.success) {
+          return { success: false, error: resp?.error || 'Failed to load staged file' };
+        }
+        try {
+          const fetchRes = await fetch(resp.file.dataUrl);
+          blob = await fetchRes.blob();
+          name = resp.file.name;
+          mimeType = resp.file.mimeType || blob.type || 'application/octet-stream';
+        } catch (e) {
+          return { success: false, error: 'Failed to decode staged file: ' + e.message };
+        }
+      }
+
+      const file = new File([blob], name || 'upload', { type: mimeType });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+
+      return {
+        success: true,
+        uploaded: { name: file.name, size: file.size, type: file.type, into: buildSelector(input) },
+        source: params.fileUrl ? 'capturedFile' : 'briefing'
+      };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
   }
 
   function executeClear(params) {
