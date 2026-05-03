@@ -649,12 +649,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    // Switch to a tab
-    if (message.type === 'ge-switch-tab') {
+    // List ALL Chrome tabs in the current window, so the agent can see
+    // every tab that's actually open — not just the ones it has tracked.
+    if (message.type === 'ge-list-tabs') {
         (async () => {
             try {
-                await chrome.tabs.update(message.tabId, { active: true });
-                sendResponse({ success: true });
+                const tabs = await chrome.tabs.query({ currentWindow: true });
+                sendResponse({
+                    success: true,
+                    tabs: tabs.map(t => ({
+                        tabId: t.id,
+                        index: t.index,
+                        url: t.url || '',
+                        title: t.title || '',
+                        active: !!t.active,
+                        pinned: !!t.pinned
+                    }))
+                });
             } catch (err) {
                 sendResponse({ success: false, error: err.message });
             }
@@ -662,12 +673,93 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    // Close a tab
+    // Resolve a target tab from any of: tabId | url substring | title substring
+    // | browserIndex (chrome window index). Returns the matched tab(s).
+    // The same matching logic is used by ge-switch-tab and ge-close-tab so the
+    // agent can target ANY open Chrome tab, not just the ones it has tracked.
+    async function resolveTabFromParams(params) {
+        if (!params || typeof params !== 'object') return { tabs: [] };
+        if (params.tabId) {
+            try {
+                const t = await chrome.tabs.get(params.tabId);
+                return { tabs: [t] };
+            } catch { return { tabs: [], error: `tabId ${params.tabId} not found` }; }
+        }
+        const all = await chrome.tabs.query({ currentWindow: true });
+        if (typeof params.url === 'string' && params.url.trim()) {
+            const needle = params.url.toLowerCase();
+            const matches = all.filter(t => (t.url || '').toLowerCase().includes(needle));
+            if (matches.length) return { tabs: matches };
+        }
+        if (typeof params.title === 'string' && params.title.trim()) {
+            const needle = params.title.toLowerCase();
+            const matches = all.filter(t => (t.title || '').toLowerCase().includes(needle));
+            if (matches.length) return { tabs: matches };
+        }
+        if (typeof params.browserIndex === 'number') {
+            const m = all.find(t => t.index === params.browserIndex);
+            if (m) return { tabs: [m] };
+        }
+        // Last-resort: tabIndex interpreted as chrome window index. (The agent
+        // commonly emits `tabIndex` against the "Available Browser Tabs" list,
+        // which is ordered by chrome window index.)
+        if (typeof params.tabIndex === 'number') {
+            const m = all.find(t => t.index === params.tabIndex);
+            if (m) return { tabs: [m] };
+        }
+        return { tabs: [], error: 'No tab matched the given selectors (tabId/url/title/browserIndex/tabIndex)' };
+    }
+
+    // Switch to a tab — accepts tabId | url | title | browserIndex | tabIndex
+    if (message.type === 'ge-switch-tab') {
+        (async () => {
+            try {
+                const { tabs, error } = await resolveTabFromParams(message);
+                if (!tabs.length) {
+                    sendResponse({ success: false, error: error || 'Tab not found' });
+                    return;
+                }
+                if (tabs.length > 1 && !message.tabId) {
+                    sendResponse({
+                        success: false,
+                        ambiguous: true,
+                        error: `Multiple tabs matched (${tabs.length}). Refine with a more specific url/title.`,
+                        candidates: tabs.slice(0, 5).map(t => ({ tabId: t.id, url: t.url, title: t.title, index: t.index }))
+                    });
+                    return;
+                }
+                const target = tabs[0];
+                await chrome.tabs.update(target.id, { active: true });
+                sendResponse({ success: true, tabId: target.id, url: target.url, title: target.title, index: target.index });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Close a tab — accepts tabId | url | title | browserIndex | tabIndex
     if (message.type === 'ge-close-tab') {
         (async () => {
             try {
-                await chrome.tabs.remove(message.tabId);
-                sendResponse({ success: true });
+                const { tabs, error } = await resolveTabFromParams(message);
+                if (!tabs.length) {
+                    sendResponse({ success: false, error: error || 'Tab not found' });
+                    return;
+                }
+                // For close, ambiguity is dangerous — refuse if multiple match.
+                if (tabs.length > 1 && !message.tabId) {
+                    sendResponse({
+                        success: false,
+                        ambiguous: true,
+                        error: `Multiple tabs matched (${tabs.length}) — refusing to close. Refine with a more specific url/title or pass tabId.`,
+                        candidates: tabs.slice(0, 5).map(t => ({ tabId: t.id, url: t.url, title: t.title, index: t.index }))
+                    });
+                    return;
+                }
+                const target = tabs[0];
+                await chrome.tabs.remove(target.id);
+                sendResponse({ success: true, closedTabId: target.id, url: target.url, title: target.title });
             } catch (err) {
                 sendResponse({ success: false, error: err.message });
             }

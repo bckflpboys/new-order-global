@@ -1038,25 +1038,75 @@
               error = 'Failed to open tab';
             }
           } else if (action === 'switchTab') {
-            const targetIndex = params?.tabIndex ?? 0;
-            if (targetIndex >= 0 && targetIndex < trackedTabs.length) {
-              const targetTabId = trackedTabs[targetIndex].tabId;
-              await sendToBackground('ge-switch-tab', { tabId: targetTabId });
-              currentTabId = targetTabId;
-              activeTabIndex = targetIndex;
-              result = { success: true };
-              await sleep(500);
+            // Targeting priority: explicit url/title > tracked-tab index > chrome window index.
+            // Background.js resolves all of these against live chrome.tabs.query.
+            const hasUrlOrTitle = !!(params?.url || params?.title);
+            let payload = {};
+            if (hasUrlOrTitle) {
+              payload = { url: params.url, title: params.title };
+            } else if (typeof params?.tabIndex === 'number'
+                       && params.tabIndex >= 0 && params.tabIndex < trackedTabs.length
+                       && trackedTabs[params.tabIndex].status !== 'closed') {
+              // Legacy: index into agent-tracked tabs.
+              payload = { tabId: trackedTabs[params.tabIndex].tabId };
+            } else if (typeof params?.browserIndex === 'number') {
+              payload = { browserIndex: params.browserIndex };
+            } else if (typeof params?.tabIndex === 'number') {
+              // Fallback: agent gave an index from the "Available Browser Tabs" list.
+              payload = { tabIndex: params.tabIndex };
             } else {
-              error = `Tab index ${targetIndex} out of range (${trackedTabs.length} tabs)`;
+              error = 'switchTab requires one of: url, title, tabIndex, or browserIndex';
+            }
+            if (!error) {
+              const r = await sendToBackground('ge-switch-tab', payload);
+              if (r?.success) {
+                currentTabId = r.tabId;
+                // Track this tab if not already in trackedTabs
+                let idx = trackedTabs.findIndex(t => t.tabId === r.tabId);
+                if (idx < 0) {
+                  trackedTabs.push({ tabId: r.tabId, tabIndex: trackedTabs.length, url: r.url, title: r.title, status: 'active' });
+                  idx = trackedTabs.length - 1;
+                }
+                activeTabIndex = idx;
+                result = { success: true, tabId: r.tabId, url: r.url, title: r.title };
+                await sleep(500);
+              } else {
+                error = r?.error || 'switchTab failed';
+                if (r?.candidates) {
+                  error += ' Candidates: ' + r.candidates.map(c => `[${c.index}] ${c.title || ''} (${c.url || ''})`).join('; ');
+                }
+              }
             }
           } else if (action === 'closeTab') {
-            const targetIndex = params?.tabIndex ?? 0;
-            if (targetIndex >= 0 && targetIndex < trackedTabs.length) {
-              await sendToBackground('ge-close-tab', { tabId: trackedTabs[targetIndex].tabId });
-              trackedTabs[targetIndex].status = 'closed';
-              result = { success: true };
+            // Same resolution strategy as switchTab. Refuses to close on ambiguity.
+            const hasUrlOrTitle = !!(params?.url || params?.title);
+            let payload = {};
+            if (hasUrlOrTitle) {
+              payload = { url: params.url, title: params.title };
+            } else if (typeof params?.tabIndex === 'number'
+                       && params.tabIndex >= 0 && params.tabIndex < trackedTabs.length
+                       && trackedTabs[params.tabIndex].status !== 'closed') {
+              payload = { tabId: trackedTabs[params.tabIndex].tabId };
+            } else if (typeof params?.browserIndex === 'number') {
+              payload = { browserIndex: params.browserIndex };
+            } else if (typeof params?.tabIndex === 'number') {
+              payload = { tabIndex: params.tabIndex };
             } else {
-              error = `Tab index ${targetIndex} out of range`;
+              error = 'closeTab requires one of: url, title, tabIndex, or browserIndex';
+            }
+            if (!error) {
+              const r = await sendToBackground('ge-close-tab', payload);
+              if (r?.success) {
+                // If the closed tab was tracked, mark it closed
+                const idx = trackedTabs.findIndex(t => t.tabId === r.closedTabId);
+                if (idx >= 0) trackedTabs[idx].status = 'closed';
+                result = { success: true, closedTabId: r.closedTabId, url: r.url, title: r.title };
+              } else {
+                error = r?.error || 'closeTab failed';
+                if (r?.candidates) {
+                  error += ' Candidates: ' + r.candidates.map(c => `[${c.index}] ${c.title || ''} (${c.url || ''})`).join('; ');
+                }
+              }
             }
           } else if (action === 'download') {
             if (params?.content) {
@@ -1236,6 +1286,21 @@
           while (attempt < 3 && !nextData) {
             attempt++;
             try {
+              // Get a fresh snapshot of all browser tabs so the agent always
+              // sees the current Chrome window state (not just the stale list
+              // from task start). This is what `closeTab`/`switchTab` target.
+              let liveTabs = [];
+              try {
+                const tabsResp = await sendToBackground('ge-list-tabs', {});
+                if (tabsResp?.success && Array.isArray(tabsResp.tabs)) {
+                  liveTabs = tabsResp.tabs.map(t => ({
+                    index: t.index,
+                    url: t.url,
+                    title: t.title,
+                    active: t.active
+                  }));
+                }
+              } catch { /* best effort */ }
               nextData = await NewOrderAPI.request('/api/agent/step', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -1244,6 +1309,7 @@
                   result: result || null,
                   error: error || null,
                   pageState: pageState || null,
+                  allTabs: liveTabs,
                   modelId: selectedModelId
                 })
               });
