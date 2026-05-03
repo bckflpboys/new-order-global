@@ -890,6 +890,17 @@
         await loadTaskHistory();
         historySidebar.classList.add('open');
         showInlineNotice('You have running tasks. Stop one in the sidebar (×) before starting another.', 'warning');
+      } else if (err.status === 504 || err.status === 502 || err.status === 503 || err.retryable) {
+        // The api-client already retried up to 3 times — upstream is genuinely
+        // overloaded. Tell the user it's transient and let them retry.
+        showInlineNotice(
+          'The planner is overloaded right now (gateway timeout). I retried a few times but the server kept timing out. Please try again in a moment, or pick a faster model.',
+          'warning'
+        );
+      } else if (err.message?.includes('Unexpected token') || err.message?.includes('not valid JSON')) {
+        // Defensive: should no longer happen now that api-client parses
+        // non-JSON bodies safely, but keep a friendly fallback.
+        showInlineNotice('The server returned an unexpected response. Please try again.', 'warning');
       } else {
         showInlineNotice('Failed to plan task: ' + err.message, 'error');
       }

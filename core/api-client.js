@@ -62,9 +62,47 @@ const NewOrderAPI = (() => {
   // ============================================
   // HTTP Helpers
   // ============================================
+  // Status codes worth retrying — transient upstream/gateway problems ONLY.
+  // 504 in particular is what Cloudflare returns (as HTML) when the
+  // origin took too long to answer (e.g. slow OpenRouter planner call).
+  // Notably we do NOT retry on 500: most of our POST endpoints (/step,
+  // /answer, /brief) are NOT idempotent — retrying them creates duplicate
+  // steps and triggers Mongoose VersionError on concurrent saves.
+  const RETRYABLE_STATUS = new Set([408, 425, 429, 502, 503, 504]);
+  const DEFAULT_MAX_ATTEMPTS = 3;
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  // Robust body parser: tries JSON, falls back to text. Gateway timeouts
+  // (504) and other proxy errors typically return an HTML page, not JSON,
+  // which used to crash the client with "Unexpected token '<'".
+  async function safeParseBody(response) {
+    const ct = (response.headers.get('content-type') || '').toLowerCase();
+    let text = '';
+    try { text = await response.text(); } catch { /* ignore */ }
+    if (ct.includes('application/json') && text) {
+      try { return { json: JSON.parse(text), text }; } catch { /* fall through */ }
+    }
+    // Try JSON anyway in case content-type was wrong
+    if (text) {
+      try { return { json: JSON.parse(text), text }; } catch { /* not JSON */ }
+    }
+    return { json: null, text };
+  }
+
+  function shortStatusMessage(status, text) {
+    if (status === 504) return 'The server took too long to respond (gateway timeout). Please try again.';
+    if (status === 502 || status === 503) return 'The server is temporarily unavailable. Please try again.';
+    if (status === 429) return 'Rate limited. Please wait a moment and try again.';
+    // Strip any HTML so we never leak "<html>..." into the UI
+    const clean = (text || '').replace(/<[^>]+>/g, '').trim().substring(0, 200);
+    return clean || `Request failed (${status})`;
+  }
+
   async function request(endpoint, options = {}) {
     const token = await getToken();
     const url = `${BASE_URL}${endpoint}`;
+    const maxAttempts = options.maxAttempts || DEFAULT_MAX_ATTEMPTS;
 
     const headers = {
       'Content-Type': 'application/json',
@@ -72,30 +110,56 @@ const NewOrderAPI = (() => {
       ...options.headers
     };
 
-    try {
-      const response = await fetch(url, {
-        ...options,
-        headers
-      });
+    let lastError;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const response = await fetch(url, { ...options, headers });
+        const { json, text } = await safeParseBody(response);
 
-      const data = await response.json();
+        if (!response.ok) {
+          // Token expiry (don't retry, don't treat as transient)
+          if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
+            await clearToken();
+            throw new Error('Session expired. Please sign in again.');
+          }
 
-      if (!response.ok) {
-        // Handle token expiry, EXCEPT for login/register where 401 means invalid credentials
-        if (response.status === 401 && !endpoint.includes('/auth/login') && !endpoint.includes('/auth/register')) {
-          await clearToken();
-          throw new Error('Session expired. Please sign in again.');
+          // Retry transient gateway / overload errors with exponential backoff
+          if (RETRYABLE_STATUS.has(response.status) && attempt < maxAttempts) {
+            const delay = Math.min(8000, 800 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 300);
+            console.warn(`[NewOrderAPI] ${endpoint} → ${response.status}, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
+            await sleep(delay);
+            continue;
+          }
+
+          const msg = (json && (json.error || json.message)) || shortStatusMessage(response.status, text);
+          const err = new Error(msg);
+          err.status = response.status;
+          err.retryable = RETRYABLE_STATUS.has(response.status);
+          throw err;
         }
-        throw new Error(data.error || data.message || `Request failed (${response.status})`);
-      }
 
-      return data;
-    } catch (error) {
-      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        throw new Error('Cannot reach server. Please check your internet connection.');
+        // OK but body wasn't JSON — shouldn't normally happen
+        if (!json) {
+          throw new Error('Server returned an unexpected response. Please try again.');
+        }
+        return json;
+      } catch (error) {
+        lastError = error;
+        const isNetwork = error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.name === 'TypeError');
+        // Retry network errors too
+        if (isNetwork && attempt < maxAttempts) {
+          const delay = Math.min(8000, 800 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 300);
+          console.warn(`[NewOrderAPI] ${endpoint} network error, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts}): ${error.message}`);
+          await sleep(delay);
+          continue;
+        }
+        if (isNetwork) {
+          throw new Error('Cannot reach server. Please check your internet connection.');
+        }
+        throw error;
       }
-      throw error;
     }
+    throw lastError || new Error('Request failed after retries');
   }
 
   // ============================================
