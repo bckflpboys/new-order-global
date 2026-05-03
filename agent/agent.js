@@ -1251,7 +1251,23 @@
                 error = (error ? error + ' | ' : '') + 'Page state was heavily truncated due to size limits.';
                 continue;
               }
-              // 4xx (other than 413) are not retriable
+              // 429 (rate-limited): pause briefly and retry, with a friendlier label.
+              // The agentLimiter window is 60s; retrying a few seconds later usually frees a slot.
+              if (m.match(/\b429\b/) || /rate limit/i.test(m)) {
+                const friendly = /rate limit/i.test(m)
+                  ? m.replace(/^[^:]*:\s*/, '')
+                  : 'Too many agent steps in a short time. Pausing briefly…';
+                const errEntry = document.createElement('div');
+                errEntry.className = 'step-entry failed';
+                errEntry.innerHTML = `<div class="step-number">⏳</div><div class="step-body"><div class="step-action">Rate limit reached (attempt ${attempt}/3)</div><div class="step-error">${escapeHtml(friendly)}</div></div>`;
+                stepLog.appendChild(errEntry);
+                stepLog.scrollTop = stepLog.scrollHeight;
+                // Backoff longer on 429 so we don't make it worse: 6s, 15s, 30s
+                const waitMs = [6000, 15000, 30000][Math.min(attempt - 1, 2)];
+                await sleep(waitMs);
+                continue;
+              }
+              // 4xx (other than 413/429) are not retriable
               if (m.match(/\b(400|401|403|404)\b/)) throw stepErr;
               // 5xx / network: surface inline and retry up to 3 times
               const errEntry = document.createElement('div');
@@ -1298,7 +1314,10 @@
 
         } catch (serverErr) {
           console.error('[Global Executive] Server error after retries:', serverErr);
-          const msg = serverErr.message || 'Unknown server error';
+          let msg = serverErr.message || 'Unknown server error';
+          if (msg.match(/\b429\b/) || /rate limit/i.test(msg)) {
+            msg = 'Step rate limit reached for your plan. Wait ~1 minute and resume, or upgrade your plan for a higher steps-per-minute cap.';
+          }
           renderDoneStep('Stopped: ' + msg);
           updateTaskStatus('failed');
           isRunning = false;
@@ -1483,10 +1502,12 @@
   // and auto-start (auto-pilot, since the user is remote).
   function setupInboxPolling() {
     let lastChecked = 0;
+    let backoffUntil = 0; // pauses polling after 429s
     const POLL_MS = 20000;
     const tick = async () => {
       // Don't poll while a task is running or modal is open
       if (isRunning || pendingTaskContext) return;
+      if (Date.now() < backoffUntil) return;
       if (Date.now() - lastChecked < POLL_MS - 500) return;
       lastChecked = Date.now();
       try {
@@ -1505,7 +1526,15 @@
           window.__geNextTaskIsRemote = true;
           startTask(prompt);
         }
-      } catch { /* ignore */ }
+      } catch (err) {
+        const m = err?.message || '';
+        if (m.match(/\b429\b/) || /rate limit/i.test(m)) {
+          // Stop polling for 2 minutes to give the limiter time to drain.
+          backoffUntil = Date.now() + 120000;
+          console.warn('[Inbox poll] rate limited, backing off 2m');
+        }
+        /* otherwise ignore */
+      }
     };
     setInterval(tick, POLL_MS);
     // Run once shortly after init
