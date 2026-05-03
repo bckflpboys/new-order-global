@@ -17,6 +17,53 @@
   // ============================================
   let __geMutationCount = 0;
   let __geLastMutationAt = 0;
+
+  // ============================================
+  // Console tap — rolling buffer of the last 100 console messages so the
+  // agent can diagnose JS errors, failed network calls (console.error from
+  // most SPAs), etc. via `readConsole`. Patches console at injection time
+  // so we capture everything from load forward. Original console behaviour
+  // is preserved \u2014 we just wrap.
+  // ============================================
+  const __geConsoleBuffer = [];
+  const __GE_CONSOLE_LIMIT = 100;
+  try {
+    const levels = ['log', 'info', 'warn', 'error', 'debug'];
+    for (const level of levels) {
+      const orig = console[level];
+      if (typeof orig !== 'function') continue;
+      console[level] = function(...args) {
+        try {
+          const msg = args.map(a => {
+            if (a == null) return String(a);
+            if (typeof a === 'string') return a;
+            if (a instanceof Error) return (a.stack || a.message || String(a));
+            try { return JSON.stringify(a); } catch { return String(a); }
+          }).join(' ').slice(0, 2000);
+          __geConsoleBuffer.push({ level, message: msg, at: Date.now() });
+          if (__geConsoleBuffer.length > __GE_CONSOLE_LIMIT) __geConsoleBuffer.shift();
+        } catch { /* never break user console */ }
+        return orig.apply(this, args);
+      };
+    }
+    // Also capture uncaught errors + unhandled rejections \u2014 invisible to
+    // the agent otherwise.
+    window.addEventListener('error', (e) => {
+      try {
+        __geConsoleBuffer.push({ level: 'error', message: `[uncaught] ${e.message} @ ${e.filename}:${e.lineno}`, at: Date.now() });
+        if (__geConsoleBuffer.length > __GE_CONSOLE_LIMIT) __geConsoleBuffer.shift();
+      } catch {}
+    });
+    window.addEventListener('unhandledrejection', (e) => {
+      try {
+        const r = e.reason;
+        const msg = (r && (r.stack || r.message)) || String(r);
+        __geConsoleBuffer.push({ level: 'error', message: `[unhandledrejection] ${msg}`.slice(0, 2000), at: Date.now() });
+        if (__geConsoleBuffer.length > __GE_CONSOLE_LIMIT) __geConsoleBuffer.shift();
+      } catch {}
+    });
+  } catch { /* console patch failed \u2014 non-fatal */ }
+
   try {
     const __obs = new MutationObserver((muts) => {
       __geMutationCount += muts.length;
@@ -909,6 +956,74 @@
   }
 
   // ============================================
+  // readConsole \u2014 Return recent tapped console messages (log/info/warn/
+  // error/debug + uncaught errors + unhandled rejections) so the agent
+  // can diagnose JS-level problems without F12.
+  //
+  // Params:
+  //   level?: 'all' | 'error' | 'warn' | 'info' | 'log' | 'debug'  (default 'all')
+  //   limit?: number  1..100  (default 30)
+  //   sinceMs?: number  only return messages newer than Date.now() - sinceMs
+  //   grep?: string  only return messages whose text contains this (case-insensitive)
+  // ============================================
+  function executeReadConsole(params) {
+    const p = params || {};
+    const limit = Math.min(Math.max(1, Math.floor(p.limit || 30)), 100);
+    const cutoff = p.sinceMs ? (Date.now() - Math.max(0, p.sinceMs)) : 0;
+    const lvl = (p.level || 'all').toLowerCase();
+    const grep = (p.grep || '').toLowerCase();
+    let items = __geConsoleBuffer;
+    if (lvl !== 'all') items = items.filter(m => m.level === lvl);
+    if (cutoff) items = items.filter(m => m.at >= cutoff);
+    if (grep) items = items.filter(m => m.message.toLowerCase().includes(grep));
+    items = items.slice(-limit);
+    const counts = { log: 0, info: 0, warn: 0, error: 0, debug: 0 };
+    for (const m of __geConsoleBuffer) counts[m.level] = (counts[m.level] || 0) + 1;
+    return {
+      success: true,
+      messages: items.map(m => ({
+        level: m.level,
+        message: m.message,
+        ageMs: Date.now() - m.at
+      })),
+      returned: items.length,
+      totalBuffered: __geConsoleBuffer.length,
+      countsByLevel: counts,
+      hint: counts.error > 0 && lvl === 'all'
+        ? `There are ${counts.error} error(s) in the buffer \u2014 inspect them if the page is misbehaving.`
+        : ''
+    };
+  }
+
+  // ============================================
+  // readClipboard \u2014 Read the user's clipboard text. Requires the
+  // "clipboardRead" permission in manifest.json AND, in many contexts, a
+  // prior user gesture. Fails gracefully if the browser refuses.
+  // ============================================
+  async function executeReadClipboard() {
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.readText) {
+        return { success: false, error: 'Clipboard API unavailable in this context.', recovery: 'Ask the user to paste the value manually via `askUser`, or navigate to a normal https:// page first.' };
+      }
+      const text = await navigator.clipboard.readText();
+      return {
+        success: true,
+        text: String(text || '').slice(0, 5000),
+        length: (text || '').length
+      };
+    } catch (e) {
+      const msg = e && e.message || String(e);
+      return {
+        success: false,
+        error: msg,
+        recovery: /denied|not allowed|gesture/i.test(msg)
+          ? 'Clipboard read was denied (no user gesture or permission). Ask the user via `askUser` to paste the value, or focus the tab and retry after a click.'
+          : 'Clipboard read failed \u2014 fall back to `askUser`.'
+      };
+    }
+  }
+
+  // ============================================
   // Keep-alive port — the background service worker connects here while a
   // background-mode task is running so that the SW's idle timer keeps
   // getting reset by port-message activity. We just accept the connection
@@ -972,6 +1087,12 @@
             break;
           case 'uploadFile':
             result = await executeUploadFile(params);
+            break;
+          case 'readConsole':
+            result = executeReadConsole(params);
+            break;
+          case 'readClipboard':
+            result = await executeReadClipboard(params);
             break;
           default:
             result = { success: false, error: `Unknown action: ${action}` };

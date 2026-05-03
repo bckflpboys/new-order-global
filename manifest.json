@@ -12,7 +12,8 @@
         "sidePanel",
         "downloads",
         "alarms",
-        "debugger"
+        "debugger",
+        "clipboardRead"
     ],
     "content_scripts": [
         {

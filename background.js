@@ -632,6 +632,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     return;
                 }
 
+                // === Background-orchestrated actions ===
+                // These need tab-navigation / chrome.* APIs and can't run
+                // from the content script. They drive the tab, wait for
+                // load, then (optionally) inject an extractor.
+                if (action === 'readEmail') {
+                    const result = await runReadEmail(tabId, params || {});
+                    sendResponse({ success: true, result });
+                    return;
+                }
+                if (action === 'readDownloads') {
+                    const result = runReadDownloads(params || {});
+                    sendResponse({ success: true, result });
+                    return;
+                }
+
                 // Ensure agent runtime is injected
                 await ensureAgentRuntime(tabId);
 
@@ -1398,3 +1413,257 @@ if (chrome.sidePanel) {
         .setPanelBehavior({ openPanelOnActionClick: true })
         .catch((error) => console.error(error));
 }
+
+// ============================================
+// Download capture — chrome.downloads events. We keep a rolling in-memory
+// list of the last ~30 downloads across all tasks, each with enough
+// metadata that the agent can verify "did my click actually download
+// something?". Surfaced via the `readDownloads` action.
+// ============================================
+const __geDownloadLog = [];
+const __GE_DOWNLOAD_LIMIT = 30;
+
+function recordDownload(item, updateType) {
+    try {
+        const existingIdx = __geDownloadLog.findIndex(d => d.id === item.id);
+        const now = Date.now();
+        const record = existingIdx >= 0 ? __geDownloadLog[existingIdx] : { id: item.id, createdAt: now };
+        if (item.filename !== undefined)  record.filename = item.filename;
+        if (item.url !== undefined)       record.url = item.url;
+        if (item.mime !== undefined)      record.mime = item.mime;
+        if (item.state !== undefined)     record.state = item.state;
+        if (item.totalBytes !== undefined) record.totalBytes = item.totalBytes;
+        if (item.fileSize !== undefined)  record.fileSize = item.fileSize;
+        if (item.danger !== undefined)    record.danger = item.danger;
+        if (item.error !== undefined)     record.error = item.error;
+        record.updatedAt = now;
+        record.lastEvent = updateType;
+        if (existingIdx < 0) {
+            __geDownloadLog.push(record);
+            if (__geDownloadLog.length > __GE_DOWNLOAD_LIMIT) __geDownloadLog.shift();
+        }
+    } catch (e) {
+        console.warn('[Global Executive] recordDownload failed:', e.message);
+    }
+}
+
+if (chrome.downloads) {
+    try {
+        chrome.downloads.onCreated.addListener((item) => recordDownload(item, 'created'));
+        chrome.downloads.onChanged.addListener((delta) => {
+            // delta contains {id, filename?:{current}, state?:{current}, ...} — flatten.
+            const flat = { id: delta.id };
+            for (const k of Object.keys(delta)) {
+                if (k === 'id') continue;
+                const v = delta[k];
+                if (v && typeof v === 'object' && 'current' in v) flat[k] = v.current;
+            }
+            recordDownload(flat, 'changed');
+        });
+    } catch (e) {
+        console.warn('[Global Executive] downloads listener setup failed:', e.message);
+    }
+}
+
+// ============================================
+// readDownloads — return recent captured downloads. Filterable by time
+// window + state. The agent uses this after a "download" button click to
+// verify a file actually arrived, or to get the real filename when the
+// site mangles it.
+//
+// Params:
+//   sinceMs?: number    only include downloads updated within this window (default 5 min)
+//   state?: 'complete' | 'in_progress' | 'interrupted' | 'any'  (default 'any')
+//   limit?: number      1..30  (default 10)
+// ============================================
+function runReadDownloads(params) {
+    const sinceMs = Math.max(1000, params.sinceMs || 5 * 60 * 1000);
+    const state = (params.state || 'any').toLowerCase();
+    const limit = Math.min(Math.max(1, params.limit || 10), __GE_DOWNLOAD_LIMIT);
+    const cutoff = Date.now() - sinceMs;
+    let items = __geDownloadLog.filter(d => (d.updatedAt || d.createdAt) >= cutoff);
+    if (state !== 'any') items = items.filter(d => d.state === state);
+    items = items.slice(-limit);
+    return {
+        success: true,
+        downloads: items.map(d => ({
+            id: d.id,
+            filename: d.filename || '',
+            basename: (d.filename || '').split(/[\\/]/).pop(),
+            url: d.url || '',
+            mime: d.mime || '',
+            state: d.state || '',
+            bytes: d.fileSize || d.totalBytes || 0,
+            danger: d.danger || '',
+            ageMs: Date.now() - (d.updatedAt || d.createdAt)
+        })),
+        returned: items.length,
+        totalBuffered: __geDownloadLog.length,
+        hint: items.length === 0
+            ? 'No downloads captured in the window. If you just clicked a download link, wait 1-3s and retry. If still empty, the click may not have triggered a real download.'
+            : ''
+    };
+}
+
+// ============================================
+// readEmail — open the user's webmail in a tab (they're already logged in
+// via the browser session), wait for load, and extract the most recent
+// messages. No OAuth, no IMAP, no passwords stored — we just pilot the
+// live webmail UI.
+//
+// Params:
+//   provider: 'gmail' | 'outlook' | 'yahoo' | 'proton' | 'generic'  (default 'gmail')
+//   filter?: string   provider-specific search (e.g. "from:stripe newer_than:10m")
+//   limit?: number    1..20  (default 5)
+//   otpOnly?: boolean extract the first 4-8 digit code from the latest message
+//   newTab?: boolean  open in a new tab instead of the current one (default false)
+//
+// Returns: { messages: [{from, subject, snippet, receivedAt, url}], otpCode? }
+// ============================================
+const EMAIL_PROVIDERS = {
+    gmail: {
+        // Gmail supports operators inline in the URL hash. Default: unread in inbox, last 1 hour.
+        urlFor: (filter) => {
+            const q = filter || 'in:inbox newer_than:1h';
+            return 'https://mail.google.com/mail/u/0/#search/' + encodeURIComponent(q);
+        },
+        waitForSelector: 'div[role="main"]'
+    },
+    outlook: {
+        urlFor: () => 'https://outlook.live.com/mail/0/inbox',
+        waitForSelector: 'div[role="main"]'
+    },
+    yahoo: {
+        urlFor: () => 'https://mail.yahoo.com/d/folders/1',
+        waitForSelector: 'main'
+    },
+    proton: {
+        urlFor: () => 'https://mail.proton.me/u/0/inbox',
+        waitForSelector: 'main'
+    },
+    generic: {
+        urlFor: () => null,
+        waitForSelector: 'body'
+    }
+};
+
+async function runReadEmail(tabId, params) {
+    const provider = EMAIL_PROVIDERS[(params.provider || 'gmail').toLowerCase()] || EMAIL_PROVIDERS.gmail;
+    const url = provider.urlFor(params.filter);
+    const limit = Math.min(Math.max(1, params.limit || 5), 20);
+
+    if (!url) {
+        return {
+            success: false,
+            error: 'provider="generic" requires you to `goto` the webmail URL yourself, then call `readPage` / `extract`.',
+            recovery: 'Use `goto https://your-webmail.example.com/inbox` then `readPage` with narrow extract selectors.'
+        };
+    }
+
+    // Navigate (current tab or new tab based on params).
+    let targetTabId = tabId;
+    try {
+        if (params.newTab) {
+            const t = await chrome.tabs.create({ url, active: true });
+            targetTabId = t.id;
+        } else {
+            await chrome.tabs.update(tabId, { url });
+        }
+    } catch (e) {
+        return { success: false, error: `Failed to navigate to webmail: ${e.message}` };
+    }
+
+    // Wait for page to finish loading.
+    try {
+        await waitForTabLoad(targetTabId, 15000);
+    } catch {
+        return { success: false, error: 'Webmail page did not finish loading within 15s.', recovery: 'Retry `readEmail`, or `goto` the URL manually and use `readPage`.' };
+    }
+
+    // Small settle delay \u2014 webmail apps hydrate after readystate=complete.
+    await new Promise(r => setTimeout(r, 1500));
+
+    // Run the provider-aware extractor inside the webmail page.
+    let messages = [];
+    try {
+        const [injected] = await chrome.scripting.executeScript({
+            target: { tabId: targetTabId },
+            func: extractEmailsInPage,
+            args: [params.provider || 'gmail', limit]
+        });
+        messages = (injected && injected.result && injected.result.messages) || [];
+    } catch (e) {
+        return { success: false, error: `Email extraction failed: ${e.message}`, recovery: 'Call `readPage` on this tab and identify email rows manually, or check that the user is signed in to the webmail.' };
+    }
+
+    // OTP scan: look in the latest (most-recent-first) message snippets for a
+    // 4-8 digit number. Intentionally NOT using a complex regex \u2014 simple and
+    // predictable is safer for verification codes.
+    let otpCode = null;
+    if (params.otpOnly || params.otpOnly === undefined) {
+        for (const m of messages) {
+            const hay = `${m.subject || ''} ${m.snippet || ''}`;
+            const match = hay.match(/(?:^|[^\d])(\d{4,8})(?:[^\d]|$)/);
+            if (match) { otpCode = match[1]; break; }
+        }
+    }
+
+    return {
+        success: true,
+        provider: params.provider || 'gmail',
+        searchedUrl: url,
+        messages: messages.slice(0, limit),
+        otpCode,
+        hint: messages.length === 0
+            ? 'Inbox query returned zero messages. Widen the filter (e.g. newer_than:24h), or verify the user is actually signed in \u2014 if not, `readEmail` will have landed on the webmail login page.'
+            : (otpCode ? `Extracted OTP candidate: ${otpCode}` : '')
+    };
+}
+
+// Runs INSIDE the webmail page via chrome.scripting.executeScript.
+// Provider-aware selectors; falls back to heuristics.
+// MUST be self-contained \u2014 can't reference outer scope.
+function extractEmailsInPage(provider, limit) {
+    const results = [];
+    const p = (provider || 'gmail').toLowerCase();
+    try {
+        if (p === 'gmail') {
+            const rows = document.querySelectorAll('tr.zA, div[role="main"] tr[jscontroller]');
+            for (const row of rows) {
+                if (results.length >= limit) break;
+                const from = (row.querySelector('.yX span[email], .yW span[email], .zF') || {}).textContent || '';
+                const subject = (row.querySelector('.y6 span, .bog') || {}).textContent || '';
+                const snippet = (row.querySelector('.y2') || {}).textContent || '';
+                const time = (row.querySelector('.xW span, .xY span') || {}).title || '';
+                results.push({
+                    from: from.trim().slice(0, 120),
+                    subject: subject.trim().slice(0, 200),
+                    snippet: snippet.trim().slice(0, 300),
+                    receivedAt: time.trim().slice(0, 60),
+                    unread: row.classList.contains('zE')
+                });
+            }
+        } else if (p === 'outlook') {
+            const rows = document.querySelectorAll('div[role="option"][aria-label]');
+            for (const row of rows) {
+                if (results.length >= limit) break;
+                const label = row.getAttribute('aria-label') || '';
+                results.push({ from: '', subject: label.slice(0, 200), snippet: '', receivedAt: '' });
+            }
+        }
+        // Generic fallback: any element that looks like an email row.
+        if (results.length === 0) {
+            const rows = document.querySelectorAll('[role="listitem"], [role="row"], article, li');
+            for (const row of rows) {
+                if (results.length >= limit) break;
+                const txt = (row.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 400);
+                if (txt.length < 20) continue;
+                results.push({ from: '', subject: txt.slice(0, 120), snippet: txt.slice(120, 400), receivedAt: '' });
+            }
+        }
+    } catch (e) {
+        return { messages: [], error: e.message };
+    }
+    return { messages: results };
+}
+
