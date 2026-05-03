@@ -614,6 +614,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     return;
                 }
 
+                // === Debugger-based actions ===
+                // These bypass the content script and dispatch real input events
+                // via the Chrome DevTools Protocol. Required for canvas / WebGL /
+                // video / 3D / game UIs where there is no DOM element to click.
+                if (DEBUGGER_ACTIONS.has(action)) {
+                    const result = await runDebuggerAction(tabId, action, params || {});
+                    sendResponse({ success: true, result });
+                    return;
+                }
+
                 // Ensure agent runtime is injected
                 await ensureAgentRuntime(tabId);
 
@@ -1147,6 +1157,184 @@ function waitForTabLoad(tabId, timeout = 15000) {
             reject(new Error('Tab not found'));
         });
     });
+}
+
+// ============================================
+// Debugger (CDP) helpers — coord-based input for canvas / WebGL / video /
+// 3D / game UIs that have no clickable DOM. Attaches lazily on first use;
+// auto-detaches when the tab closes. Chrome will show a banner ("X is
+// debugging this browser") while active — that's expected and required.
+// ============================================
+const DEBUGGER_ACTIONS = new Set([
+    'clickAt', 'doubleClickAt', 'rightClickAt',
+    'mouseMove', 'dragAndDrop',
+    'typeText', 'pressKeyAt', 'scrollAt'
+]);
+const __geAttachedTabs = new Set();
+
+function debuggerAttach(tabId) {
+    return new Promise((resolve, reject) => {
+        if (__geAttachedTabs.has(tabId)) return resolve();
+        try {
+            chrome.debugger.attach({ tabId }, '1.3', () => {
+                if (chrome.runtime.lastError) {
+                    const msg = chrome.runtime.lastError.message || 'attach failed';
+                    // "Another debugger is already attached" — treat as success
+                    if (/already attached/i.test(msg)) { __geAttachedTabs.add(tabId); return resolve(); }
+                    return reject(new Error('debugger.attach: ' + msg));
+                }
+                __geAttachedTabs.add(tabId);
+                resolve();
+            });
+        } catch (e) { reject(e); }
+    });
+}
+
+function debuggerSend(tabId, method, params) {
+    return new Promise((resolve, reject) => {
+        try {
+            chrome.debugger.sendCommand({ tabId }, method, params || {}, (res) => {
+                if (chrome.runtime.lastError) return reject(new Error(`${method}: ${chrome.runtime.lastError.message}`));
+                resolve(res);
+            });
+        } catch (e) { reject(e); }
+    });
+}
+
+// Clean up on detach / tab close so we don't leak the debugger session.
+if (chrome.debugger && chrome.debugger.onDetach) {
+    chrome.debugger.onDetach.addListener((source) => {
+        if (source && source.tabId) __geAttachedTabs.delete(source.tabId);
+    });
+}
+chrome.tabs.onRemoved.addListener((tabId) => { __geAttachedTabs.delete(tabId); });
+
+// Convert an "Enter"/"a"/"ArrowDown" string to a CDP Input.dispatchKeyEvent payload.
+function buildKeyEvent(type, key) {
+    const SPECIAL = {
+        Enter: { code: 'Enter', windowsVirtualKeyCode: 13, text: '\r' },
+        Tab: { code: 'Tab', windowsVirtualKeyCode: 9, text: '\t' },
+        Escape: { code: 'Escape', windowsVirtualKeyCode: 27 },
+        Backspace: { code: 'Backspace', windowsVirtualKeyCode: 8 },
+        Delete: { code: 'Delete', windowsVirtualKeyCode: 46 },
+        ArrowUp: { code: 'ArrowUp', windowsVirtualKeyCode: 38 },
+        ArrowDown: { code: 'ArrowDown', windowsVirtualKeyCode: 40 },
+        ArrowLeft: { code: 'ArrowLeft', windowsVirtualKeyCode: 37 },
+        ArrowRight: { code: 'ArrowRight', windowsVirtualKeyCode: 39 },
+        Space: { code: 'Space', windowsVirtualKeyCode: 32, text: ' ' },
+        Home: { code: 'Home', windowsVirtualKeyCode: 36 },
+        End: { code: 'End', windowsVirtualKeyCode: 35 },
+        PageUp: { code: 'PageUp', windowsVirtualKeyCode: 33 },
+        PageDown: { code: 'PageDown', windowsVirtualKeyCode: 34 }
+    };
+    const base = { type, key };
+    if (SPECIAL[key]) Object.assign(base, SPECIAL[key]);
+    else if (typeof key === 'string' && key.length === 1) {
+        base.code = `Key${key.toUpperCase()}`;
+        base.windowsVirtualKeyCode = key.toUpperCase().charCodeAt(0);
+        base.text = key;
+    }
+    return base;
+}
+
+async function runDebuggerAction(tabId, action, params) {
+    await debuggerAttach(tabId);
+
+    // Resolve x/y. Accept { x, y } directly OR { centerOfViewport: true }
+    // OR { ratioX, ratioY } (0–1 fractions of viewport) for resolution-independence.
+    async function resolveXY() {
+        if (Number.isFinite(params.x) && Number.isFinite(params.y)) return { x: params.x, y: params.y };
+        // Fetch viewport size via CDP and compute from ratios.
+        const { result } = await debuggerSend(tabId, 'Runtime.evaluate', {
+            expression: 'JSON.stringify({w: innerWidth, h: innerHeight})',
+            returnByValue: true
+        });
+        let vp = { w: 1280, h: 720 };
+        try { vp = JSON.parse(result.value); } catch {}
+        if (params.centerOfViewport) return { x: vp.w / 2, y: vp.h / 2 };
+        if (Number.isFinite(params.ratioX) && Number.isFinite(params.ratioY)) {
+            return { x: Math.round(vp.w * params.ratioX), y: Math.round(vp.h * params.ratioY) };
+        }
+        throw new Error('clickAt/mouseMove requires either {x,y}, {ratioX,ratioY}, or {centerOfViewport:true}');
+    }
+
+    const mouseDown = (x, y, button, clickCount) => debuggerSend(tabId, 'Input.dispatchMouseEvent', {
+        type: 'mousePressed', x, y, button, clickCount, buttons: button === 'right' ? 2 : 1
+    });
+    const mouseUp = (x, y, button, clickCount) => debuggerSend(tabId, 'Input.dispatchMouseEvent', {
+        type: 'mouseReleased', x, y, button, clickCount, buttons: 0
+    });
+    const mouseMove = (x, y, buttons = 0) => debuggerSend(tabId, 'Input.dispatchMouseEvent', {
+        type: 'mouseMoved', x, y, buttons
+    });
+
+    switch (action) {
+        case 'clickAt':
+        case 'doubleClickAt':
+        case 'rightClickAt': {
+            const { x, y } = await resolveXY();
+            const button = action === 'rightClickAt' ? 'right' : 'left';
+            const count = action === 'doubleClickAt' ? 2 : 1;
+            await mouseMove(x, y);
+            await mouseDown(x, y, button, 1);
+            await mouseUp(x, y, button, 1);
+            if (count === 2) {
+                await mouseDown(x, y, button, 2);
+                await mouseUp(x, y, button, 2);
+            }
+            return { success: true, clickedAt: { x, y }, button, clickCount: count };
+        }
+        case 'mouseMove': {
+            const { x, y } = await resolveXY();
+            await mouseMove(x, y);
+            return { success: true, movedTo: { x, y } };
+        }
+        case 'dragAndDrop': {
+            const fromX = params.fromX, fromY = params.fromY, toX = params.toX, toY = params.toY;
+            if (![fromX, fromY, toX, toY].every(Number.isFinite)) {
+                return { success: false, error: 'dragAndDrop requires fromX, fromY, toX, toY' };
+            }
+            const steps = Math.max(5, Math.min(params.steps || 15, 60));
+            await mouseMove(fromX, fromY);
+            await mouseDown(fromX, fromY, 'left', 1);
+            for (let i = 1; i <= steps; i++) {
+                const t = i / steps;
+                await mouseMove(fromX + (toX - fromX) * t, fromY + (toY - fromY) * t, 1);
+                await new Promise(r => setTimeout(r, 10));
+            }
+            await mouseUp(toX, toY, 'left', 1);
+            return { success: true, from: { x: fromX, y: fromY }, to: { x: toX, y: toY } };
+        }
+        case 'typeText': {
+            // Real keyboard input into whatever element has focus. Works in canvas
+            // games and WebGL editors where `type` can't reach an <input>.
+            const text = String(params.text || '');
+            if (!text) return { success: false, error: 'typeText requires params.text' };
+            // Insert whole string in one call — fast path.
+            await debuggerSend(tabId, 'Input.insertText', { text });
+            return { success: true, typed: text.slice(0, 200), chars: text.length };
+        }
+        case 'pressKeyAt': {
+            const key = params.key || 'Enter';
+            const down = buildKeyEvent('keyDown', key);
+            const up = buildKeyEvent('keyUp', key);
+            await debuggerSend(tabId, 'Input.dispatchKeyEvent', down);
+            if (down.text) await debuggerSend(tabId, 'Input.dispatchKeyEvent', { ...down, type: 'char' });
+            await debuggerSend(tabId, 'Input.dispatchKeyEvent', up);
+            return { success: true, key };
+        }
+        case 'scrollAt': {
+            const { x, y } = await resolveXY();
+            const deltaY = Number.isFinite(params.deltaY) ? params.deltaY : (params.direction === 'up' ? -400 : 400);
+            const deltaX = Number.isFinite(params.deltaX) ? params.deltaX : 0;
+            await debuggerSend(tabId, 'Input.dispatchMouseEvent', {
+                type: 'mouseWheel', x, y, deltaX, deltaY
+            });
+            return { success: true, scrolledAt: { x, y }, deltaX, deltaY };
+        }
+        default:
+            return { success: false, error: 'Unknown debugger action: ' + action };
+    }
 }
 
 // ============================================

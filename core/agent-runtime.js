@@ -212,6 +212,38 @@
       }
     });
 
+    // === Canvas / video / WebGL coverage ===
+    // If the viewport is dominated by <canvas>/<video>/<iframe> (games, 3D
+    // tours, Figma, Google Maps, YouTube fullscreen, WebGL editors), DOM
+    // reading gives no signal. Flag it so the agent knows to `screenshot`
+    // and use `clickAt`/`typeText` (coord-based debugger actions) instead.
+
+    try {
+      const vpW = innerWidth || 1, vpH = innerHeight || 1;
+      const vpArea = vpW * vpH;
+      let visualArea = 0;
+      const visualEls = [];
+      document.querySelectorAll('canvas, video, iframe[src], embed, object').forEach(el => {
+        const r = el.getBoundingClientRect();
+        const w = Math.max(0, Math.min(r.right, vpW) - Math.max(r.left, 0));
+        const h = Math.max(0, Math.min(r.bottom, vpH) - Math.max(r.top, 0));
+        const a = w * h;
+        if (a > 0) {
+          visualArea += a;
+          if (visualEls.length < 5) visualEls.push({ tag: el.tagName, w: w|0, h: h|0, ratio: +(a/vpArea).toFixed(2) });
+        }
+      });
+      const ratio = visualArea / vpArea;
+      const textLen = (state.visibleText || '').length;
+      state.canvasCoverage = +ratio.toFixed(2);
+      state.visualElements = visualEls;
+      // Heuristic: >50% visual AND thin DOM text → probably a canvas/video app.
+      state.renderingCanvasHeavy = ratio > 0.5 && textLen < 400;
+      if (state.renderingCanvasHeavy) {
+        state.hint = 'This page is dominated by canvas/video/iframe content with little DOM text. `readPage` cannot see what is rendered. Take a `screenshot` and use coord-based actions (`clickAt`, `doubleClickAt`, `typeText`, `pressKeyAt`, `scrollAt`, `dragAndDrop`) instead of `click`/`type`.';
+      }
+    } catch { /* best-effort */ }
+
     // Tables (top 5)
     document.querySelectorAll('table').forEach((table, i) => {
       if (i < 5) {

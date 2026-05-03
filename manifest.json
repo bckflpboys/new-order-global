@@ -11,7 +11,8 @@
         "activeTab",
         "sidePanel",
         "downloads",
-        "alarms"
+        "alarms",
+        "debugger"
     ],
     "content_scripts": [
         {
