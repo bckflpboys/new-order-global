@@ -729,6 +729,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     return;
                 }
                 const target = tabs[0];
+                if (!target || typeof target.id !== 'number') {
+                    sendResponse({ success: false, error: 'Resolved tab has no usable tabId — try a different selector.' });
+                    return;
+                }
                 await chrome.tabs.update(target.id, { active: true });
                 sendResponse({ success: true, tabId: target.id, url: target.url, title: target.title, index: target.index });
             } catch (err) {
@@ -758,6 +762,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     return;
                 }
                 const target = tabs[0];
+                if (!target || typeof target.id !== 'number') {
+                    sendResponse({ success: false, error: 'Resolved tab has no usable tabId — try a different selector.' });
+                    return;
+                }
                 await chrome.tabs.remove(target.id);
                 sendResponse({ success: true, closedTabId: target.id, url: target.url, title: target.title });
             } catch (err) {

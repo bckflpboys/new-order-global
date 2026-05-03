@@ -498,6 +498,7 @@
       else if (step.action === 'select') detailText = `Selecting "${step.params.value}" in ${step.params.selector}`;
       else if (step.action === 'clear') detailText = `Clearing: ${step.params.selector || ''}`;
       else if (step.action === 'rememberThis') detailText = `Remembering: "${(step.params.text || '').substring(0, 80)}"`;
+      else if (step.action === 'notifyUser') detailText = `Pinging user: "${(step.params.text || '').substring(0, 80)}"`;
     }
 
     entry.innerHTML = `
@@ -684,7 +685,8 @@
           mode: selectedMode,
           tabUrl: activeTab?.url || '',
           tabTitle: activeTab?.title || '',
-          allTabs: allTabs.map(t => ({ url: t.url, title: t.title, active: t.active }))
+          allTabs: allTabs.map(t => ({ url: t.url, title: t.title, active: t.active })),
+          ...getBrowserEnv()
         })
       });
 
@@ -955,7 +957,8 @@
           briefing,
           permissions,
           modelId: selectedModelId,
-          allTabs: ctx.allTabs?.map(t => ({ url: t.url, title: t.title, active: t.active })) || []
+          allTabs: ctx.allTabs?.map(t => ({ url: t.url, title: t.title, active: t.active })) || [],
+          ...getBrowserEnv()
         })
       });
 
@@ -1022,6 +1025,11 @@
             // Server handled the actual memory write — this is just a
             // rendered step on the client. Nothing to do in the tab.
             result = { success: true, remembered: params?.text || '' };
+          } else if (action === 'notifyUser') {
+            // Server handled the actual push (Telegram / WhatsApp). The
+            // result of that push is stamped onto the step on the server;
+            // we just acknowledge here.
+            result = { success: true, notified: params?.text || '' };
           } else if (action === 'wait') {
             await sleep(Math.min(params?.ms || 1000, 10000));
             result = { success: true };
@@ -1310,7 +1318,8 @@
                   error: error || null,
                   pageState: pageState || null,
                   allTabs: liveTabs,
-                  modelId: selectedModelId
+                  modelId: selectedModelId,
+                  ...getBrowserEnv()
                 })
               });
             } catch (stepErr) {
@@ -1754,6 +1763,20 @@
   // ============================================
   // Communication with background.js
   // ============================================
+  // Snapshot of the user's browser environment to send with every agent
+  // request. The server uses this to render the ENVIRONMENT block in the
+  // system prompt so the AI knows the OS, browser version, locale and
+  // timezone. Cheap to compute; safe to call on every step.
+  function getBrowserEnv() {
+    let timezone = '';
+    try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch {}
+    return {
+      userAgent: (typeof navigator !== 'undefined' && navigator.userAgent) || '',
+      locale: (typeof navigator !== 'undefined' && (navigator.language || (navigator.languages && navigator.languages[0]))) || '',
+      timezone
+    };
+  }
+
   function sendToBackground(type, data = {}) {
     return new Promise((resolve, reject) => {
       chrome.runtime.sendMessage({ type, ...data }, (response) => {
