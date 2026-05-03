@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>New Order Global - Action Replay</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <style>
+    /* === Task list === */
+    .task-row { display: grid; grid-template-columns: 1fr 110px 90px 110px 130px 90px; gap: 16px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--ghost-border); cursor: pointer; transition: background 0.12s; }
+    .task-row:hover { background: var(--surface-container-low); }
+    .task-row:last-child { border-bottom: none; }
+    .task-row .title { font-family: var(--font-body); font-size: 14px; font-weight: 600; color: var(--on-surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .task-row .summary { font-family: var(--font-body); font-size: 12px; color: var(--on-surface-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .task-row .meta { font-family: var(--font-label); font-size: 12px; color: var(--on-surface-variant); }
+    .task-row-header { display: grid; grid-template-columns: 1fr 110px 90px 110px 130px 90px; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--ghost-border); font-family: var(--font-label); font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--on-surface-muted); }
+
+    /* === Status pills === */
+    .status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-family: var(--font-label); font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+    .status-completed { background: rgba(46, 125, 79, 0.12); color: var(--success, #2e7d4f); }
+    .status-failed, .status-cancelled { background: rgba(186, 26, 26, 0.12); color: var(--error, #ba1a1a); }
+    .status-running { background: rgba(184, 52, 28, 0.12); color: var(--primary); }
+    .status-paused, .status-awaiting_user { background: rgba(138, 109, 0, 0.12); color: var(--warning, #8a6d00); }
+    .status-pending, .status-planning, .status-briefing { background: var(--surface-container-high); color: var(--on-surface-variant); }
+    .status-executing { background: rgba(184, 52, 28, 0.12); color: var(--primary); }
+    .status-skipped { background: var(--surface-container-high); color: var(--on-surface-muted); }
+
+    /* === Replay timeline === */
+    .replay-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 24px; flex-wrap: wrap; }
+    .replay-meta-grid { display: grid; grid-template-columns: repeat(4, auto); gap: 8px 28px; font-family: var(--font-body); font-size: 13px; color: var(--on-surface-variant); }
+    .replay-meta-grid .label { font-family: var(--font-label); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--on-surface-muted); }
+    .replay-meta-grid .value { font-weight: 600; color: var(--on-surface); margin-top: 2px; }
+
+    .playback-bar { position: sticky; top: 0; z-index: 10; background: var(--surface); border: 1px solid var(--ghost-border); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .playback-bar button { background: var(--surface-container); border: 1px solid var(--ghost-border); color: var(--on-surface); padding: 6px 12px; border-radius: 8px; cursor: pointer; font-family: var(--font-label); font-size: 12px; font-weight: 600; }
+    .playback-bar button:hover:not(:disabled) { background: var(--surface-container-high); }
+    .playback-bar button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .playback-bar button.primary { background: var(--primary); color: var(--on-primary, #fff); border-color: var(--primary); }
+    .playback-progress { flex: 1; min-width: 200px; height: 6px; background: var(--surface-container); border-radius: 999px; overflow: hidden; }
+    .playback-progress-fill { height: 100%; background: var(--primary); width: 0%; transition: width 0.3s ease; }
+    .playback-step-counter { font-family: var(--font-label); font-size: 12px; font-weight: 600; color: var(--on-surface-variant); white-space: nowrap; }
+    .playback-speed { font-family: var(--font-label); font-size: 11px; color: var(--on-surface-muted); }
+    .playback-speed select { background: var(--surface-container); border: 1px solid var(--ghost-border); color: var(--on-surface); padding: 4px 8px; border-radius: 6px; font-size: 12px; }
+
+    /* Step card */
+    .step-card { display: flex; gap: 16px; padding: 16px 18px; border: 1px solid var(--ghost-border); border-radius: 12px; margin-bottom: 12px; background: var(--surface-container-lowest); transition: all 0.2s; }
+    .step-card.active { border-color: var(--primary); background: rgba(184, 52, 28, 0.04); box-shadow: 0 0 0 2px rgba(184, 52, 28, 0.15); }
+    .step-card.dim { opacity: 0.45; }
+    .step-num { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; background: var(--surface-container); color: var(--on-surface); display: flex; align-items: center; justify-content: center; font-family: var(--font-label); font-size: 13px; font-weight: 700; }
+    .step-card.active .step-num { background: var(--primary); color: #fff; }
+    .step-body { flex: 1; min-width: 0; }
+    .step-head { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+    .action-badge { display: inline-block; padding: 3px 10px; border-radius: 6px; background: var(--surface-container-high); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; font-weight: 600; color: var(--primary); }
+    .step-thought { font-family: var(--font-body); font-size: 13px; color: var(--on-surface-variant); font-style: italic; margin-bottom: 8px; line-height: 1.5; }
+    .step-section { margin-top: 8px; }
+    .step-section .lbl { font-family: var(--font-label); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--on-surface-muted); margin-bottom: 4px; }
+    .step-section pre { background: var(--surface-container); border: 1px solid var(--ghost-border); border-radius: 6px; padding: 8px 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; line-height: 1.5; color: var(--on-surface); white-space: pre-wrap; word-break: break-word; max-height: 200px; overflow: auto; margin: 0; }
+    .step-section.error pre { background: rgba(186, 26, 26, 0.06); border-color: rgba(186, 26, 26, 0.3); color: var(--error, #ba1a1a); }
+    .step-meta { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--ghost-border); font-family: var(--font-label); font-size: 11px; color: var(--on-surface-muted); }
+    .step-meta strong { color: var(--on-surface-variant); font-weight: 600; }
+
+    /* Premium banner */
+    .premium-banner { background: linear-gradient(135deg, rgba(184, 52, 28, 0.08), rgba(184, 52, 28, 0.02)); border: 1px solid rgba(184, 52, 28, 0.25); border-radius: 12px; padding: 16px 20px; margin-bottom: 20px; display: flex; gap: 14px; align-items: center; }
+    .premium-banner .icon { width: 36px; height: 36px; border-radius: 50%; background: var(--primary); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+
+    .empty-state { padding: 60px 24px; text-align: center; color: var(--on-surface-muted); }
+    .empty-state svg { opacity: 0.5; margin-bottom: 16px; }
+    .empty-state h3 { font-family: var(--font-headline); font-size: 18px; font-weight: 600; color: var(--on-surface-variant); margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <img src="../icons/logo.png" alt="Logo" class="sidebar-logo">
+      <div class="sidebar-title">New Order <span>Global</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Dashboard</div>
+      <a href="../builder/builder.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> AI Builder</a>
+      <a href="../agent/agent.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Global Executive</a>
+      <a href="tools.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> My Tools</a>
+      <a href="replay.html" class="nav-link active"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Action Replay</a>
+      <a href="setup.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Setup</a>
+      <div class="nav-section">Account</div>
+      <a href="billing.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Credits & Billing</a>
+      <a href="settings.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Settings</a>
+    </nav>
+  </aside>
+
+  <main class="main-content">
+    <!-- ============================ LIST VIEW ============================ -->
+    <div id="list-view">
+      <div class="page-header">
+        <h1>Action Replay</h1>
+        <p>Step-by-step playback of every agent task you've run. Audit, debug, and learn from past runs.</p>
+      </div>
+
+      <div class="card" style="overflow: hidden; padding: 0;">
+        <div class="task-row-header">
+          <span>Task</span>
+          <span>Status</span>
+          <span>Steps</span>
+          <span>Credits</span>
+          <span>Date</span>
+          <span style="text-align: right;">Action</span>
+        </div>
+        <div id="tasks-container">
+          <div style="padding: 60px 24px; text-align: center; color: var(--on-surface-muted);">Loading tasks…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================ DETAIL VIEW ============================ -->
+    <div id="detail-view" style="display: none;">
+      <a href="replay.html" style="display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-label); font-size: 13px; color: var(--primary); text-decoration: none; margin-bottom: 16px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back to all tasks
+      </a>
+
+      <div id="detail-content">
+        <div style="padding: 60px 24px; text-align: center; color: var(--on-surface-muted);">Loading task…</div>
+      </div>
+    </div>
+  </main>
+
+  <script src="../core/api-client.js"></script>
+  <script src="replay.js"></script>
+</body>
+</html>
