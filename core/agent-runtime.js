@@ -157,35 +157,168 @@
   // ============================================
   // Action Executors
   // ============================================
+  // Multi-strategy click. Accepts any of:
+  //   selector, text, href, label, role, index, clickType
+  // and falls back through strategies until it finds a candidate.
   function executeClick(params) {
-    const elements = findElements(params.selector, params.text);
     const index = params.index || 0;
+    const clickType = params.clickType || 'left';
+    const elements = resolveClickCandidates(params);
 
     if (!elements || elements.length === 0) {
-      return { success: false, error: `No element found for: ${params.selector}${params.text ? ` (text: "${params.text}")` : ''}` };
+      const hints = [];
+      if (params.selector) hints.push(`selector="${params.selector}"`);
+      if (params.text) hints.push(`text~="${params.text}"`);
+      if (params.href) hints.push(`href~="${params.href}"`);
+      if (params.label) hints.push(`label~="${params.label}"`);
+      if (params.role) hints.push(`role="${params.role}"`);
+      return { success: false, error: `No clickable element found for: ${hints.join(', ') || '<no targeting params>'}` };
     }
 
     if (index >= elements.length) {
-      return { success: false, error: `Index ${index} out of range (found ${elements.length} elements)` };
+      return { success: false, error: `Index ${index} out of range (found ${elements.length} candidates)` };
     }
 
     const el = elements[index];
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
 
-    // Dispatch realistic events
-    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
-    el.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
-    el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
-    el.click();
+    // Capture pre-click state so we can report what actually changed.
+    const beforeUrl = location.href;
+    const isAnchor = el.tagName === 'A';
+    const targetBlank = isAnchor && (el.getAttribute('target') === '_blank' || el.target === '_blank');
+    const href = isAnchor ? el.href : null;
 
+    // Dispatch realistic pointer + mouse events. Some sites listen for
+    // pointerdown only, others for mousedown only — fire both.
+    const fire = (type, init = {}) => {
+      try { el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window, button: clickType === 'right' ? 2 : 0, ...init })); } catch {}
+    };
+    const firePointer = (type) => {
+      try { el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'mouse' })); } catch {}
+    };
+
+    fire('mouseover');
+    fire('mouseenter');
+    firePointer('pointerover');
+    firePointer('pointerdown');
+    fire('mousedown');
+    firePointer('pointerup');
+    fire('mouseup');
+
+    if (clickType === 'right') {
+      fire('contextmenu');
+    } else if (clickType === 'double') {
+      try { el.click(); } catch {}
+      fire('click');
+      try { el.click(); } catch {}
+      fire('dblclick');
+    } else {
+      // Default left-click. Prefer the native .click() (handles forms, submit, etc.)
+      try { el.click(); } catch (e) { fire('click'); }
+    }
+
+    const afterUrl = location.href;
     return {
       success: true,
       clicked: {
         tag: el.tagName,
-        text: el.textContent.trim().substring(0, 100),
-        selector: buildSelector(el)
-      }
+        text: (el.textContent || '').trim().substring(0, 100),
+        selector: buildSelector(el),
+        href: href || undefined,
+        candidatesFound: elements.length
+      },
+      // Diagnostic info so the agent doesn't have to guess what happened.
+      navigated: beforeUrl !== afterUrl,
+      beforeUrl,
+      afterUrl,
+      openedNewTab: !!targetBlank,
+      hint: targetBlank
+        ? 'This link has target=_blank — content opened in a new tab. Use switchTab to interact with it; readPage on the current tab will show the same page.'
+        : (beforeUrl === afterUrl
+            ? 'No navigation. Page may have changed via JS — wait briefly, then check, but DO NOT call readPage twice in a row with no other action.'
+            : undefined)
     };
+  }
+
+  // Resolve click candidates from any combination of selector / text / href /
+  // label / role. Returns an array of Elements ranked by specificity.
+  function resolveClickCandidates(params) {
+    // 1) Explicit selector path (with optional text filter) — keeps prior behaviour.
+    if (params.selector) {
+      let els = findElements(params.selector, params.text);
+      if (els.length) return els;
+      // fall through to attribute-based fallbacks
+    }
+
+    const candidates = new Set();
+    const pushAll = (list) => { for (const el of list) candidates.add(el); };
+
+    // 2) href substring — anchors only.
+    if (params.href) {
+      const needle = String(params.href).toLowerCase();
+      pushAll(Array.from(document.querySelectorAll('a[href]')).filter(a =>
+        (a.getAttribute('href') || '').toLowerCase().includes(needle) ||
+        (a.href || '').toLowerCase().includes(needle)
+      ));
+    }
+
+    // 3) aria-label / title / name match.
+    if (params.label) {
+      const needle = String(params.label).toLowerCase();
+      pushAll(Array.from(document.querySelectorAll('[aria-label], [title], [name]')).filter(el => {
+        const a = (el.getAttribute('aria-label') || '').toLowerCase();
+        const t = (el.getAttribute('title') || '').toLowerCase();
+        const n = (el.getAttribute('name') || '').toLowerCase();
+        return a.includes(needle) || t.includes(needle) || n.includes(needle);
+      }));
+    }
+
+    // 4) role match (interactive only).
+    if (params.role) {
+      pushAll(document.querySelectorAll(`[role="${CSS.escape(params.role)}"]`));
+    }
+
+    // 5) text-only fallback — search anchors / buttons / [role=button] / [role=link] / [onclick].
+    if (params.text) {
+      const needle = String(params.text).toLowerCase();
+      const interactive = document.querySelectorAll(
+        'a, button, [role="button"], [role="link"], [role="tab"], [role="menuitem"], input[type="submit"], input[type="button"], [onclick]'
+      );
+      for (const el of interactive) {
+        const txt = (el.textContent || '').trim().toLowerCase();
+        const lab = (el.getAttribute('aria-label') || el.getAttribute('title') || '').toLowerCase();
+        if (txt.includes(needle) || lab.includes(needle)) candidates.add(el);
+      }
+    }
+
+    let arr = Array.from(candidates);
+
+    // If multiple targeting params were combined, intersect by re-filtering.
+    if (params.text && (params.href || params.label || params.role)) {
+      const needle = String(params.text).toLowerCase();
+      arr = arr.filter(el => ((el.textContent || '') + ' ' + (el.getAttribute('aria-label') || ''))
+        .toLowerCase().includes(needle));
+    }
+
+    // Visible elements first (rough heuristic: has size + not display:none).
+    arr.sort((a, b) => {
+      const va = isLikelyVisible(a) ? 0 : 1;
+      const vb = isLikelyVisible(b) ? 0 : 1;
+      return va - vb;
+    });
+
+    return arr;
+  }
+
+  function isLikelyVisible(el) {
+    if (!el || !el.getBoundingClientRect) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) return false;
+    const cs = (el.ownerDocument && el.ownerDocument.defaultView)
+      ? el.ownerDocument.defaultView.getComputedStyle(el)
+      : null;
+    if (cs && (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0)) return false;
+    return true;
   }
 
   function executeType(params) {
