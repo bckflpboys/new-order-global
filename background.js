@@ -646,6 +646,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     sendResponse({ success: true, result });
                     return;
                 }
+                if (action === 'captureFile') {
+                    const result = await runCaptureFile(tabId, params || {});
+                    sendResponse({ success: true, result });
+                    return;
+                }
 
                 // Ensure agent runtime is injected
                 await ensureAgentRuntime(tabId);
@@ -1618,6 +1623,103 @@ async function runReadEmail(tabId, params) {
             ? 'Inbox query returned zero messages. Widen the filter (e.g. newer_than:24h), or verify the user is actually signed in \u2014 if not, `readEmail` will have landed on the webmail login page.'
             : (otpCode ? `Extracted OTP candidate: ${otpCode}` : '')
     };
+}
+
+// ============================================
+// captureFile \u2014 fetch a URL from the user's live browser session (uses
+// their cookies) and pipe the bytes to the server, which stores it on
+// OBS for 7 days. The agent can then chain the returned `fileId` into
+// uploadFile / fillPdf / notifyUser / readFile.
+//
+// Params:
+//   url        required    The file URL to fetch.
+//   filename?  override the filename (otherwise derived from URL / Content-Disposition)
+//   description?  short human-readable reason ("August invoice from Stripe")
+//   maxBytes?  client-side size cap (server also enforces)
+//   taskId?    task _id (ALWAYS required in practice; sender passes it in)
+// ============================================
+async function runCaptureFile(tabId, params) {
+    const url = (params.url || '').trim();
+    if (!url || !/^https?:\/\//i.test(url)) {
+        return { success: false, error: 'captureFile requires an absolute http(s) URL.' };
+    }
+    const taskId = (params.taskId || '').trim();
+    if (!taskId.match(/^[0-9a-fA-F]{24}$/)) {
+        return { success: false, error: 'captureFile requires a valid taskId.', recovery: 'The system normally injects taskId automatically; if you see this, escalate to the user.' };
+    }
+
+    // Pull auth token the same way the sidepanel does.
+    const tok = await new Promise(r => chrome.storage.local.get(['noAuthToken'], (d) => r(d.noAuthToken || '')));
+    if (!tok) return { success: false, error: 'Not signed in.' };
+
+    // Fetch with cookies. Service workers CAN do cross-origin credentialed
+    // fetches when host_permissions cover the URL (we have <all_urls>).
+    let blob, contentType, contentDispositionFilename = '';
+    try {
+        const resp = await fetch(url, { credentials: 'include', method: 'GET' });
+        if (!resp.ok) return { success: false, error: `Source fetch failed: HTTP ${resp.status}`, recovery: 'The URL may be auth-walled with a session the extension can\'t reach, or expired. Try `goto`-ing the page first to refresh cookies, then retry.' };
+        contentType = (resp.headers.get('content-type') || '').split(';')[0].trim() || 'application/octet-stream';
+        const cd = resp.headers.get('content-disposition') || '';
+        const m = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+        if (m) contentDispositionFilename = decodeURIComponent(m[1]);
+        blob = await resp.blob();
+    } catch (e) {
+        return { success: false, error: `Failed to fetch URL: ${e.message}`, recovery: 'The URL may be invalid, CORS-restricted server-side, or the site may require an active session you don\'t have.' };
+    }
+
+    // Filename resolution: explicit param > Content-Disposition > URL basename > "file".
+    const urlBasename = (() => {
+        try { const u = new URL(url); return u.pathname.split('/').filter(Boolean).pop() || ''; } catch { return ''; }
+    })();
+    const filename = (params.filename || contentDispositionFilename || urlBasename || 'file').slice(0, 255);
+
+    // Client-side size sanity check (server also enforces per-tier).
+    const maxBytes = Math.min(params.maxBytes || 60 * 1024 * 1024, 60 * 1024 * 1024);
+    if (blob.size > maxBytes) {
+        return { success: false, error: `File too large (${(blob.size / 1024 / 1024).toFixed(1)}MB). Client cap: ${(maxBytes / 1024 / 1024).toFixed(0)}MB.` };
+    }
+    if (blob.size === 0) {
+        return { success: false, error: 'Fetched file is empty (0 bytes).' };
+    }
+
+    // POST raw bytes to server with metadata headers.
+    const buf = await blob.arrayBuffer();
+    const b64enc = (s) => btoa(unescape(encodeURIComponent(s || '')));
+    try {
+        const resp = await fetch(GE_API_BASE + '/api/agent/capture-file', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + tok,
+                'Content-Type': contentType,
+                'X-Capture-Task-Id': taskId,
+                'X-Capture-Filename': b64enc(filename),
+                'X-Capture-Mime': contentType,
+                'X-Capture-Source-Url': b64enc(url),
+                'X-Capture-Description': b64enc(params.description || ''),
+                'X-Capture-Step': String(params.stepNumber || 0)
+            },
+            body: buf
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+            return { success: false, error: data.error || `Upload failed (HTTP ${resp.status})`, status: resp.status };
+        }
+        return {
+            success: true,
+            fileId: data.fileId,
+            filename: data.filename,
+            mime: data.mime,
+            size: data.size,
+            signedUrl: data.signedUrl,
+            expiresAt: data.expiresAt,
+            ttlDays: data.ttlDays,
+            capturedFilesCount: data.capturedFilesCount,
+            capturedFilesMax: data.capturedFilesMax,
+            hint: `File stored. Reference it in later actions via fileRef="${data.fileId}" (uploadFile / fillPdf / notifyUser) or use signedUrl directly.`
+        };
+    } catch (e) {
+        return { success: false, error: `Upload to server failed: ${e.message}` };
+    }
 }
 
 // Runs INSIDE the webmail page via chrome.scripting.executeScript.
