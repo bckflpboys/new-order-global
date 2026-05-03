@@ -35,6 +35,20 @@
     let _kaTabId = null;
     let _kaCycleAt = 0;
 
+    // Service-worker browser env (no `window` here — viewport not applicable).
+    // Server-side ENVIRONMENT block uses this to render OS/browser/timezone
+    // and the online flag.
+    function _bgBrowserEnv() {
+        let timezone = '';
+        try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch {}
+        return {
+            userAgent: (typeof navigator !== 'undefined' && navigator.userAgent) || '',
+            locale: (typeof navigator !== 'undefined' && (navigator.language || (navigator.languages && navigator.languages[0]))) || '',
+            timezone,
+            online: (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean') ? navigator.onLine : undefined
+        };
+    }
+
     function _kaOpen(tabId) {
         try {
             _kaPort = chrome.tabs.connect(tabId, { name: 'ge-bg-keepalive' });
@@ -312,6 +326,17 @@
             }
             pageState = truncatePageState(pageState);
 
+            // Live tab snapshot lets the server detect "utility" tabs (Gmail
+            // for OTPs, WhatsApp/Telegram web, etc.) and surface them in the
+            // ENVIRONMENT block so the agent can switchTab to grab a code.
+            let liveTabs = [];
+            try {
+                const allOpen = await chrome.tabs.query({});
+                liveTabs = allOpen
+                    .filter(t => t.url && !t.url.startsWith('chrome://') && !t.url.startsWith('chrome-extension://') && !t.url.startsWith('about:'))
+                    .map(t => ({ url: t.url, title: t.title, active: t.active }));
+            } catch { /* best effort */ }
+
             // /step
             let nextData;
             try {
@@ -323,12 +348,26 @@
                         result: result || null,
                         error: error || null,
                         pageState: pageState || null,
-                        runMode: 'background'
+                        runMode: 'background',
+                        allTabs: liveTabs,
+                        ..._bgBrowserEnv()
                     })
                 });
             } catch (err) {
                 if (err.status === 403) return { ok: false, stage: 'step', error: 'not_eligible', taskId };
                 return { ok: false, stage: 'step', error: err.message, taskId, status: err.status };
+            }
+
+            // If the agent just created a Tool, force-resync ToolManager so
+            // a follow-up `useTool` in this same run can find the new script.
+            if (nextData && nextData.toolCreated) {
+                try {
+                    if (typeof self !== 'undefined' && self.ToolManager && typeof self.ToolManager.syncTools === 'function') {
+                        await self.ToolManager.syncTools(true);
+                    }
+                } catch (syncErr) {
+                    console.warn('[GE bg-agent] tool resync after createTool failed:', syncErr.message);
+                }
             }
 
             if (nextData.done) return { ok: true, stage: 'done', taskId, summary: nextData.summary, status: nextData.status };

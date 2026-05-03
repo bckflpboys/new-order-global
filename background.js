@@ -673,6 +673,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // Force-resync the user's Tool catalog from the server. Triggered by the
+    // agent panel after the agent emits a `createTool` action so a follow-up
+    // `useTool` in the same task can find the new content script locally.
+    if (message.type === 'ge-sync-tools') {
+        (async () => {
+            try {
+                if (typeof globalThis.ToolManager !== 'object' || typeof globalThis.ToolManager.syncTools !== 'function') {
+                    sendResponse({ success: false, error: 'ToolManager unavailable' });
+                    return;
+                }
+                const r = await globalThis.ToolManager.syncTools(!!message.force);
+                sendResponse({ success: true, result: r || null });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
     // Resolve a target tab from any of: tabId | url substring | title substring
     // | browserIndex (chrome window index). Returns the matched tab(s).
     // The same matching logic is used by ge-switch-tab and ge-close-tab so the

@@ -1360,6 +1360,18 @@
           if (!nextData) throw lastErr || new Error('Failed to get next step after retries');
           serverErrorStreak = 0; // reset on success
 
+          // The agent just persisted a Tool (origin=agent) on the server.
+          // Force ToolManager to resync so a follow-up `useTool` in this same
+          // task can find the new content script locally without waiting for
+          // the next periodic poll.
+          if (nextData.toolCreated) {
+            try {
+              await sendToBackground('ge-sync-tools', { force: true });
+            } catch (syncErr) {
+              console.warn('[Global Executive] tool resync after createTool failed:', syncErr.message);
+            }
+          }
+
           if (nextData.usage) {
             updateCreditsDisplay(nextData.usage.creditsRemaining);
             taskCredits.textContent = nextData.usage.totalTaskCredits.toFixed(2) + ' credits';
@@ -1770,10 +1782,21 @@
   function getBrowserEnv() {
     let timezone = '';
     try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch {}
+    // Viewport: best-effort. The agent panel runs in a side panel, so window
+    // here reflects the panel — but we want the actual browsing viewport.
+    // Fall back to screen.avail* which approximates the visible browser area.
+    let viewport;
+    try {
+      const w = (typeof window !== 'undefined' && (window.screen?.availWidth || window.innerWidth)) || 0;
+      const h = (typeof window !== 'undefined' && (window.screen?.availHeight || window.innerHeight)) || 0;
+      if (w > 0 && h > 0) viewport = { width: w, height: h };
+    } catch {}
     return {
       userAgent: (typeof navigator !== 'undefined' && navigator.userAgent) || '',
       locale: (typeof navigator !== 'undefined' && (navigator.language || (navigator.languages && navigator.languages[0]))) || '',
-      timezone
+      timezone,
+      online: (typeof navigator !== 'undefined' && typeof navigator.onLine === 'boolean') ? navigator.onLine : undefined,
+      ...(viewport ? { viewport } : {})
     };
   }
 

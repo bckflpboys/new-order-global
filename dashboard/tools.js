@@ -39,6 +39,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isActive = tool.isActive && !isDraft;
     const statusText = isDraft ? 'Off (Draft)' : (isActive ? 'Active' : 'Off');
     const statusColor = isDraft ? 'var(--on-surface-muted)' : (isActive ? 'var(--success)' : 'var(--on-surface-muted)');
+    // "Agent created" badge — surfaces tools auto-built by Global Executive
+    // during a task run (origin === 'agent') so the user can spot them.
+    const isAgentMade = tool.origin === 'agent';
+    const agentBadge = isAgentMade
+      ? `<span title="Created automatically by Global Executive during a task" style="display:inline-block;font-size:10px;font-weight:600;letter-spacing:0.3px;padding:2px 6px;border-radius:10px;background:rgba(99,102,241,0.15);color:#6366f1;margin-left:6px;vertical-align:middle;">🤖 AGENT</span>`
+      : '';
 
     card.innerHTML = `
       <div class="tool-card-header">
@@ -46,7 +52,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
         </div>
         <div style="flex: 1;">
-          <div class="tool-title">${tool.name}</div>
+          <div class="tool-title">${tool.name}${agentBadge}</div>
           <div style="font-size: 11px; color: ${statusColor}; margin-top: 4px; font-weight: 600;">${statusText}</div>
         </div>
         <label class="tool-toggle-switch">
