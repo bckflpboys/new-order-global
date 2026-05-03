@@ -11,12 +11,92 @@
   console.log('[Global Executive] Agent Runtime loaded');
 
   // ============================================
+  // DOM mutation tracker — used by readPage to flag SPAs that are still
+  // rendering, and by executeClick to verify a click had ANY effect on the
+  // DOM even when no navigation happened.
+  // ============================================
+  let __geMutationCount = 0;
+  let __geLastMutationAt = 0;
+  try {
+    const __obs = new MutationObserver((muts) => {
+      __geMutationCount += muts.length;
+      __geLastMutationAt = Date.now();
+    });
+    const startObs = () => {
+      if (document.body) __obs.observe(document.body, { childList: true, subtree: true, attributes: true, characterData: true });
+      else setTimeout(startObs, 50);
+    };
+    startObs();
+  } catch (e) { /* MutationObserver unavailable — non-fatal */ }
+  function snapshotMutations() { return { count: __geMutationCount, lastAt: __geLastMutationAt }; }
+  function mutationsSince(snap) {
+    return Math.max(0, __geMutationCount - (snap?.count || 0));
+  }
+  // Wait `ms` and report how many mutations happened in that window.
+  function awaitMutations(ms = 500) {
+    return new Promise((resolve) => {
+      const before = snapshotMutations();
+      setTimeout(() => resolve(mutationsSince(before)), ms);
+    });
+  }
+
+  // ============================================
+  // Element health helpers — answer "why didn't my click work?" up-front.
+  // ============================================
+  function getElementHealth(el) {
+    if (!el || !el.getBoundingClientRect) return { exists: false };
+    const rect = el.getBoundingClientRect();
+    const cs = (el.ownerDocument && el.ownerDocument.defaultView)
+      ? el.ownerDocument.defaultView.getComputedStyle(el)
+      : null;
+    const hidden = !!(cs && (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity) === 0));
+    const offscreen = (rect.width === 0 && rect.height === 0);
+    const disabled = !!(el.disabled || el.getAttribute('aria-disabled') === 'true');
+    const pointerNone = !!(cs && cs.pointerEvents === 'none');
+    // Detect if another element is on top of the centre point.
+    let coveredBy = null;
+    try {
+      if (!hidden && !offscreen && rect.width > 0 && rect.height > 0) {
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const inViewport = cx >= 0 && cy >= 0 && cx <= innerWidth && cy <= innerHeight;
+        if (inViewport) {
+          const top = document.elementFromPoint(cx, cy);
+          if (top && top !== el && !el.contains(top) && !top.contains(el)) {
+            coveredBy = buildSelector(top);
+          }
+        }
+      }
+    } catch { /* best-effort */ }
+    return {
+      exists: true,
+      visible: !hidden && !offscreen,
+      hidden,
+      offscreen,
+      disabled,
+      pointerNone,
+      coveredBy,
+      rect: { x: rect.left|0, y: rect.top|0, w: rect.width|0, h: rect.height|0 }
+    };
+  }
+
+  // ============================================
   // Page State Reader
   // ============================================
   function readPageState() {
+    // SPA / load-state hints — agent can use these to decide whether to
+    // wait or proceed without guessing.
+    const sinceMutation = __geLastMutationAt ? (Date.now() - __geLastMutationAt) : null;
+    const stillMutating = sinceMutation !== null && sinceMutation < 600;
     const state = {
       url: location.href,
+      pathname: location.pathname,
       title: document.title,
+      readyState: document.readyState,
+      // True if the DOM has mutated within the last ~600ms (page likely still rendering)
+      loading: stillMutating || document.readyState !== 'complete',
+      msSinceLastMutation: sinceMutation,
+      mutationCount: __geMutationCount,
       visibleText: '',
       headings: [],
       links: [],
@@ -160,7 +240,7 @@
   // Multi-strategy click. Accepts any of:
   //   selector, text, href, label, role, index, clickType
   // and falls back through strategies until it finds a candidate.
-  function executeClick(params) {
+  async function executeClick(params) {
     const index = params.index || 0;
     const clickType = params.clickType || 'left';
     const elements = resolveClickCandidates(params);
@@ -172,18 +252,37 @@
       if (params.href) hints.push(`href~="${params.href}"`);
       if (params.label) hints.push(`label~="${params.label}"`);
       if (params.role) hints.push(`role="${params.role}"`);
-      return { success: false, error: `No clickable element found for: ${hints.join(', ') || '<no targeting params>'}` };
+      return { success: false, reason: 'no_match', error: `No clickable element found for: ${hints.join(', ') || '<no targeting params>'}`, recovery: 'Try a different targeting strategy: text, label, href, or call readPage to see what is actually on screen.' };
     }
 
     if (index >= elements.length) {
-      return { success: false, error: `Index ${index} out of range (found ${elements.length} candidates)` };
+      return { success: false, reason: 'index_out_of_range', error: `Index ${index} out of range (found ${elements.length} candidates)`, candidatesFound: elements.length };
     }
 
     const el = elements[index];
     try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+    // Give the browser a tick to settle scroll-into-view.
+    await new Promise(r => setTimeout(r, 80));
+
+    // Pre-click health check — bail with a STRUCTURED reason so the agent
+    // can pick a real recovery instead of retrying a doomed click.
+    const health = getElementHealth(el);
+    if (health.hidden || health.offscreen) {
+      return { success: false, reason: 'hidden', error: 'Element exists but is hidden/offscreen.', health, recovery: 'Scroll to bring it into view, waitForElement to become visible, or close the modal that hides it.' };
+    }
+    if (health.disabled) {
+      return { success: false, reason: 'disabled', error: 'Element is disabled.', health, recovery: 'A required field is probably empty/invalid. Fill prerequisites first; do not retry the click.' };
+    }
+    if (health.pointerNone) {
+      return { success: false, reason: 'pointer_none', error: 'Element has pointer-events:none.', health, recovery: 'Click the parent or the actual handler — try targeting by text/label instead of this selector.' };
+    }
+    if (health.coveredBy) {
+      return { success: false, reason: 'covered', error: `Element is covered by another element (${health.coveredBy}).`, health, recovery: 'Dismiss the overlay/modal/cookie-banner first, or click the covering element if it IS the intended target.' };
+    }
 
     // Capture pre-click state so we can report what actually changed.
     const beforeUrl = location.href;
+    const mutSnap = snapshotMutations();
     const isAnchor = el.tagName === 'A';
     const targetBlank = isAnchor && (el.getAttribute('target') === '_blank' || el.target === '_blank');
     const href = isAnchor ? el.href : null;
@@ -213,13 +312,18 @@
       try { el.click(); } catch {}
       fire('dblclick');
     } else {
-      // Default left-click. Prefer the native .click() (handles forms, submit, etc.)
       try { el.click(); } catch (e) { fire('click'); }
     }
 
+    // Wait briefly and observe what actually changed.
+    const domDelta = await awaitMutations(500);
     const afterUrl = location.href;
+    const navigated = beforeUrl !== afterUrl;
+    const tookEffect = navigated || targetBlank || domDelta > 0;
+
     return {
-      success: true,
+      success: tookEffect,
+      reason: tookEffect ? undefined : 'no_effect',
       clicked: {
         tag: el.tagName,
         text: (el.textContent || '').trim().substring(0, 100),
@@ -227,16 +331,18 @@
         href: href || undefined,
         candidatesFound: elements.length
       },
-      // Diagnostic info so the agent doesn't have to guess what happened.
-      navigated: beforeUrl !== afterUrl,
+      navigated,
       beforeUrl,
       afterUrl,
       openedNewTab: !!targetBlank,
+      domChangedWithin500ms: domDelta,
+      health,
       hint: targetBlank
-        ? 'This link has target=_blank — content opened in a new tab. Use switchTab to interact with it; readPage on the current tab will show the same page.'
-        : (beforeUrl === afterUrl
-            ? 'No navigation. Page may have changed via JS — wait briefly, then check, but DO NOT call readPage twice in a row with no other action.'
-            : undefined)
+        ? 'target=_blank — content opened in a NEW tab. Use switchTab to interact; current tab is unchanged.'
+        : (!tookEffect
+            ? 'Click dispatched but produced NO navigation AND NO DOM mutation in 500ms. The handler likely did not fire. Try: a different selector (text/label/href), pressKey Enter on the focused element, or click the parent.'
+            : (!navigated ? 'Page changed via JS (DOM mutated). Wait briefly then proceed; do NOT readPage twice in a row.' : undefined)),
+      error: !tookEffect ? 'Click had no observable effect (no nav, no DOM change in 500ms).' : undefined
     };
   }
 
@@ -321,38 +427,69 @@
     return true;
   }
 
+  // React-friendly value setter: bypasses React's synthetic-event guard so
+  // controlled inputs actually pick up the new value.
+  function setNativeValue(el, value) {
+    try {
+      const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const desc = Object.getOwnPropertyDescriptor(proto, 'value');
+      if (desc && desc.set) { desc.set.call(el, value); return; }
+    } catch { /* fall through */ }
+    el.value = value;
+  }
+
   function executeType(params) {
-    const el = document.querySelector(params.selector);
+    const els = findElements(params.selector);
+    const el = els && els[params.index || 0];
     if (!el) {
-      return { success: false, error: `Input not found: ${params.selector}` };
+      return { success: false, reason: 'no_match', error: `Input not found: ${params.selector}`, recovery: 'Use readPage to list inputs and pick a name/label-based selector. Try input[name="..."] or input[placeholder="..."].' };
+    }
+    const tag = el.tagName;
+    if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !el.isContentEditable) {
+      return { success: false, reason: 'not_typable', error: `Element ${tag} is not a typable input.` };
+    }
+    const health = getElementHealth(el);
+    if (health.hidden || health.offscreen) {
+      return { success: false, reason: 'hidden', error: 'Input is hidden/offscreen.', health };
+    }
+    if (health.disabled || el.readOnly) {
+      return { success: false, reason: 'disabled', error: 'Input is disabled or readonly.', health, recovery: 'A previous step probably needs to enable this field — fill prerequisites first.' };
     }
 
-    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    el.focus();
+    try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+    try { el.focus(); } catch {}
 
-    if (params.clear) {
-      el.value = '';
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-      el.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-
-    // Type character by character for realistic behavior
     const text = params.text || '';
-    el.value = params.clear ? text : el.value + text;
+    if (el.isContentEditable) {
+      if (params.clear) el.textContent = '';
+      el.textContent = (params.clear ? text : (el.textContent || '') + text);
+    } else {
+      const newValue = params.clear ? text : (el.value || '') + text;
+      // Fire beforeinput so React/Vue/lit-element listeners can intercept.
+      try { el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, data: text, inputType: 'insertText' })); } catch {}
+      setNativeValue(el, newValue);
+    }
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
 
     if (params.pressEnter) {
       el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
       el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
-      // Also try submitting the parent form
-      const form = el.closest('form');
-      if (form) {
-        form.dispatchEvent(new Event('submit', { bubbles: true }));
-      }
+      const form = el.closest && el.closest('form');
+      if (form) form.dispatchEvent(new Event('submit', { bubbles: true }));
     }
 
-    return { success: true, typed: text.substring(0, 100), into: buildSelector(el) };
+    const finalValue = el.isContentEditable ? (el.textContent || '') : (el.value || '');
+    const verified = finalValue.includes(text);
+    return {
+      success: verified,
+      reason: verified ? undefined : 'value_not_set',
+      typed: text.substring(0, 100),
+      into: buildSelector(el),
+      verified,
+      currentValue: finalValue.substring(0, 200),
+      recovery: verified ? undefined : 'The element rejected the value (custom input mask, controlled component blocking). Try clicking the input first, then pressKey for each character, OR use the keyboard simulation pattern.'
+    };
   }
 
   function executeScroll(params) {
@@ -372,9 +509,10 @@
   }
 
   function executeSelect(params) {
-    const el = document.querySelector(params.selector);
+    const els = findElements(params.selector);
+    const el = els && els[params.index || 0];
     if (!el || el.tagName !== 'SELECT') {
-      return { success: false, error: `Select element not found: ${params.selector}` };
+      return { success: false, reason: 'no_match', error: `Select element not found: ${params.selector}` };
     }
 
     // Try matching by value first, then by text
@@ -476,11 +614,13 @@
   }
 
   function executeClear(params) {
-    const el = document.querySelector(params.selector);
+    const els = findElements(params.selector);
+    const el = els && els[params.index || 0];
     if (!el) {
-      return { success: false, error: `Element not found: ${params.selector}` };
+      return { success: false, reason: 'no_match', error: `Element not found: ${params.selector}` };
     }
-    el.value = '';
+    if (el.isContentEditable) el.textContent = '';
+    else setNativeValue(el, '');
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
     return { success: true, cleared: buildSelector(el) };
@@ -669,7 +809,7 @@
             result = readPageState();
             break;
           case 'click':
-            result = executeClick(params);
+            result = await executeClick(params);
             break;
           case 'type':
             result = executeType(params);
