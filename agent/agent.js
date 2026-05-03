@@ -401,7 +401,7 @@
       // Wire up the viewed task so stop works on it
       currentTaskId = task.id;
       isRunning = ['running', 'planning'].includes(task.status);
-      btnSend.disabled = isRunning;
+      setSendingState(isRunning);
 
       showTaskView(task.title);
       updateTaskStatus(task.status);
@@ -409,6 +409,11 @@
       taskCredits.textContent = task.totalCreditsUsed.toFixed(2) + ' credits';
 
       stepLog.innerHTML = '';
+      // Show original prompt as a user bubble so the replay reads as a chat thread.
+      if (task.originalPrompt) renderUserPromptBubble(task.originalPrompt);
+      // Restore milestone state BEFORE step replay so per-step milestone updates
+      // animate naturally as we walk forward.
+      if (task.goalLedger) renderGoalLedger(task.goalLedger);
       task.steps.forEach(step => {
         renderStep(step);
       });
@@ -439,6 +444,152 @@
     stepLog.innerHTML = '';
     storedDataPanel.style.display = 'none';
     tabTracker.innerHTML = '';
+    hideMilestonesPanel();
+  }
+
+  // ============================================
+  // Send-button state helper
+  //   true  → disabled + animated "sending" appearance + spinner icon
+  //   false → idle, ready to accept the next prompt
+  // ============================================
+  function setSendingState(flag) {
+    if (!btnSend) return;
+    btnSend.disabled = !!flag;
+    btnSend.classList.toggle('sending', !!flag);
+    btnSend.title = flag ? 'Working…' : 'Start Task';
+  }
+
+  // ============================================
+  // Goal Ledger / Milestones UI  (Batch 4)
+  // ============================================
+  // Cached state so we can detect "just-completed" transitions and apply
+  // a tick animation. Keyed by milestone id.
+  const milestoneStateCache = {};
+
+  function getMilestonesEls() {
+    return {
+      panel: document.getElementById('milestones-panel'),
+      list: document.getElementById('milestones-list'),
+      progress: document.getElementById('milestones-progress'),
+      header: document.getElementById('milestones-header'),
+      toggle: document.getElementById('milestones-toggle')
+    };
+  }
+
+  function hideMilestonesPanel() {
+    const { panel, list } = getMilestonesEls();
+    if (!panel) return;
+    panel.style.display = 'none';
+    if (list) list.innerHTML = '';
+    Object.keys(milestoneStateCache).forEach(k => delete milestoneStateCache[k]);
+  }
+
+  function renderGoalLedger(ledger) {
+    const els = getMilestonesEls();
+    if (!els.panel || !ledger || !Array.isArray(ledger.milestones) || !ledger.milestones.length) {
+      hideMilestonesPanel();
+      return;
+    }
+    els.panel.style.display = 'block';
+    els.progress.textContent = `${ledger.done || 0} / ${ledger.total || ledger.milestones.length}`;
+
+    // Replace the list content but track which items just transitioned to done
+    // so we can flash a brief tick animation on them.
+    els.list.innerHTML = '';
+    ledger.milestones.forEach((m) => {
+      const li = document.createElement('li');
+      li.className = `milestone-item ${m.status || 'pending'}`;
+      li.dataset.id = m.id;
+      const wasDone = milestoneStateCache[m.id] === 'done';
+      const isDone = m.status === 'done';
+      if (isDone && !wasDone) li.classList.add('just-completed');
+
+      const evidenceHtml = (isDone && m.evidence)
+        ? `<span class="milestone-evidence">${escapeHtml(m.evidence)}</span>`
+        : '';
+
+      li.innerHTML = `
+        <span class="milestone-checkbox" aria-hidden="true">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
+        <div class="milestone-text">
+          <span class="milestone-id">${escapeHtml(m.id)}</span>${escapeHtml(m.text || '')}
+          ${evidenceHtml}
+        </div>`;
+      els.list.appendChild(li);
+      milestoneStateCache[m.id] = m.status;
+    });
+
+    // Stuck warning banner
+    const existingStuck = els.panel.querySelector('.milestones-stuck');
+    if (existingStuck) existingStuck.remove();
+    if ((ledger.stuckScore || 0) >= 3) {
+      const warn = document.createElement('div');
+      warn.className = 'milestones-stuck';
+      warn.innerHTML = `⚠️ Stuck score ${ledger.stuckScore}/5 — agent is being nudged to change approach.`;
+      els.panel.insertBefore(warn, els.list);
+    }
+  }
+
+  function bindMilestoneToggle() {
+    const { panel, header, toggle } = getMilestonesEls();
+    if (!panel || !header) return;
+    const flip = (e) => {
+      // Only toggle if user clicked header background or the toggle button —
+      // avoid swallowing clicks on milestone items themselves.
+      if (e.target.closest('.milestone-item')) return;
+      panel.classList.toggle('collapsed');
+    };
+    header.addEventListener('click', flip);
+    if (toggle) toggle.addEventListener('click', (e) => { e.stopPropagation(); panel.classList.toggle('collapsed'); });
+  }
+
+  // ============================================
+  // User-prompt bubble + typewriter helpers
+  // ============================================
+  function renderUserPromptBubble(text) {
+    if (!text) return;
+    const meta = document.createElement('div');
+    meta.className = 'user-prompt-meta';
+    meta.textContent = 'You';
+    const bubble = document.createElement('div');
+    bubble.className = 'user-prompt-bubble';
+    bubble.textContent = text;
+    stepLog.appendChild(meta);
+    stepLog.appendChild(bubble);
+    scrollToBottom();
+  }
+
+  // Progressive word-by-word reveal for AI message/think/done content.
+  // Renders into `el` so caller controls the wrapping bubble. Returns a
+  // promise that resolves when streaming is done. Cancellable via .cancel().
+  function streamMarkdownInto(el, text, opts = {}) {
+    const wordsPerTick = opts.wordsPerTick || 2;
+    const tickMs = opts.tickMs || 18;
+    const words = String(text || '').split(/(\s+)/); // keep whitespace as separate tokens for natural pacing
+    let i = 0;
+    let cancelled = false;
+    el.classList.add('streaming');
+    let buf = '';
+
+    return new Promise((resolve) => {
+      function tick() {
+        if (cancelled) { el.classList.remove('streaming'); return resolve(); }
+        for (let n = 0; n < wordsPerTick && i < words.length; n++, i++) {
+          buf += words[i];
+        }
+        // Re-render markdown each tick — small enough text for this to be cheap.
+        el.innerHTML = formatMarkdown(buf);
+        scrollToBottom();
+        if (i < words.length) {
+          setTimeout(tick, tickMs);
+        } else {
+          el.classList.remove('streaming');
+          resolve();
+        }
+      }
+      tick();
+    });
   }
 
   function updateTaskStatus(status) {
@@ -449,26 +600,30 @@
   }
 
   function renderStep(step) {
-    // Special rendering for message actions
+    // Special rendering for message actions — stream the text in word-by-word
+    // so the user sees the agent "typing" rather than a sudden bubble pop.
     if (step.action === 'message') {
       const msgEl = document.createElement('div');
       msgEl.className = 'step-message';
-      msgEl.innerHTML = formatMarkdown(step.params?.text || step.thought || '');
       stepLog.appendChild(msgEl);
       scrollToBottom();
+      streamMarkdownInto(msgEl, step.params?.text || step.thought || '');
       return;
     }
 
-    // Special rendering for think actions
+    // Special rendering for think actions — bubble + animated dots, with the
+    // reasoning text streamed in beside the dots.
     if (step.action === 'think') {
       const thinkEl = document.createElement('div');
       thinkEl.className = 'step-thinking';
       thinkEl.innerHTML = `
-        <div class="thinking-dots"><span></span><span></span><span></span></div>
-        <span>${formatMarkdown(step.params?.reasoning || step.thought || 'Thinking...')}</span>
+        <div class="thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+        <span class="step-thinking-text"></span>
       `;
       stepLog.appendChild(thinkEl);
       scrollToBottom();
+      streamMarkdownInto(thinkEl.querySelector('.step-thinking-text'),
+        step.params?.reasoning || step.thought || 'Thinking...');
       return;
     }
 
@@ -520,10 +675,11 @@
     doneEl.className = 'step-done';
     doneEl.innerHTML = `
       <h4>Task Completed</h4>
-      <div class="step-done-content">${formatMarkdown(summary)}</div>
+      <div class="step-done-content"></div>
     `;
     stepLog.appendChild(doneEl);
     scrollToBottom();
+    streamMarkdownInto(doneEl.querySelector('.step-done-content'), summary || '', { wordsPerTick: 3, tickMs: 14 });
   }
 
   function renderExecutingIndicator() {
@@ -670,7 +826,22 @@
       return;
     }
 
-    btnSend.disabled = true;
+    setSendingState(true);
+    // Show the user's prompt as a chat bubble immediately so they get instant
+    // feedback that their message landed. We swap to the task view first so
+    // the bubble lands in step-log even if the welcome screen is still up.
+    showTaskView(trimmed.length > 60 ? trimmed.substring(0, 57) + '…' : trimmed);
+    renderUserPromptBubble(trimmed);
+    // Show a transient "Planning…" thinking bubble while we wait for /plan.
+    const planningBubble = document.createElement('div');
+    planningBubble.className = 'step-thinking';
+    planningBubble.id = 'ge-planning-bubble';
+    planningBubble.innerHTML = `
+      <div class="thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+      <span>Planning your task…</span>
+    `;
+    stepLog.appendChild(planningBubble);
+    scrollToBottom();
 
     try {
       // Get current web tabs (exclude extension pages)
@@ -705,11 +876,16 @@
       };
       currentTierMaxSteps = planData.tier?.maxSteps || 50;
 
+      // Plan ready — dismiss the planning bubble before showing the modal.
+      const pb = document.getElementById('ge-planning-bubble');
+      if (pb) pb.remove();
       // Show plan + briefing modal; user clicks Approve or Cancel
       showPlanModal(pendingTaskContext);
     } catch (err) {
       console.error('[Global Executive] Plan error:', err);
-      btnSend.disabled = false;
+      const pb = document.getElementById('ge-planning-bubble');
+      if (pb) pb.remove();
+      setSendingState(false);
       if (err.message?.includes('already have') && err.message?.includes('running')) {
         await loadTaskHistory();
         historySidebar.classList.add('open');
@@ -944,8 +1120,17 @@
 
   async function startTaskExecution(ctx, briefing, permissions) {
     isRunning = true;
-    btnSend.disabled = true;
-    showTaskView(ctx.prompt.length > 60 ? ctx.prompt.substring(0, 57) + '...' : ctx.prompt);
+    setSendingState(true);
+    const titleText = ctx.prompt.length > 60 ? ctx.prompt.substring(0, 57) + '...' : ctx.prompt;
+    // If startTask() already brought us into the task view (and drew the user
+    // bubble), DON'T re-call showTaskView \u2014 it would wipe step-log. Just update
+    // the title and badge. Otherwise (remote/auto path) initialise the view.
+    if (taskView.style.display !== 'flex' || !stepLog.children.length) {
+      showTaskView(titleText);
+      renderUserPromptBubble(ctx.prompt);
+    } else {
+      taskTitle.textContent = titleText;
+    }
     updateTaskStatus('running');
     startKeepAlive();
 
@@ -968,6 +1153,8 @@
       currentTierMaxSteps = data.tier?.maxSteps || currentTierMaxSteps;
       taskStepCounter.textContent = `Step ${data.step.stepNumber}/${currentTierMaxSteps}`;
 
+      // Reflect the initial milestone state if the agent set milestones in step 1.
+      if (data.goalLedger) renderGoalLedger(data.goalLedger);
       renderStep(data.step);
       await executeLoop(data.step, ctx.activeTab?.id);
     } catch (err) {
@@ -975,7 +1162,7 @@
       renderDoneStep('Error: ' + err.message);
       updateTaskStatus('failed');
       isRunning = false;
-      btnSend.disabled = false;
+      setSendingState(false);
       stopKeepAlive();
     } finally {
       pendingTaskContext = null;
@@ -1010,7 +1197,7 @@
             renderDoneStep(params?.summary || 'Task completed');
             updateTaskStatus('completed');
             isRunning = false;
-            btnSend.disabled = false;
+            setSendingState(false);
             stopKeepAlive();
             await loadTaskHistory();
             sendToBackground('ge-clear-staged-files').catch(() => {});
@@ -1218,7 +1405,7 @@
                 renderDoneStep(answerData.summary || 'Task ended');
                 updateTaskStatus(answerData.status || 'completed');
                 isRunning = false;
-                btnSend.disabled = false;
+                setSendingState(false);
                 stopKeepAlive();
                 await loadTaskHistory();
                 return;
@@ -1226,6 +1413,7 @@
               // Mark current entry completed and jump to the next step (no /step round-trip)
               const lastEntry2 = stepLog.querySelector('.step-entry:last-of-type');
               if (lastEntry2) lastEntry2.classList.add('completed');
+              if (answerData.goalLedger) renderGoalLedger(answerData.goalLedger);
               step = answerData.step;
               taskStepCounter.textContent = `Step ${step.stepNumber}/${currentTierMaxSteps}`;
               renderStep(step);
@@ -1407,6 +1595,9 @@
             taskCredits.textContent = nextData.usage.totalTaskCredits.toFixed(2) + ' credits';
           }
 
+          // Refresh the milestones panel from the authoritative server state.
+          if (nextData.goalLedger) renderGoalLedger(nextData.goalLedger);
+
           if (nextData.done) {
             renderDoneStep(nextData.summary || 'Task completed');
             updateTaskStatus('completed');
@@ -1414,7 +1605,7 @@
               showStoredData(nextData.storedData);
             }
             isRunning = false;
-            btnSend.disabled = false;
+            setSendingState(false);
             stopKeepAlive();
             await loadTaskHistory();
             sendToBackground('ge-clear-staged-files').catch(() => {});
@@ -1443,7 +1634,7 @@
           renderDoneStep('Stopped: ' + msg);
           updateTaskStatus('failed');
           isRunning = false;
-          btnSend.disabled = false;
+          setSendingState(false);
           stopKeepAlive();
           sendToBackground('ge-clear-staged-files').catch(() => {});
           return;
@@ -1455,7 +1646,7 @@
       renderDoneStep('Error: ' + loopErr.message);
       updateTaskStatus('failed');
       isRunning = false;
-      btnSend.disabled = false;
+      setSendingState(false);
       stopKeepAlive();
       sendToBackground('ge-clear-staged-files').catch(() => {});
     }
@@ -1555,7 +1746,7 @@
     document.getElementById('btn-approve-plan')?.addEventListener('click', approvePlanAndStart);
     document.getElementById('btn-cancel-plan')?.addEventListener('click', () => {
       hidePlanModal();
-      btnSend.disabled = false;
+      setSendingState(false);
       // Cancel the pending task on the server
       if (pendingTaskContext?.taskId) {
         NewOrderAPI.request('/api/agent/stop', {
@@ -1564,6 +1755,12 @@
         }).catch(() => { /* ignore */ });
       }
       pendingTaskContext = null;
+      // Return to welcome screen so the half-rendered user bubble doesn't
+      // linger as if the task had started.
+      taskView.style.display = 'none';
+      welcomeScreen.style.display = 'flex';
+      stepLog.innerHTML = '';
+      hideMilestonesPanel();
     });
 
     // AskUser modal
@@ -1772,7 +1969,7 @@
     removeExecutingIndicator();
     updateTaskStatus('cancelled');
     renderDoneStep('Task cancelled by user');
-    btnSend.disabled = false;
+    setSendingState(false);
     await loadTaskHistory();
     stopKeepAlive();
     // Clean up staged files
@@ -1791,7 +1988,7 @@
         removeExecutingIndicator();
         updateTaskStatus('cancelled');
         renderDoneStep('Task cancelled by user');
-        btnSend.disabled = false;
+        setSendingState(false);
         currentTaskId = null;
         stopKeepAlive();
         sendToBackground('ge-clear-staged-files').catch(() => {});
@@ -1947,7 +2144,7 @@
     }
     currentTaskId = null;
     isRunning = false;
-    btnSend.disabled = false;
+    setSendingState(false);
     removeExecutingIndicator();
 
     taskView.style.display = 'none';
@@ -2041,6 +2238,7 @@
   // ============================================
   setupAuth();
   setupEventHandlers();
+  bindMilestoneToggle();
   init();
 
 })();

@@ -2027,3 +2027,423 @@ body.autopilot-mode .agent-app {
 }
 .ge-inline-notice-close:hover { opacity: 1; background: rgba(0,0,0,0.06); }
 
+
+/* ============================================
+   Milestones Panel  (Batch 4 — goal ledger UI)
+   ============================================ */
+.milestones-panel {
+  margin: 8px 24px 0;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--ghost-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+  flex-shrink: 0;
+  animation: fadeIn 0.3s ease;
+}
+
+.milestones-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, var(--surface-container-low) 0%, var(--surface-container-lowest) 100%);
+  border-bottom: 1px solid var(--ghost-border);
+  cursor: pointer;
+  user-select: none;
+}
+
+.milestones-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--on-surface-variant);
+}
+
+.milestones-icon { color: var(--primary); flex-shrink: 0; }
+
+.milestones-progress {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--primary);
+  background: var(--accent-bg);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.milestones-toggle {
+  background: transparent;
+  border: none;
+  color: var(--on-surface-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  transition: transform 0.2s ease, background 0.2s ease;
+  display: flex;
+}
+.milestones-toggle:hover { background: rgba(0,0,0,0.05); color: var(--on-surface); }
+.milestones-panel.collapsed .milestones-toggle svg { transform: rotate(-90deg); }
+.milestones-panel.collapsed .milestones-list { display: none; }
+
+.milestones-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.milestone-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--on-surface);
+  line-height: 1.4;
+  transition: background 0.2s ease, transform 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.milestone-item.pending { color: var(--on-surface-muted); }
+.milestone-item.in_progress {
+  background: var(--accent-bg);
+  border-color: rgba(184, 52, 28, 0.2);
+  color: var(--on-surface);
+}
+.milestone-item.done {
+  color: var(--on-surface-muted);
+  text-decoration: line-through;
+  text-decoration-color: rgba(46, 125, 79, 0.5);
+}
+.milestone-item.skipped { color: var(--on-surface-muted); opacity: 0.6; }
+
+.milestone-item.just-completed {
+  animation: milestoneTick 0.6s ease;
+}
+@keyframes milestoneTick {
+  0% { background: var(--accent-bg); transform: scale(1); }
+  30% { background: var(--success-bg); transform: scale(1.015); }
+  100% { background: transparent; transform: scale(1); }
+}
+
+.milestone-checkbox {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--ghost-border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-bright);
+  transition: all 0.2s ease;
+}
+
+.milestone-item.in_progress .milestone-checkbox {
+  border-color: var(--primary);
+  background: var(--surface-bright);
+  position: relative;
+}
+.milestone-item.in_progress .milestone-checkbox::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  animation: pulseDot 1.4s ease-in-out infinite;
+}
+@keyframes pulseDot {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.1); }
+}
+
+.milestone-item.done .milestone-checkbox {
+  border-color: var(--success);
+  background: var(--success);
+  color: var(--on-primary);
+}
+.milestone-item.done .milestone-checkbox svg { display: block; }
+.milestone-checkbox svg { display: none; }
+
+.milestone-text { flex: 1; min-width: 0; word-break: break-word; }
+.milestone-id {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--on-surface-muted);
+  background: var(--surface-container-high);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  margin-right: 6px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.milestone-evidence {
+  display: block;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--on-surface-muted);
+  font-style: italic;
+}
+
+.milestones-stuck {
+  margin: 6px 8px 4px;
+  padding: 6px 10px;
+  background: var(--warning-bg);
+  border: 1px solid rgba(180,120,0,0.3);
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  color: var(--warning);
+  font-family: var(--font-label);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Plan modal milestones preview */
+.plan-milestones-preview {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.plan-milestones-preview li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--ghost-border);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--on-surface);
+}
+.plan-milestones-preview li::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--ghost-border-strong);
+  background: var(--surface-bright);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* ============================================
+   User-prompt bubble (right-aligned chat style)
+   ============================================ */
+.user-prompt-bubble {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+  color: var(--on-primary);
+  border-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.5;
+  box-shadow: var(--shadow-sm);
+  animation: fadeIn 0.25s ease;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.user-prompt-meta {
+  align-self: flex-end;
+  font-family: var(--font-label);
+  font-size: 10px;
+  color: var(--on-surface-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: -2px 4px 4px;
+}
+
+/* ============================================
+   Redesigned step bubbles — chat-feed look
+   ============================================ */
+.step-log {
+  /* keep existing flex column with gap */
+  gap: 10px !important;
+}
+
+.step-entry {
+  align-self: flex-start;
+  max-width: 92%;
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--ghost-border);
+  border-radius: var(--radius-lg);
+  border-bottom-left-radius: var(--radius-sm);
+  padding: 10px 14px;
+  gap: 10px;
+  position: relative;
+}
+
+.step-entry .step-number {
+  width: 22px;
+  height: 22px;
+  font-size: 10px;
+}
+
+.step-entry::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  background: var(--ghost-border);
+  transition: background 0.2s ease;
+}
+.step-entry.executing::before { background: var(--info); }
+.step-entry.completed::before { background: var(--success); }
+.step-entry.failed::before { background: var(--danger); }
+
+.step-entry .step-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.step-entry .step-action .action-name {
+  display: inline-block;
+  padding: 1px 8px;
+  background: var(--surface-container-high);
+  color: var(--primary);
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Chat-style "agent thinks" bubble */
+.step-thinking {
+  align-self: flex-start;
+  max-width: 90%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--surface-container-lowest);
+  border: 1px dashed var(--ghost-border);
+  border-radius: var(--radius-lg);
+  border-bottom-left-radius: var(--radius-sm);
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  font-style: italic;
+  color: var(--on-surface-muted);
+  animation: fadeIn 0.25s ease;
+}
+
+.step-message {
+  align-self: flex-start;
+  max-width: 90%;
+  padding: 10px 14px;
+  background: var(--surface-bright);
+  border: 1px solid var(--ghost-border);
+  border-left: 3px solid var(--primary);
+  border-radius: var(--radius-lg);
+  border-bottom-left-radius: var(--radius-sm);
+  color: var(--on-surface);
+  font-size: 13.5px;
+  font-family: var(--font-body);
+  line-height: 1.55;
+  box-shadow: var(--shadow-xs);
+  animation: fadeIn 0.25s ease;
+}
+
+.step-done {
+  align-self: stretch;
+  margin-top: 4px;
+}
+
+/* Typewriter caret */
+.streaming::after {
+  content: '\258A';
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--primary);
+  animation: caret 1s steps(1) infinite;
+  font-weight: 400;
+  opacity: 0.85;
+}
+@keyframes caret { 50% { opacity: 0; } }
+
+/* ============================================
+   Send button — clearer states (idle / sending / disabled)
+   ============================================ */
+.btn-send {
+  position: relative;
+  overflow: hidden;
+}
+.btn-send .btn-send-icon { display: flex; }
+.btn-send .btn-send-spinner { display: none; }
+
+.btn-send.sending {
+  cursor: wait;
+  opacity: 1;          /* override the default :disabled fade */
+  background: linear-gradient(135deg, var(--primary-container) 0%, var(--primary) 100%);
+  animation: sendPulse 1.6s ease-in-out infinite;
+}
+.btn-send.sending .btn-send-icon { display: none; }
+.btn-send.sending .btn-send-spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-send.sending::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+  animation: sendShimmer 1.2s linear infinite;
+}
+@keyframes sendShimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+@keyframes sendPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(184, 52, 28, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(184, 52, 28, 0); }
+}
+
+.btn-send-spinner svg { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* The Enter-shortcut hint that floats next to the textarea */
+.input-hint {
+  font-family: var(--font-label);
+  font-size: 10.5px;
+  color: var(--on-surface-muted);
+  text-align: right;
+  padding: 2px 6px 0;
+  letter-spacing: 0.05em;
+}
+.input-hint kbd {
+  font-family: var(--font-mono);
+  background: var(--surface-container-high);
+  border: 1px solid var(--ghost-border);
+  border-radius: var(--radius-sm);
+  padding: 0 4px;
+  font-size: 10px;
+  color: var(--on-surface-variant);
+}

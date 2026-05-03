@@ -147,6 +147,26 @@
             <!-- Tabs will be rendered here -->
           </div>
 
+          <!-- Milestone Tracker (populated when the agent calls setMilestones) -->
+          <section class="milestones-panel" id="milestones-panel" style="display:none;" aria-label="Agent milestones">
+            <header class="milestones-header" id="milestones-header">
+              <div class="milestones-title">
+                <svg class="milestones-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="9 11 12 14 22 4"/>
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                </svg>
+                <span>Milestones</span>
+                <span class="milestones-progress" id="milestones-progress">0 / 0</span>
+              </div>
+              <button class="milestones-toggle" id="milestones-toggle" title="Collapse / expand">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+            </header>
+            <ul class="milestones-list" id="milestones-list">
+              <!-- Milestones rendered here -->
+            </ul>
+          </section>
+
           <!-- Step Log -->
           <div class="step-log" id="step-log">
             <!-- Steps will be rendered here -->
@@ -169,12 +189,22 @@
           <div class="input-wrapper">
             <div class="input-container-main">
               <textarea id="task-input" placeholder="Describe a task to automate..." rows="1"></textarea>
-              <button class="btn-send" id="btn-send" title="Start Task">
-                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
-                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                </svg>
+              <button class="btn-send" id="btn-send" title="Start Task" aria-label="Send">
+                <span class="btn-send-icon">
+                  <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                  </svg>
+                </span>
+                <span class="btn-send-spinner" aria-hidden="true">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+                    <path d="M12 2a10 10 0 0 1 10 10" opacity="0.95"/>
+                    <path d="M22 12a10 10 0 0 1-10 10" opacity="0.55"/>
+                    <path d="M12 22A10 10 0 0 1 2 12" opacity="0.25"/>
+                  </svg>
+                </span>
               </button>
             </div>
+            <div class="input-hint"><kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for newline</div>
           </div>
           <div class="controls-row">
             <div class="model-selector-container" id="model-selector-container">
