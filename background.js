@@ -671,6 +671,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // Probe chrome.downloads for a matching completed download. Used by
+    // the content-script's `waitUntil { downloadComplete }` condition.
+    // spec: { id?, filenameContains?, urlContains? } \u2014 any/all match.
+    if (message.type === 'ge-check-download') {
+        (async () => {
+            try {
+                const spec = message.spec || {};
+                if (!chrome?.downloads?.search) {
+                    return sendResponse({ matched: false, error: 'downloads_api_unavailable' });
+                }
+                const items = await new Promise((r) => {
+                    try { chrome.downloads.search({ orderBy: ['-startTime'], limit: 10 }, (items) => r(items || [])); }
+                    catch { r([]); }
+                });
+                const match = items.find((d) => {
+                    if (d.state !== 'complete') return false;
+                    if (spec.id != null && d.id !== spec.id) return false;
+                    if (spec.filenameContains) {
+                        const fn = (d.filename || '').split(/[\\/]/).pop() || '';
+                        if (fn.toLowerCase().indexOf(String(spec.filenameContains).toLowerCase()) === -1) return false;
+                    }
+                    if (spec.urlContains) {
+                        const u = d.finalUrl || d.url || '';
+                        if (u.toLowerCase().indexOf(String(spec.urlContains).toLowerCase()) === -1) return false;
+                    }
+                    return true;
+                });
+                if (!match) return sendResponse({ matched: false });
+                sendResponse({
+                    matched: true,
+                    download: {
+                        id: match.id,
+                        url: match.finalUrl || match.url || '',
+                        filename: (match.filename || '').split(/[\\/]/).pop() || '',
+                        mime: match.mime || '',
+                        bytesReceived: match.bytesReceived || 0,
+                        totalBytes: match.totalBytes || 0,
+                        state: match.state
+                    }
+                });
+            } catch (err) {
+                sendResponse({ matched: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
     // Open a new tab
     if (message.type === 'ge-open-tab') {
         (async () => {

@@ -1309,6 +1309,35 @@
                   }));
                 }
               } catch { /* best effort */ }
+
+              // Forward the 5 most recent downloads so the server can
+              // surface them in the ENVIRONMENT block. The agent uses
+              // this to know when a "Download" click has produced a URL
+              // it can pass to captureFile, and whether the download
+              // has actually finished.
+              let recentDownloads = [];
+              try {
+                if (chrome?.downloads?.search) {
+                  const dls = await new Promise((resolve) => {
+                    try {
+                      chrome.downloads.search(
+                        { orderBy: ['-startTime'], limit: 5 },
+                        (items) => resolve(Array.isArray(items) ? items : [])
+                      );
+                    } catch { resolve([]); }
+                  });
+                  recentDownloads = dls.map(d => ({
+                    id: d.id,
+                    url: d.finalUrl || d.url || '',
+                    filename: (d.filename || '').split(/[\\/]/).pop() || '',
+                    state: d.state || 'unknown',              // "in_progress" | "complete" | "interrupted"
+                    bytesReceived: d.bytesReceived || 0,
+                    totalBytes: d.totalBytes || 0,
+                    mime: d.mime || ''
+                  }));
+                }
+              } catch { /* permission not granted / API unavailable */ }
+
               nextData = await NewOrderAPI.request('/api/agent/step', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -1318,6 +1347,7 @@
                   error: error || null,
                   pageState: pageState || null,
                   allTabs: liveTabs,
+                  recentDownloads,
                   modelId: selectedModelId,
                   ...getBrowserEnv()
                 })

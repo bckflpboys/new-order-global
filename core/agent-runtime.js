@@ -891,6 +891,108 @@
     });
   }
 
+  // Conditional wait: poll every 500 ms until ANY (or ALL) listed
+  // conditions are satisfied, or timeout. Supported condition keys:
+  //   urlContains, urlMatches, elementVisible, elementGone, textVisible,
+  //   downloadComplete { id | filenameContains | urlContains },
+  //   networkIdle (ms of no DOM mutations \u2014 lightweight proxy).
+  async function executeWaitUntil(params) {
+    const conditions = Array.isArray(params?.conditions) ? params.conditions : [];
+    if (!conditions.length) {
+      return { success: false, reason: 'no_conditions', error: 'waitUntil requires at least one condition.' };
+    }
+    const mode = params.mode === 'all' ? 'all' : 'any';
+    const timeout = Math.min(Math.max(parseInt(params.timeout, 10) || 15000, 500), 60000);
+    const start = Date.now();
+
+    const isElVisible = (el) => {
+      if (!el) return false;
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 && r.height === 0) return false;
+      const cs = window.getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || parseFloat(cs.opacity || '1') === 0) return false;
+      return true;
+    };
+
+    const checkDownload = (spec) =>
+      new Promise((resolve) => {
+        try {
+          chrome.runtime.sendMessage({ type: 'ge-check-download', spec }, (resp) => resolve(resp || { matched: false }));
+        } catch { resolve({ matched: false }); }
+      });
+
+    async function evalOne(cond) {
+      if (!cond || typeof cond !== 'object') return { ok: false };
+
+      if (typeof cond.urlContains === 'string') {
+        return { ok: window.location.href.indexOf(cond.urlContains) !== -1, label: `urlContains:${cond.urlContains}`, context: { currentUrl: window.location.href } };
+      }
+      if (typeof cond.urlMatches === 'string') {
+        try {
+          const re = new RegExp(cond.urlMatches);
+          return { ok: re.test(window.location.href), label: `urlMatches:${cond.urlMatches}`, context: { currentUrl: window.location.href } };
+        } catch { return { ok: false, error: 'bad_regex' }; }
+      }
+      if (typeof cond.elementVisible === 'string') {
+        const el = document.querySelector(cond.elementVisible);
+        return { ok: !!(el && isElVisible(el)), label: `elementVisible:${cond.elementVisible}` };
+      }
+      if (typeof cond.elementGone === 'string') {
+        const el = document.querySelector(cond.elementGone);
+        return { ok: !el || !isElVisible(el), label: `elementGone:${cond.elementGone}` };
+      }
+      if (typeof cond.textVisible === 'string') {
+        const needle = cond.textVisible.toLowerCase();
+        const hay = (document.body?.innerText || '').toLowerCase();
+        return { ok: hay.indexOf(needle) !== -1, label: `textVisible:${cond.textVisible.slice(0, 60)}` };
+      }
+      if (cond.downloadComplete) {
+        const r = await checkDownload(cond.downloadComplete);
+        return { ok: !!r.matched, label: 'downloadComplete', context: { matchedDownload: r.download || null } };
+      }
+      if (typeof cond.networkIdle === 'number') {
+        const idleMs = Math.max(250, Math.min(cond.networkIdle, 10000));
+        const sinceMut = Date.now() - (__geLastMutationAt || 0);
+        return { ok: sinceMut >= idleMs, label: `networkIdle:${idleMs}`, context: { msSinceLastMutation: sinceMut } };
+      }
+      return { ok: false, error: 'unknown_condition_shape' };
+    }
+
+    while (true) {
+      const evals = [];
+      for (const c of conditions) {
+        const r = await evalOne(c);
+        evals.push(r);
+      }
+      const satisfied = mode === 'all'
+        ? evals.every(e => e.ok)
+        : evals.some(e => e.ok);
+      if (satisfied) {
+        const first = mode === 'all' ? evals[0] : evals.find(e => e.ok);
+        const merged = Object.assign({}, ...evals.map(e => e.context || {}));
+        return {
+          success: true,
+          conditionMet: first?.label || 'satisfied',
+          mode,
+          waited: Date.now() - start,
+          context: merged,
+          evaluated: evals.map(e => ({ label: e.label, ok: e.ok }))
+        };
+      }
+      if (Date.now() - start >= timeout) {
+        return {
+          success: false,
+          reason: 'timeout',
+          mode,
+          waited: Date.now() - start,
+          evaluated: evals.map(e => ({ label: e.label, ok: e.ok })),
+          recovery: 'None of the conditions became true in time. Either extend the timeout, verify the condition spec matches what the page shows, or take a `screenshot` + `readPage` to re-orient.'
+        };
+      }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }
+
   // ============================================
   // Helper Functions
   // ============================================
@@ -1107,6 +1209,9 @@
             break;
           case 'waitForStable':
             result = await executeWaitForStable(params);
+            break;
+          case 'waitUntil':
+            result = await executeWaitUntil(params);
             break;
           case 'hover':
             result = executeHover(params);

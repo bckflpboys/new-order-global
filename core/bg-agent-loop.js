@@ -337,6 +337,28 @@
                     .map(t => ({ url: t.url, title: t.title, active: t.active }));
             } catch { /* best effort */ }
 
+            // Gather recent downloads so the agent sees in-progress /
+            // completed file downloads without having to call readDownloads.
+            let recentDownloads = [];
+            try {
+                if (chrome?.downloads?.search) {
+                    const dls = await new Promise((resolve) => {
+                        try {
+                            chrome.downloads.search({ orderBy: ['-startTime'], limit: 5 }, (items) => resolve(Array.isArray(items) ? items : []));
+                        } catch { resolve([]); }
+                    });
+                    recentDownloads = dls.map(d => ({
+                        id: d.id,
+                        url: d.finalUrl || d.url || '',
+                        filename: (d.filename || '').split(/[\\/]/).pop() || '',
+                        state: d.state || 'unknown',
+                        bytesReceived: d.bytesReceived || 0,
+                        totalBytes: d.totalBytes || 0,
+                        mime: d.mime || ''
+                    }));
+                }
+            } catch { /* best effort */ }
+
             // /step
             let nextData;
             try {
@@ -350,6 +372,7 @@
                         pageState: pageState || null,
                         runMode: 'background',
                         allTabs: liveTabs,
+                        recentDownloads,
                         ..._bgBrowserEnv()
                     })
                 });
