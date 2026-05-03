@@ -497,6 +497,7 @@
       else if (step.action === 'pressKey') detailText = `Pressing: ${step.params.key || ''}`;
       else if (step.action === 'select') detailText = `Selecting "${step.params.value}" in ${step.params.selector}`;
       else if (step.action === 'clear') detailText = `Clearing: ${step.params.selector || ''}`;
+      else if (step.action === 'rememberThis') detailText = `Remembering: "${(step.params.text || '').substring(0, 80)}"`;
     }
 
     entry.innerHTML = `
@@ -1017,6 +1018,10 @@
             result = { success: true };
           } else if (action === 'message') {
             result = { success: true };
+          } else if (action === 'rememberThis') {
+            // Server handled the actual memory write — this is just a
+            // rendered step on the client. Nothing to do in the tab.
+            result = { success: true, remembered: params?.text || '' };
           } else if (action === 'wait') {
             await sleep(Math.min(params?.ms || 1000, 10000));
             result = { success: true };
