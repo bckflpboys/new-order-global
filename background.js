@@ -624,6 +624,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     return;
                 }
 
+                // Explicit detach request (task end / cancel) — frees the
+                // yellow Chrome "debugging this browser" banner.
+                if (action === 'detachDebugger') {
+                    await debuggerDetach(tabId).catch(() => {});
+                    sendResponse({ success: true, result: { detached: true } });
+                    return;
+                }
+
                 // Ensure agent runtime is injected
                 await ensureAgentRuntime(tabId);
 
@@ -1179,14 +1187,31 @@ function debuggerAttach(tabId) {
             chrome.debugger.attach({ tabId }, '1.3', () => {
                 if (chrome.runtime.lastError) {
                     const msg = chrome.runtime.lastError.message || 'attach failed';
-                    // "Another debugger is already attached" — treat as success
                     if (/already attached/i.test(msg)) { __geAttachedTabs.add(tabId); return resolve(); }
+                    // Common restricted-page failures — give the agent an actionable recovery hint.
+                    if (/cannot access|restricted|chrome-untrusted|webstore|chrome:\/\//i.test(msg)) {
+                        return reject(new Error(`debugger.attach blocked: this is a restricted Chrome page (chrome://, Web Store, PDF viewer, or similar). Coord-based actions cannot run here. Navigate to a normal https:// page first.`));
+                    }
                     return reject(new Error('debugger.attach: ' + msg));
                 }
                 __geAttachedTabs.add(tabId);
                 resolve();
             });
         } catch (e) { reject(e); }
+    });
+}
+
+function debuggerDetach(tabId) {
+    return new Promise((resolve) => {
+        if (!__geAttachedTabs.has(tabId)) return resolve();
+        try {
+            chrome.debugger.detach({ tabId }, () => {
+                __geAttachedTabs.delete(tabId);
+                // Swallow lastError — detach failing is non-fatal.
+                void chrome.runtime.lastError;
+                resolve();
+            });
+        } catch { __geAttachedTabs.delete(tabId); resolve(); }
     });
 }
 
@@ -1208,6 +1233,18 @@ if (chrome.debugger && chrome.debugger.onDetach) {
     });
 }
 chrome.tabs.onRemoved.addListener((tabId) => { __geAttachedTabs.delete(tabId); });
+
+// Build a bitmask of modifier keys for CDP Input.dispatchKeyEvent / mouse events.
+// Matches the CDP spec: Alt=1, Ctrl=2, Meta/Command=4, Shift=8.
+function modifiersMask(mods) {
+    if (!mods) return 0;
+    let m = 0;
+    if (mods.alt)   m |= 1;
+    if (mods.ctrl)  m |= 2;
+    if (mods.meta)  m |= 4;
+    if (mods.shift) m |= 8;
+    return m;
+}
 
 // Convert an "Enter"/"a"/"ArrowDown" string to a CDP Input.dispatchKeyEvent payload.
 function buildKeyEvent(type, key) {
@@ -1310,18 +1347,34 @@ async function runDebuggerAction(tabId, action, params) {
             // games and WebGL editors where `type` can't reach an <input>.
             const text = String(params.text || '');
             if (!text) return { success: false, error: 'typeText requires params.text' };
-            // Insert whole string in one call — fast path.
-            await debuggerSend(tabId, 'Input.insertText', { text });
-            return { success: true, typed: text.slice(0, 200), chars: text.length };
+            const mode = params.mode === 'keystrokes' ? 'keystrokes' : 'insert';
+            if (mode === 'keystrokes') {
+                // Fires real keydown/keyup per char — required for games/editors
+                // that listen to key events rather than input events.
+                for (const ch of text) {
+                    const down = buildKeyEvent('keyDown', ch);
+                    await debuggerSend(tabId, 'Input.dispatchKeyEvent', down);
+                    if (down.text) await debuggerSend(tabId, 'Input.dispatchKeyEvent', { ...down, type: 'char' });
+                    await debuggerSend(tabId, 'Input.dispatchKeyEvent', buildKeyEvent('keyUp', ch));
+                }
+            } else {
+                await debuggerSend(tabId, 'Input.insertText', { text });
+            }
+            return { success: true, typed: text.slice(0, 200), chars: text.length, mode };
         }
         case 'pressKeyAt': {
             const key = params.key || 'Enter';
-            const down = buildKeyEvent('keyDown', key);
-            const up = buildKeyEvent('keyUp', key);
+            const mods = modifiersMask(params.modifiers || {});
+            const down = { ...buildKeyEvent('keyDown', key), modifiers: mods };
+            const up = { ...buildKeyEvent('keyUp', key), modifiers: mods };
             await debuggerSend(tabId, 'Input.dispatchKeyEvent', down);
-            if (down.text) await debuggerSend(tabId, 'Input.dispatchKeyEvent', { ...down, type: 'char' });
+            // Only fire `char` for printable keys when NO non-shift modifier is held
+            // (e.g. Ctrl+A must NOT insert the letter 'a' into the document).
+            if (down.text && !(params.modifiers && (params.modifiers.ctrl || params.modifiers.alt || params.modifiers.meta))) {
+                await debuggerSend(tabId, 'Input.dispatchKeyEvent', { ...down, type: 'char' });
+            }
             await debuggerSend(tabId, 'Input.dispatchKeyEvent', up);
-            return { success: true, key };
+            return { success: true, key, modifiers: params.modifiers || null };
         }
         case 'scrollAt': {
             const { x, y } = await resolveXY();

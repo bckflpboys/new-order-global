@@ -718,6 +718,32 @@
     });
   }
 
+  // Wait for the DOM to be "quiet" — no mutations for `idleMs` in a row.
+  // Resolves earlier than a blind `wait(5000)` on fast pages, and later on
+  // slow SPAs. Returns { stable: true } on success, or { stable: false,
+  // reason: 'timeout' } if `timeout` is hit first.
+  function executeWaitForStable(params) {
+    const idleMs = Math.min(Math.max(params?.idleMs || 500, 100), 10000);
+    const timeout = Math.min(Math.max(params?.timeout || 8000, 500), 30000);
+    const start = Date.now();
+    return new Promise((resolve) => {
+      let lastSeen = __geLastMutationAt || Date.now();
+      const tick = () => {
+        const now = Date.now();
+        const sinceMut = now - (__geLastMutationAt || lastSeen);
+        if (sinceMut >= idleMs) {
+          return resolve({ success: true, stable: true, waitedMs: now - start, msSinceLastMutation: sinceMut });
+        }
+        if (now - start >= timeout) {
+          return resolve({ success: false, stable: false, reason: 'timeout', waitedMs: now - start, msSinceLastMutation: sinceMut,
+            recovery: 'Page is still mutating after timeout. Consider taking a `screenshot`, or proceed anyway if the key element is already visible.' });
+        }
+        setTimeout(tick, Math.min(200, idleMs / 2));
+      };
+      tick();
+    });
+  }
+
   // ============================================
   // Helper Functions
   // ============================================
@@ -863,6 +889,9 @@
             break;
           case 'waitForElement':
             result = await executeWaitForElement(params);
+            break;
+          case 'waitForStable':
+            result = await executeWaitForStable(params);
             break;
           case 'hover':
             result = executeHover(params);
