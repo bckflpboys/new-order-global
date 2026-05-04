@@ -569,6 +569,88 @@
     return arr;
   }
 
+  // Resolve type-target candidates from any combination of selector / name /
+  // label / placeholder. Returns an array of input/textarea/contenteditable
+  // elements ranked by visibility. The cascade only runs as a FALLBACK —
+  // the explicit `selector` path is tried first to preserve prior behaviour.
+  function resolveTypeCandidates(params) {
+    // 1) Explicit selector first — keeps prior behaviour for callers that
+    //    already supplied a working selector.
+    if (params.selector) {
+      const els = findElements(params.selector);
+      if (els && els.length) return els;
+      // fall through to attribute fallbacks
+    }
+
+    const seen = new Set();
+    const candidates = [];
+    const push = (el) => {
+      if (!el || seen.has(el)) return;
+      const tag = el.tagName;
+      if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !el.isContentEditable) return;
+      // Skip checkbox / radio / hidden / submit / button input subtypes —
+      // those aren't typable.
+      if (tag === 'INPUT') {
+        const t = (el.type || 'text').toLowerCase();
+        if (['checkbox','radio','hidden','submit','button','reset','file','image','range','color'].includes(t)) return;
+      }
+      seen.add(el); candidates.push(el);
+    };
+
+    // 2) name="..." (case-insensitive substring match — robust to LLM giving
+    //    a fragment like "email" instead of the exact name attribute).
+    if (params.name) {
+      const needle = String(params.name).toLowerCase();
+      for (const el of document.querySelectorAll('input[name], textarea[name]')) {
+        if ((el.getAttribute('name') || '').toLowerCase().includes(needle)) push(el);
+      }
+    }
+
+    // 3) label="..." — look up <label for=ID> + parent <label> wrapping +
+    //    aria-label / aria-labelledby. Substring match because LLM-supplied
+    //    labels often paraphrase ("Email" vs the actual "Email address").
+    if (params.label) {
+      const needle = String(params.label).toLowerCase();
+      // (a) <label for="ID">
+      for (const lab of document.querySelectorAll('label[for]')) {
+        if ((lab.textContent || '').toLowerCase().includes(needle)) {
+          const el = document.getElementById(lab.getAttribute('for'));
+          if (el) push(el);
+        }
+      }
+      // (b) <label> wrapping an input
+      for (const lab of document.querySelectorAll('label')) {
+        if ((lab.textContent || '').toLowerCase().includes(needle)) {
+          const inputs = lab.querySelectorAll('input, textarea, [contenteditable]');
+          for (const i of inputs) push(i);
+        }
+      }
+      // (c) aria-label / aria-labelledby on the input itself
+      for (const el of document.querySelectorAll('input[aria-label], textarea[aria-label], [contenteditable][aria-label]')) {
+        if ((el.getAttribute('aria-label') || '').toLowerCase().includes(needle)) push(el);
+      }
+      for (const el of document.querySelectorAll('input[aria-labelledby], textarea[aria-labelledby]')) {
+        const ids = (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
+        for (const id of ids) {
+          const labEl = document.getElementById(id);
+          if (labEl && (labEl.textContent || '').toLowerCase().includes(needle)) { push(el); break; }
+        }
+      }
+    }
+
+    // 4) placeholder="..." — substring match.
+    if (params.placeholder) {
+      const needle = String(params.placeholder).toLowerCase();
+      for (const el of document.querySelectorAll('input[placeholder], textarea[placeholder]')) {
+        if ((el.getAttribute('placeholder') || '').toLowerCase().includes(needle)) push(el);
+      }
+    }
+
+    // Visible elements first.
+    candidates.sort((a, b) => (isLikelyVisible(a) ? 0 : 1) - (isLikelyVisible(b) ? 0 : 1));
+    return candidates;
+  }
+
   function isLikelyVisible(el) {
     if (!el || !el.getBoundingClientRect) return false;
     const r = el.getBoundingClientRect();
@@ -592,10 +674,28 @@
   }
 
   function executeType(params) {
-    const els = findElements(params.selector);
-    const el = els && els[params.index || 0];
+    // Multi-strategy input resolution. Same philosophy as resolveClickCandidates:
+    // try the explicit `selector` first (preserves prior behaviour), then
+    // cascade through `name` / `label` / `placeholder` so the LLM can target
+    // an input the way a human reads the form (label text, placeholder
+    // ghost text, or `name="email"` from page-state recall) without having
+    // to guess a selector. The cascade only fires when `selector` returns
+    // nothing — a matched-but-disabled / hidden input is a real failure
+    // and gets reported with its structured `reason` below.
+    const candidates = resolveTypeCandidates(params);
+    const el = candidates && candidates[params.index || 0];
     if (!el) {
-      return { success: false, reason: 'no_match', error: `Input not found: ${params.selector}`, recovery: 'Use readPage to list inputs and pick a name/label-based selector. Try input[name="..."] or input[placeholder="..."].' };
+      const tried = [];
+      if (params.selector)    tried.push(`selector="${params.selector}"`);
+      if (params.name)        tried.push(`name="${params.name}"`);
+      if (params.label)       tried.push(`label~="${params.label}"`);
+      if (params.placeholder) tried.push(`placeholder~="${params.placeholder}"`);
+      return {
+        success: false,
+        reason: 'no_match',
+        error: `Input not found for: ${tried.join(', ') || '<no targeting params>'}`,
+        recovery: 'Use readPage to list inputs and pick a name/label-based selector. You can also target by `label`, `name`, or `placeholder` directly — e.g. `{ "label": "Email" }` or `{ "placeholder": "Search..." }`.'
+      };
     }
     const tag = el.tagName;
     if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !el.isContentEditable) {

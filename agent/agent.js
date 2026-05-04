@@ -1219,7 +1219,16 @@
     const TAB_REQUIRED_ACTIONS = new Set([
       'goto', 'goBack', 'goForward', 'reload', 'screenshot',
       'readPage', 'click', 'type', 'scroll', 'extract',
-      'waitForElement', 'select', 'pressKey', 'clear'
+      'waitForElement', 'select', 'pressKey', 'clear',
+      // Compound macro actions — see executeLoop dispatch.
+      'clickAndWait', 'typeAndSubmit', 'gotoAndRead'
+    ]);
+
+    // Actions that INTRINSICALLY change the URL — staleness check below
+    // skips these because the URL "drift" they cause is intentional.
+    const NAVIGATION_ACTIONS = new Set([
+      'goto', 'goBack', 'goForward', 'reload', 'openTab', 'switchTab',
+      'closeTab', 'gotoAndRead'
     ]);
 
     // === Self-healing tab recovery ===
@@ -1334,6 +1343,54 @@
       return { healed: true, reason, note, previousTabId, newTabId: chosen.tabId };
     }
 
+    // === Page-staleness detection ===
+    // The LLM plans its action based on the page state we sent to /step on
+    // the LAST round. If the user (or a slow JS redirect, or a meta-refresh)
+    // navigated the tab AWAY from that URL while the model was thinking,
+    // selectors and text targets the model picked may no longer exist on
+    // the live page. Rather than letting the action fail with `no_match`
+    // (and the agent waste a step diagnosing it) we detect the drift here
+    // and attach a `pageStaleHint` to the action result so the LLM sees
+    // "the page changed under you, re-read it" on its next /step.
+    //
+    // We DO NOT block dispatch — many drifts are benign (hash/query change,
+    // SPA route within same app). The runtime's own `reason` codes still
+    // fire if the action genuinely fails. The hint is purely advisory.
+    //
+    // Skipped for navigation actions (their whole job is to change the URL).
+    async function checkPageStaleness(action) {
+      if (NAVIGATION_ACTIONS.has(action)) return null;
+      if (!currentTabId) return null;
+      const expectedUrl = trackedTabs[activeTabIndex]?.url || '';
+      if (!expectedUrl) return null;
+      let liveUrl = '';
+      try {
+        const resp = await sendToBackground('ge-list-tabs', {});
+        if (resp?.success && Array.isArray(resp.tabs)) {
+          const live = resp.tabs.find(t => t.tabId === currentTabId);
+          if (live) liveUrl = live.url || '';
+        }
+      } catch { /* best effort */ }
+      if (!liveUrl) return null;
+      // Compare hostname + pathname only — query/hash drift is usually fine
+      // (SPAs use them heavily) and would create too much noise.
+      let expectedHostPath = '', liveHostPath = '';
+      try {
+        const a = new URL(expectedUrl); expectedHostPath = a.hostname.replace(/^www\./, '') + a.pathname.replace(/\/$/, '');
+        const b = new URL(liveUrl);     liveHostPath     = b.hostname.replace(/^www\./, '') + b.pathname.replace(/\/$/, '');
+      } catch { return null; }
+      if (expectedHostPath === liveHostPath) return null;
+      // Drift detected — sync trackedTabs so future steps don't keep firing
+      // this hint, and surface a one-shot note to the LLM.
+      if (trackedTabs[activeTabIndex]) trackedTabs[activeTabIndex].url = liveUrl;
+      return {
+        stale: true,
+        expectedUrl,
+        liveUrl,
+        hint: `PAGE-STALE: the tab navigated from "${expectedUrl}" to "${liveUrl}" between the page-state you saw and this action. Selectors / text targets you chose may not exist on the new page. If your action fails or returns unexpected content, call \`readPage\` ONCE to refresh, then retry with new targets — do NOT loop on \`readPage\`.`
+      };
+    }
+
     try {
       while (isRunning) {
         const { action, params, stepNumber } = step;
@@ -1352,6 +1409,7 @@
         // we stash a note that gets attached to `result` after the action
         // succeeds, so the server sees it on the next /step call.
         let tabRecoveryNote = null;
+        let pageStaleNote = null;
         let skipActionDispatch = false;
         if (TAB_REQUIRED_ACTIONS.has(action)) {
           try {
@@ -1364,6 +1422,21 @@
             }
           } catch (healErr) {
             console.warn('[Global Executive] ensureLiveTab failed:', healErr?.message || healErr);
+          }
+          // Page-staleness — only meaningful if we have a live tab AND the
+          // action depends on the current DOM (i.e. NOT a navigation action).
+          // If the recovery path just created/switched tabs we skip the check
+          // for this iteration (the recovery note already carries that signal).
+          if (!skipActionDispatch && !tabRecoveryNote) {
+            try {
+              const stale = await checkPageStaleness(action);
+              if (stale && stale.stale) {
+                pageStaleNote = stale.hint;
+                console.log(`[Global Executive] page-stale detected: ${stale.expectedUrl} → ${stale.liveUrl}`);
+              }
+            } catch (staleErr) {
+              console.warn('[Global Executive] checkPageStaleness failed:', staleErr?.message || staleErr);
+            }
           }
         }
 
@@ -1573,6 +1646,152 @@
             } else {
               error = r?.error || 'Screenshot failed';
             }
+          } else if (action === 'gotoAndRead' || action === 'clickAndWait' || action === 'typeAndSubmit') {
+            // ============================================
+            // === Compound action macros ===
+            // ============================================
+            // Halve the round-trip cost on the three most common 2-step
+            // patterns the agent emits. Each macro runs its primitives
+            // sequentially through the SAME extension paths the LLM would
+            // use individually (so all the existing reason codes / health
+            // checks / auto-adopt logic still applies), and returns a
+            // single combined result. Sub-results are surfaced under
+            // `macroSubResults` so debugging and the LLM's next-step
+            // context stay accurate.
+            //
+            // Tunable timings — kept short (waitForStable defaults to
+            // 2000 ms, post-goto sleep 800 ms) because the macro is meant
+            // to save a round-trip, not to be a bulletproof flow runner.
+            // If a site needs longer waits, the LLM should fall back to
+            // explicit primitive sequences.
+            const subResults = {};
+            try {
+              if (action === 'gotoAndRead') {
+                // Goto first (uses background-relayed handler so all the
+                // "openedNew" / tab-tracking logic from regular `goto`
+                // applies). On failure we abort and surface the error
+                // — no point reading a page we never reached.
+                if (!params?.url) {
+                  error = "gotoAndRead requires params.url. Retry with the url field.";
+                } else {
+                  const g = await sendToBackground('ge-goto', { tabId: currentTabId, url: params.url });
+                  if (!g?.success) {
+                    error = g?.error || 'gotoAndRead: navigation failed';
+                  } else {
+                    subResults.goto = { success: true, url: g.url, title: g.title };
+                    if (g.openedNew && g.tabId) {
+                      trackedTabs.push({ tabId: g.tabId, tabIndex: trackedTabs.length, url: g.url, status: 'active' });
+                      currentTabId = g.tabId;
+                      activeTabIndex = trackedTabs.length - 1;
+                    } else if (trackedTabs[activeTabIndex]) {
+                      trackedTabs[activeTabIndex].url = g.url;
+                    }
+                    // Wait for the page to settle, then readPage. Slightly
+                    // longer than plain `goto` because we know we're going
+                    // to read immediately and don't want partial DOM.
+                    await sleep(1200);
+                    const r = await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'readPage', params: {} });
+                    if (r?.success) {
+                      subResults.readPage = r.result;
+                      result = {
+                        success: true,
+                        macro: 'gotoAndRead',
+                        url: g.url,
+                        title: g.title,
+                        readPage: r.result,
+                        macroSubResults: subResults,
+                        hint: 'Macro: navigated AND read page in one step. Inspect `readPage` for the next interactive target.'
+                      };
+                    } else {
+                      // Navigation succeeded but readPage failed — still report
+                      // a partial success so the agent doesn't think the goto
+                      // was rejected. It can readPage explicitly next step.
+                      result = {
+                        success: true,
+                        macro: 'gotoAndRead',
+                        url: g.url,
+                        title: g.title,
+                        readPageFailed: true,
+                        readPageError: r?.error || 'unknown',
+                        macroSubResults: subResults,
+                        hint: 'Macro partial: goto succeeded but readPage failed. Call `readPage` explicitly next step.'
+                      };
+                    }
+                  }
+                }
+              } else if (action === 'clickAndWait') {
+                // Click then wait for DOM to settle (waitForStable). If the
+                // caller supplied a `waitFor` selector, prefer waitForElement.
+                const c = await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'click', params });
+                if (!c?.success) {
+                  error = c?.error || 'clickAndWait: click rejected by runtime';
+                } else if (c.result && c.result.success === false) {
+                  // Click reached the runtime but failed (no_match, hidden, etc.)
+                  // — surface the structured failure as the macro's outcome
+                  // so the LLM sees the same `reason`/`recovery` it would
+                  // have on a plain click.
+                  result = { success: false, macro: 'clickAndWait', ...c.result, macroSubResults: { click: c.result } };
+                  error = c.result.error || 'click failed';
+                } else {
+                  subResults.click = c.result;
+                  // Wait phase. If `waitFor` selector provided → waitForElement
+                  // (deterministic). Otherwise → waitForStable (DOM settles).
+                  const waitForSel = params?.waitFor || params?.waitForSelector;
+                  let w;
+                  if (waitForSel) {
+                    w = await sendToBackground('ge-execute-in-tab', {
+                      tabId: currentTabId,
+                      action: 'waitForElement',
+                      params: { selector: waitForSel, timeout: params?.waitTimeout || 5000 }
+                    });
+                  } else {
+                    w = await sendToBackground('ge-execute-in-tab', {
+                      tabId: currentTabId,
+                      action: 'waitForStable',
+                      params: { timeout: params?.waitTimeout || 2500 }
+                    });
+                  }
+                  subResults.wait = w?.result || { success: false, error: w?.error || 'wait failed' };
+                  result = {
+                    success: true,
+                    macro: 'clickAndWait',
+                    ...c.result,
+                    waited: subResults.wait,
+                    macroSubResults: subResults,
+                    hint: 'Macro: clicked AND waited for the page to settle. Proceed to your next planned action without `wait`/`waitForElement`.'
+                  };
+                }
+              } else if (action === 'typeAndSubmit') {
+                // Type with pressEnter forced true, then wait for stability.
+                // Common form-submit pattern compressed into one round-trip.
+                const typeParams = { ...(params || {}), pressEnter: true };
+                const t = await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'type', params: typeParams });
+                if (!t?.success) {
+                  error = t?.error || 'typeAndSubmit: type rejected by runtime';
+                } else if (t.result && t.result.success === false) {
+                  result = { success: false, macro: 'typeAndSubmit', ...t.result, macroSubResults: { type: t.result } };
+                  error = t.result.error || 'type failed';
+                } else {
+                  subResults.type = t.result;
+                  const w = await sendToBackground('ge-execute-in-tab', {
+                    tabId: currentTabId,
+                    action: 'waitForStable',
+                    params: { timeout: params?.waitTimeout || 3000 }
+                  });
+                  subResults.wait = w?.result || { success: false, error: w?.error || 'wait failed' };
+                  result = {
+                    success: true,
+                    macro: 'typeAndSubmit',
+                    ...t.result,
+                    waited: subResults.wait,
+                    macroSubResults: subResults,
+                    hint: 'Macro: typed + pressed Enter + waited for the page to settle. If a navigation was expected, the new page should now be loaded.'
+                  };
+                }
+              }
+            } catch (macroErr) {
+              error = `${action} macro failed: ${macroErr?.message || macroErr}`;
+            }
           } else if (action === 'askUser' || action === 'confirmAction') {
             // Server set status='awaiting_user' and persisted the question. Show modal.
             const reply = action === 'askUser'
@@ -1728,6 +1947,15 @@
             result.tabRecovered = true;
             result.recoveryNote = tabRecoveryNote;
             result.hint = (result.hint ? result.hint + ' ' : '') + tabRecoveryNote;
+          }
+
+          // Same channel for page-staleness drift. Always attach (even if
+          // the action itself succeeded) — the LLM still benefits from
+          // knowing the live URL differs from what it planned against.
+          if (pageStaleNote && result && typeof result === 'object') {
+            result.pageStale = true;
+            result.pageStaleHint = pageStaleNote;
+            result.hint = (result.hint ? result.hint + ' ' : '') + pageStaleNote;
           }
         } catch (actionErr) {
           error = actionErr.message || 'Action execution error';
