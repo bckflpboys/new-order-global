@@ -642,11 +642,54 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'ge-execute-in-tab') {
         (async () => {
             try {
-                const { tabId, action, params } = message;
+                let { tabId, action, params } = message;
 
+                // Defence-in-depth self-healing: the agent-side executeLoop
+                // already runs ensureLiveTab() before dispatch, but if a
+                // caller slips through with no tabId (or a stale one), try
+                // to recover here instead of hard-failing the step. Falls
+                // back to Chrome's currently-active http(s) tab, then any
+                // open http(s) tab. If nothing works, surface a directive
+                // error the LLM can act on (openTab / goto).
+                async function resolveFallbackTabId() {
+                    try {
+                        const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
+                        if (active && typeof active.id === 'number' && /^https?:\/\//i.test(active.url || '')) return active.id;
+                    } catch { /* ignore */ }
+                    try {
+                        const all = await chrome.tabs.query({});
+                        const cand = all.find(t => typeof t.id === 'number' && /^https?:\/\//i.test(t.url || ''));
+                        if (cand) return cand.id;
+                    } catch { /* ignore */ }
+                    return null;
+                }
+
+                let tabIdRecovered = false;
                 if (!tabId) {
-                    sendResponse({ success: false, error: 'No active browser tab available. The agent needs an open web tab to interact with.' });
-                    return;
+                    const fallback = await resolveFallbackTabId();
+                    if (fallback) {
+                        tabId = fallback;
+                        tabIdRecovered = true;
+                        console.log('[bg] ge-execute-in-tab: no tabId supplied; auto-recovered to tab', fallback);
+                    } else {
+                        sendResponse({ success: false, error: 'No active browser tab available and no open http(s) tab to fall back to. Use `openTab` with a url to create one, then retry.' });
+                        return;
+                    }
+                } else {
+                    // Validate the supplied tabId is still alive; if not, try a fallback.
+                    let alive = false;
+                    try { await chrome.tabs.get(tabId); alive = true; } catch { alive = false; }
+                    if (!alive) {
+                        const fallback = await resolveFallbackTabId();
+                        if (fallback) {
+                            console.log('[bg] ge-execute-in-tab: supplied tabId', tabId, 'is dead; auto-recovered to', fallback);
+                            tabId = fallback;
+                            tabIdRecovered = true;
+                        } else {
+                            sendResponse({ success: false, error: `Tab ${tabId} no longer exists and no other http(s) tab is open. Use \`openTab\` with a url to create one, then retry.` });
+                            return;
+                        }
+                    }
                 }
 
                 // === Debugger-based actions ===

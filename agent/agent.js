@@ -1214,6 +1214,126 @@
     // survives across iterations of the while-loop.
     let serverErrorStreak = 0;
 
+    // Actions that REQUIRE a live web tab in the current Chrome window. Used
+    // by the pre-action self-healing pass (see ensureLiveTab below).
+    const TAB_REQUIRED_ACTIONS = new Set([
+      'goto', 'goBack', 'goForward', 'reload', 'screenshot',
+      'readPage', 'click', 'type', 'scroll', 'extract',
+      'waitForElement', 'select', 'pressKey', 'clear'
+    ]);
+
+    // === Self-healing tab recovery ===
+    // Verifies `currentTabId` still points at a live Chrome tab. If it's
+    // missing or stale (tab closed / crashed / user navigated away), we
+    // recover transparently by falling back through:
+    //   (1) most-recently-added agent-tracked tab that is still alive
+    //   (2) Chrome's currently-active http(s) tab
+    //   (3) any open http(s) tab
+    //   (4) last resort: open a fresh google.com tab
+    // The caller attaches the returned `note` to the action result so the
+    // server surfaces it to the LLM on the next /step call (prevents the
+    // model from blindly re-issuing switchTab / goto against a dead id).
+    async function ensureLiveTab() {
+      let tabsResp = null;
+      try { tabsResp = await sendToBackground('ge-list-tabs', {}); } catch { /* best effort */ }
+      const rawTabs = (tabsResp?.success && Array.isArray(tabsResp.tabs)) ? tabsResp.tabs : [];
+      const liveIds = new Set(rawTabs.map(t => t.tabId).filter(id => typeof id === 'number'));
+
+      // Fast path: current tab is alive — nothing to do.
+      if (currentTabId && liveIds.has(currentTabId)) return { healed: false };
+
+      const previousTabId = currentTabId;
+
+      // Mark any tracked tab that no longer exists as closed so later
+      // tabIndex-based actions can't pick a zombie.
+      for (const tt of trackedTabs) {
+        if (tt.status !== 'closed' && !liveIds.has(tt.tabId)) tt.status = 'closed';
+      }
+
+      let chosen = null;
+      let reason = '';
+
+      // (1) Most recently added tracked tab that is still alive.
+      for (let i = trackedTabs.length - 1; i >= 0; i--) {
+        const tt = trackedTabs[i];
+        if (tt.status !== 'closed' && liveIds.has(tt.tabId)) {
+          chosen = tt;
+          reason = 'recent_tracked_tab';
+          activeTabIndex = i;
+          break;
+        }
+      }
+
+      // (2) Chrome's currently-active http(s) tab.
+      if (!chosen) {
+        const a = rawTabs.find(t => t.active && /^https?:\/\//i.test(t.url || ''));
+        if (a && typeof a.tabId === 'number') {
+          chosen = { tabId: a.tabId, url: a.url || '', title: a.title || '', status: 'active' };
+          reason = 'chrome_active_tab';
+        }
+      }
+
+      // (3) Any open http(s) tab.
+      if (!chosen) {
+        const a = rawTabs.find(t => /^https?:\/\//i.test(t.url || ''));
+        if (a && typeof a.tabId === 'number') {
+          chosen = { tabId: a.tabId, url: a.url || '', title: a.title || '', status: 'active' };
+          reason = 'any_open_tab';
+        }
+      }
+
+      // (4) Last resort: open a fresh neutral tab.
+      if (!chosen) {
+        try {
+          const created = await sendToBackground('ge-open-tab', { url: 'https://www.google.com' });
+          if (created?.tabId) {
+            chosen = {
+              tabId: created.tabId,
+              url: created.url || 'https://www.google.com',
+              title: created.title || '',
+              status: 'active'
+            };
+            reason = 'opened_fallback_tab';
+          }
+        } catch { /* ignore */ }
+      }
+
+      if (!chosen) {
+        return { healed: false, failed: true, reason: 'no_recoverable_tab', previousTabId };
+      }
+
+      // Register / refresh in trackedTabs so later tabIndex refs line up.
+      let idx = trackedTabs.findIndex(t => t.tabId === chosen.tabId);
+      if (idx < 0) {
+        trackedTabs.push({
+          tabId: chosen.tabId,
+          tabIndex: trackedTabs.length,
+          url: chosen.url || '',
+          title: chosen.title || '',
+          status: 'active'
+        });
+        idx = trackedTabs.length - 1;
+      } else {
+        trackedTabs[idx].status = 'active';
+        if (chosen.url) trackedTabs[idx].url = chosen.url;
+        if (chosen.title) trackedTabs[idx].title = chosen.title;
+      }
+      activeTabIndex = idx;
+      currentTabId = chosen.tabId;
+
+      const label = (chosen.title || chosen.url || `tab#${chosen.tabId}`).toString().slice(0, 80);
+      const prevDesc = previousTabId ? `previous tab (id ${previousTabId}) was closed or crashed` : 'no tab was active';
+      const reasonDesc = ({
+        recent_tracked_tab: 'fell back to the most recent agent-tracked tab still open',
+        chrome_active_tab: "fell back to Chrome's currently-active tab",
+        any_open_tab: 'fell back to another open browser tab',
+        opened_fallback_tab: 'opened a fresh google.com tab as a last resort'
+      })[reason] || 'auto-recovered';
+      const note = `AUTO-RECOVERED TAB: ${prevDesc}, so the agent ${reasonDesc} — you are now on "${label}". Do not call switchTab for this tab; proceed with your next action (readPage / goto / click / etc.) on it.`;
+
+      return { healed: true, reason, note, previousTabId, newTabId: chosen.tabId };
+    }
+
     try {
       while (isRunning) {
         const { action, params, stepNumber } = step;
@@ -1226,8 +1346,32 @@
         removeExecutingIndicator();
         renderExecutingIndicator();
 
+        // === Pre-action self-healing ===
+        // For any action that needs a live tab, verify currentTabId still
+        // maps to a real Chrome tab; recover silently if not. On recovery,
+        // we stash a note that gets attached to `result` after the action
+        // succeeds, so the server sees it on the next /step call.
+        let tabRecoveryNote = null;
+        let skipActionDispatch = false;
+        if (TAB_REQUIRED_ACTIONS.has(action)) {
+          try {
+            const heal = await ensureLiveTab();
+            if (heal.healed) {
+              tabRecoveryNote = heal.note;
+            } else if (heal.failed) {
+              error = 'No browser tab available and automatic recovery failed. Use `openTab` with a url to create one, then retry.';
+              skipActionDispatch = true;
+            }
+          } catch (healErr) {
+            console.warn('[Global Executive] ensureLiveTab failed:', healErr?.message || healErr);
+          }
+        }
+
         try {
-          if (action === 'done') {
+          if (skipActionDispatch) {
+            // Tab recovery failed above; `error` is already set. Fall
+            // through to the reporting phase so the server is informed.
+          } else if (action === 'done') {
             // Task complete
             removeExecutingIndicator();
             renderDoneStep(params?.summary || 'Task completed');
@@ -1576,6 +1720,15 @@
               error = response?.error || 'Action failed';
             }
           }
+
+          // If we silently recovered from a dead tab earlier in this step,
+          // annotate the result so the server can inject the note into the
+          // next LLM prompt. Skipped if the action itself failed.
+          if (tabRecoveryNote && !error && result && typeof result === 'object') {
+            result.tabRecovered = true;
+            result.recoveryNote = tabRecoveryNote;
+            result.hint = (result.hint ? result.hint + ' ' : '') + tabRecoveryNote;
+          }
         } catch (actionErr) {
           error = actionErr.message || 'Action execution error';
           console.error('[Global Executive] Action error:', actionErr);
@@ -1598,7 +1751,7 @@
         }
 
         // Get current page state for context
-        if (['readPage', 'click', 'type', 'scroll', 'extract', 'waitForElement', 'select', 'pressKey', 'clear'].includes(action)) {
+        if (currentTabId && ['readPage', 'click', 'type', 'scroll', 'extract', 'waitForElement', 'select', 'pressKey', 'clear'].includes(action)) {
           try {
             const pageResult = await sendToBackground('ge-execute-in-tab', {
               tabId: currentTabId,
