@@ -654,6 +654,8 @@
       else if (step.action === 'clear') detailText = `Clearing: ${step.params.selector || ''}`;
       else if (step.action === 'rememberThis') detailText = `Remembering: "${(step.params.text || '').substring(0, 80)}"`;
       else if (step.action === 'notifyUser') detailText = `Pinging user: "${(step.params.text || '').substring(0, 80)}"`;
+      else if (step.action === 'webSearch') detailText = `Searching the web: "${(step.params.query || step.params.q || '').substring(0, 80)}"`;
+      else if (step.action === 'researchNote') detailText = `Recording evidence [${step.params.topic || 'general'}]: "${(step.params.claim || '').substring(0, 80)}" — ${step.params.source || ''}`;
     }
 
     entry.innerHTML = `
@@ -867,6 +869,7 @@
       pendingTaskContext = {
         taskId: planData.taskId,
         plan: planData.plan,
+        taskType: planData.taskType || 'action',
         requiredInputs: planData.requiredInputs || [],
         permissionsRequested: planData.permissionsRequested || {},
         mode: selectedMode,
@@ -933,8 +936,30 @@
     const modal = document.getElementById('plan-modal');
     if (!modal) { startTaskExecution(ctx, {}, {}); return; }
 
-    document.getElementById('plan-mode-banner').textContent =
-      (ctx.mode === 'autopilot' ? 'Auto-Pilot' : 'Co-Pilot') + ' mode';
+    // Mode banner is also where we surface the planner's task-type
+    // classification. The badge is appended (not replacing) so existing
+    // mode text stays in place. Browser-agnostic: works the same in
+    // Chrome / Edge / Firefox / Safari since it's just DOM.
+    const modeBanner = document.getElementById('plan-mode-banner');
+    modeBanner.textContent = (ctx.mode === 'autopilot' ? 'Auto-Pilot' : 'Co-Pilot') + ' mode';
+    const tt = String(ctx.taskType || 'action').toLowerCase();
+    const badgeMap = {
+      research: { icon: '🔬', label: 'Research task', cls: 'tasktype-research', tip: 'The agent will gather and cross-reference sources before reporting. Done is gated until ≥2 distinct source domains are recorded.' },
+      mixed:    { icon: '🔀', label: 'Mixed (research + action)', cls: 'tasktype-mixed', tip: 'The agent will research first, then act. The same source-count gate applies.' },
+      action:   { icon: '⚙️', label: 'Action task', cls: 'tasktype-action', tip: 'The agent will execute on a site. No source-count gate.' }
+    };
+    const b = badgeMap[tt] || badgeMap.action;
+    let badge = document.getElementById('plan-tasktype-badge');
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.id = 'plan-tasktype-badge';
+      badge.className = 'tasktype-badge';
+      modeBanner.appendChild(document.createTextNode(' '));
+      modeBanner.appendChild(badge);
+    }
+    badge.className = `tasktype-badge ${b.cls}`;
+    badge.title = b.tip;
+    badge.textContent = `${b.icon} ${b.label}`;
     document.getElementById('plan-goal').textContent = ctx.plan?.goal || ctx.prompt;
     document.getElementById('plan-summary').textContent = ctx.plan?.summary || '(no summary)';
 
@@ -1228,6 +1253,17 @@
             // result of that push is stamped onto the step on the server;
             // we just acknowledge here.
             result = { success: true, notified: params?.text || '' };
+          } else if (action === 'webSearch') {
+            // Server-side action: the SERP fetch ran on the backend and
+            // the result was rewritten to a `message` before we got here.
+            // This branch is a safety net in case the rewrite didn't fire
+            // (shouldn't happen, but we never want to bounce a no-op
+            // action down to `ge-execute-in-tab`).
+            result = { success: true, query: params?.query || '' };
+          } else if (action === 'researchNote') {
+            // Server-side: the note was persisted on the task server-side.
+            // Same safety-net rationale as webSearch above.
+            result = { success: true, recorded: params?.claim || '' };
           } else if (action === 'wait') {
             await sleep(Math.min(params?.ms || 1000, 10000));
             result = { success: true };

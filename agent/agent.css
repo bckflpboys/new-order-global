@@ -1806,6 +1806,44 @@ body.autopilot-mode .agent-app {
   color: var(--on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Task-type badge — surfaces the planner's classification on the plan
+   modal so the user knows whether to expect a research, action, or
+   mixed run. Uses the same pill geometry as .risk-badge for visual
+   consistency. Browser-agnostic CSS; no vendor-prefix needed. */
+.tasktype-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  line-height: 1.4;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.tasktype-badge.tasktype-research {
+  background: var(--info-bg, rgba(56, 132, 255, 0.12));
+  color: var(--info, #1a73e8);
+  border-color: rgba(56, 132, 255, 0.35);
+}
+.tasktype-badge.tasktype-mixed {
+  background: var(--warning-bg, rgba(255, 168, 38, 0.15));
+  color: var(--warning, #b25e00);
+  border-color: rgba(255, 168, 38, 0.4);
+}
+.tasktype-badge.tasktype-action {
+  background: var(--success-bg, rgba(46, 160, 67, 0.12));
+  color: var(--success, #2ea043);
+  border-color: rgba(46, 160, 67, 0.35);
 }
 .ge-modal .modal-body {
   padding: 16px 24px;

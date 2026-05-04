@@ -141,6 +141,24 @@
     $('pref-prefer-current').checked = !!p.preferCurrentTab;
     $('pref-auto-confirm-low').checked = !!p.autoConfirmLowRisk;
     $('pref-verbose').checked = !!p.verboseLogging;
+
+    // Research-depth fields. Defaults match the server-side
+    // RESEARCH_DEFAULTS so an existing user who never opened this card
+    // sees the same numbers the agent is already using.
+    const r = (p.research && typeof p.research === 'object') ? p.research : {};
+    const setNum = (id, val, fallback) => {
+      const el = $(id);
+      if (!el) return;
+      el.value = (typeof val === 'number' && Number.isFinite(val)) ? val : fallback;
+    };
+    setNum('pref-research-min-domains',   r.minDistinctDomains, 2);
+    setNum('pref-research-max-pages',     r.maxSearchPages,     1);
+    setNum('pref-research-min-sites',     r.minWebsitesToVisit, 2);
+    setNum('pref-research-max-links',     r.maxLinksPerWebsite, 1);
+    setNum('pref-research-max-paginated', r.maxPaginatedPages,  1);
+    setNum('pref-research-scroll',        r.scrollPasses,       1);
+    const verifyEl = $('pref-research-verify');
+    if (verifyEl) verifyEl.checked = (typeof r.verifySources === 'boolean') ? r.verifySources : true;
   }
 
   // ============================================
@@ -268,6 +286,39 @@
       toast('Preferences saved.');
     } catch (e) { toast('Failed to save: ' + e.message, 'error'); }
   });
+
+  // ============================================
+  // Research depth — saved through the same /preferences endpoint but
+  // grouped into a `research` sub-object the server clamps to safe ranges.
+  // ============================================
+  const _resBtn = $('btn-save-research-depth');
+  if (_resBtn) {
+    _resBtn.addEventListener('click', async () => {
+      const num = (id, fallback) => {
+        const v = parseInt($(id)?.value, 10);
+        return Number.isFinite(v) ? v : fallback;
+      };
+      const body = {
+        research: {
+          minDistinctDomains: num('pref-research-min-domains', 2),
+          maxSearchPages:     num('pref-research-max-pages', 1),
+          minWebsitesToVisit: num('pref-research-min-sites', 2),
+          maxLinksPerWebsite: num('pref-research-max-links', 1),
+          maxPaginatedPages:  num('pref-research-max-paginated', 1),
+          scrollPasses:       num('pref-research-scroll', 1),
+          verifySources:      !!$('pref-research-verify')?.checked
+        }
+      };
+      try {
+        const data = await NewOrderAPI.request('/api/integrations/preferences', {
+          method: 'PUT',
+          body: JSON.stringify(body)
+        });
+        if (data?.preferences) renderPrefs(data.preferences); // re-render to show clamped values
+        toast('Research settings saved.');
+      } catch (e) { toast('Failed to save: ' + e.message, 'error'); }
+    });
+  }
 
   // ============================================
   // Agent Settings (limits + behaviour + memory toggles)
