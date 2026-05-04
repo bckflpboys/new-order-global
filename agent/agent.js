@@ -1486,23 +1486,26 @@
             if (response?.success) {
               result = response.result;
 
-              // === Auto-adopt new tabs opened by target=_blank / window.open ===
-              // Previously the LLM had to emit a separate `switchTab` call
-              // after a click that opened a new tab, and fumbled params
-              // (e.g. `switchTab` with no url) derailed the whole run.
-              // Now we proactively resolve the newly-opened tab, activate
-              // it in Chrome, and rewrite `currentTabId` so the NEXT step
-              // already operates on the right page. The LLM sees an
-              // `autoAdoptedTab` block in the result and is instructed NOT
-              // to call switchTab for it.
-              if (action === 'click' && result?.openedNewTab) {
+              // === Universal post-click new-tab check (auto-adopt) ===
+              // We run this after EVERY successful click, not just ones the
+              // content script flagged `openedNewTab: true`. That flag is
+              // set only when the anchor has `target=_blank`; but plenty of
+              // sites open tabs via JS (`window.open`) or middle-click
+              // handlers, and those used to be invisible to the agent.
+              // Background implements a fast-path: if NO tab was created
+              // in our window, it returns in ~150ms with reason='no_new_tab'
+              // so latency on the common case is negligible.
+              if (action === 'click') {
                 try {
                   const hrefHint = (result?.clicked?.href || '').toString();
+                  // Longer wait when we have a strong signal a tab is
+                  // coming; short opportunistic wait otherwise.
+                  const timeout = result?.openedNewTab ? 5000 : 700;
                   const newest = await sendToBackground('ge-get-newest-tab', {
                     sinceMs: preActionAt,
                     openerTabId: currentTabId,
                     hrefHint,
-                    timeout: 5000
+                    timeout
                   });
                   if (newest?.success && typeof newest.tabId === 'number' && newest.tabId !== currentTabId) {
                     // Record the adopted tab in trackedTabs so subsequent
@@ -1540,17 +1543,33 @@
                       title: newest.title || ''
                     };
                     result.hint = `New tab opened by this click was AUTO-ADOPTED. You are now on tab "${(newest.title || newest.url || '').slice(0, 80)}". Do NOT call \`switchTab\` for this tab. Proceed directly with your next action (readPage / extract / click / etc.) on this tab.`;
-                  } else if (newest && newest.success === false) {
-                    // Couldn't find a new tab (rare race — popup blocked,
-                    // or the link was same-origin and navigated the CURRENT
-                    // tab after all). Leave the result untouched; the LLM
-                    // still has the original `openedNewTab` hint and can
-                    // fall back to manual switchTab if it actually opened.
+                  } else if (newest?.success === false && newest.reason === 'blank_or_blocked') {
+                    // A new tab was created but never navigated away from
+                    // about:blank — popup blocker, failed window.open, or
+                    // the target page died instantly. Close the empty
+                    // shell so it doesn't clutter trackedTabs, and tell
+                    // the LLM to recover via `goto` on the current tab.
+                    if (typeof newest.staleTabId === 'number') {
+                      try { await sendToBackground('ge-close-tab', { tabId: newest.staleTabId }); } catch { /* best-effort */ }
+                    }
                     result.autoAdoptFailed = true;
+                    result.autoAdoptFailReason = 'blank_or_blocked';
+                    result.hint = `The click opened a new tab but it never navigated (popup blocker or failed window.open). The empty tab was closed automatically. To reach the destination, use \`goto\` with \`${(hrefHint || '<the link URL>').slice(0, 120)}\` on the current tab, or try \`click\` again with a different targeting strategy.`;
+                  } else if (result?.openedNewTab && newest?.success === false) {
+                    // The content script was sure a tab opened, but
+                    // background couldn't find one — very rare race.
+                    result.autoAdoptFailed = true;
+                    result.autoAdoptFailReason = newest.reason || 'unknown';
                   }
+                  // reason === 'no_new_tab' on a click without
+                  // `openedNewTab` is the COMMON silent case — no tab
+                  // opened, no annotation needed.
                 } catch (adoptErr) {
                   console.warn('[Global Executive] Auto-adopt new tab failed:', adoptErr?.message || adoptErr);
-                  result.autoAdoptFailed = true;
+                  if (result?.openedNewTab) {
+                    result.autoAdoptFailed = true;
+                    result.autoAdoptFailReason = 'exception';
+                  }
                 }
               }
             } else {
@@ -1607,8 +1626,10 @@
               // sees the current Chrome window state (not just the stale list
               // from task start). This is what `closeTab`/`switchTab` target.
               let liveTabs = [];
+              let liveTabIds = null; // Set<number> — null if lookup failed
+              let tabsResp = null;
               try {
-                const tabsResp = await sendToBackground('ge-list-tabs', {});
+                tabsResp = await sendToBackground('ge-list-tabs', {});
                 if (tabsResp?.success && Array.isArray(tabsResp.tabs)) {
                   liveTabs = tabsResp.tabs.map(t => ({
                     index: t.index,
@@ -1616,8 +1637,49 @@
                     title: t.title,
                     active: t.active
                   }));
+                  liveTabIds = new Set(tabsResp.tabs.map(t => t.tabId).filter(id => typeof id === 'number'));
                 }
               } catch { /* best effort */ }
+
+              // === TrackedTabs audit ===
+              // Mark any tracked tab that no longer exists in Chrome as
+              // 'closed'. This prevents the LLM from picking a stale
+              // tabIndex on later switchTab/closeTab calls. We also
+              // recover `currentTabId` if it points at a dead tab by
+              // falling back to the active Chrome tab.
+              if (liveTabIds) {
+                for (const tt of trackedTabs) {
+                  if (tt.status !== 'closed' && !liveTabIds.has(tt.tabId)) {
+                    tt.status = 'closed';
+                  }
+                }
+                if (currentTabId && !liveTabIds.has(currentTabId)) {
+                  // Current tab is gone — fall back to Chrome's active tab.
+                  const active = liveTabs.find(t => t.active);
+                  if (active) {
+                    // Find or push the active tab into trackedTabs so
+                    // subsequent actions have a consistent index.
+                    const activeRaw = tabsResp?.tabs?.find(t => t.active);
+                    if (activeRaw && typeof activeRaw.tabId === 'number') {
+                      let idx = trackedTabs.findIndex(t => t.tabId === activeRaw.tabId);
+                      if (idx < 0) {
+                        trackedTabs.push({
+                          tabId: activeRaw.tabId,
+                          tabIndex: trackedTabs.length,
+                          url: activeRaw.url || '',
+                          title: activeRaw.title || '',
+                          status: 'active'
+                        });
+                        idx = trackedTabs.length - 1;
+                      } else {
+                        trackedTabs[idx].status = 'active';
+                      }
+                      activeTabIndex = idx;
+                      currentTabId = activeRaw.tabId;
+                    }
+                  }
+                }
+              }
 
               // Forward the 5 most recent downloads so the server can
               // surface them in the ENVIRONMENT block. The agent uses

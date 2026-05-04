@@ -807,53 +807,76 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const sinceMs = Number(message.sinceMs) || 0;
                 const openerTabId = typeof message.openerTabId === 'number' ? message.openerTabId : null;
                 const hrefHint = (message.hrefHint || '').toString().toLowerCase();
-                const timeout = Math.min(Math.max(Number(message.timeout) || 4000, 500), 10000);
+                const timeout = Math.min(Math.max(Number(message.timeout) || 4000, 200), 10000);
                 const deadline = Date.now() + timeout;
 
-                // Pick the best candidate from the recent-tabs map. Prefers, in order:
-                //   1. Tabs whose openerTabId matches (when provided)
-                //   2. Tabs whose current URL contains hrefHint (when provided)
+                // Count candidate tabs created in our window (used for the
+                // fast-path: when the caller does a universal post-click
+                // check and NO tab was actually created, we must not burn
+                // the full timeout polling for nothing).
+                const countCandidates = () => {
+                    let n = 0;
+                    for (const [, info] of __geRecentTabs) if (info.createdAt >= sinceMs) n++;
+                    return n;
+                };
+
+                // Pick the best candidate. Prefers, in order:
+                //   1. Tabs whose openerTabId matches (strong signal)
+                //   2. Tabs whose current URL contains hrefHint
                 //   3. Most recently created
-                const pickBest = async () => {
-                    const candidates = [];
+                const pickBest = () => {
+                    let best = null;
                     for (const [tabId, info] of __geRecentTabs) {
                         if (info.createdAt < sinceMs) continue;
-                        candidates.push({ tabId, info });
-                    }
-                    if (!candidates.length) return null;
-
-                    // Score: opener match = +1000, href-hint match = +500, recency = createdAt.
-                    let best = null;
-                    for (const c of candidates) {
-                        let score = c.info.createdAt;
-                        if (openerTabId && c.info.openerTabId === openerTabId) score += 1e12;
+                        let score = info.createdAt;
+                        if (openerTabId && info.openerTabId === openerTabId) score += 1e12;
                         if (hrefHint) {
-                            const liveUrl = (c.info.url || '').toLowerCase();
+                            const liveUrl = (info.url || '').toLowerCase();
                             if (liveUrl.includes(hrefHint)) score += 5e11;
                         }
-                        if (!best || score > best.score) best = { ...c, score };
+                        if (!best || score > best.score) best = { tabId, info, score };
                     }
                     return best;
                 };
 
-                // Poll for a match. Refresh info from chrome.tabs.get on each
-                // iteration so we catch the real post-navigation URL even when
-                // the tab was created with about:blank.
+                // Fast-path: if nothing was created in our window at all,
+                // give one grace tick (tab creation events sometimes arrive
+                // a hair after the click response) and then bail. Keeps
+                // latency near-zero on clicks that didn't open anything.
+                if (countCandidates() === 0) {
+                    await new Promise(r => setTimeout(r, 150));
+                    if (countCandidates() === 0) {
+                        sendResponse({ success: false, reason: 'no_new_tab', error: 'No new tab was created by this action' });
+                        return;
+                    }
+                }
+
+                let lastSeenTabId = null;
+                let lastSeenUrl = '';
+                let lastSeenTitle = '';
+
                 while (Date.now() < deadline) {
-                    const best = await pickBest();
+                    const best = pickBest();
                     if (best) {
                         try {
                             const live = await chrome.tabs.get(best.tabId);
-                            // Update cached info with the live URL/title so
-                            // subsequent picks score correctly.
+                            // Refresh the cached info so subsequent picks
+                            // score on the real post-navigation URL.
                             best.info.url = live.url || best.info.url;
                             best.info.title = live.title || best.info.title;
+                            lastSeenTabId = best.tabId;
+                            lastSeenUrl = live.url || lastSeenUrl;
+                            lastSeenTitle = live.title || lastSeenTitle;
 
-                            const looksReady =
-                                live.status === 'complete' ||
-                                (live.url && live.url !== 'about:blank' && live.url !== 'chrome://newtab/');
+                            const url = (live.url || '').trim();
+                            const isBlank =
+                                !url ||
+                                url === 'about:blank' ||
+                                url === 'chrome://newtab/' ||
+                                url.startsWith('chrome://new-tab-page') ||
+                                url.startsWith('edge://newtab');
+                            const looksReady = live.status === 'complete' || !isBlank;
                             if (looksReady) {
-                                // Wait (best-effort, short) for the tab to finish loading.
                                 try { await waitForTabLoad(best.tabId, Math.max(500, deadline - Date.now())); } catch { /* ignore */ }
                                 const finalTab = await chrome.tabs.get(best.tabId).catch(() => live);
                                 sendResponse({
@@ -868,15 +891,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                                 return;
                             }
                         } catch {
-                            // Tab closed between pick and get — drop it and keep polling.
+                            // Tab closed between pick and get — drop and continue.
                             __geRecentTabs.delete(best.tabId);
                         }
                     }
                     await new Promise(r => setTimeout(r, 150));
                 }
-                sendResponse({ success: false, error: 'No new tab detected within timeout' });
+
+                // Timed out. If we did see a tab but it never navigated away
+                // from about:blank, the popup was most likely blocked or
+                // the opener never actually navigated it — surface the
+                // tabId so the caller can close the empty shell.
+                if (lastSeenTabId !== null) {
+                    sendResponse({
+                        success: false,
+                        reason: 'blank_or_blocked',
+                        error: 'A new tab was created but never navigated away from about:blank (popup blocker or failed window.open).',
+                        staleTabId: lastSeenTabId,
+                        url: lastSeenUrl,
+                        title: lastSeenTitle
+                    });
+                } else {
+                    sendResponse({ success: false, reason: 'timeout', error: 'No new tab detected within timeout' });
+                }
             } catch (err) {
-                sendResponse({ success: false, error: err.message });
+                sendResponse({ success: false, reason: 'exception', error: err.message });
             }
         })();
         return true;
