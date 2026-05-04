@@ -392,6 +392,41 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 });
 
 // ============================================
+// Recently-opened tab tracker
+// ============================================
+// Records every tab creation so the agent loop can auto-adopt a tab that
+// was opened as a side-effect of a click (target=_blank, JS window.open, etc.)
+// without requiring the LLM to emit a separate `switchTab` action. Entries
+// are keyed by tabId and drop when the tab closes or when we exceed the cap.
+const __geRecentTabs = new Map(); // tabId -> { createdAt, openerTabId, url, title }
+const __GE_RECENT_TABS_MAX = 30;
+
+chrome.tabs.onCreated.addListener((tab) => {
+    try {
+        if (!tab || typeof tab.id !== 'number') return;
+        __geRecentTabs.set(tab.id, {
+            createdAt: Date.now(),
+            openerTabId: typeof tab.openerTabId === 'number' ? tab.openerTabId : null,
+            url: tab.pendingUrl || tab.url || '',
+            title: tab.title || ''
+        });
+        if (__geRecentTabs.size > __GE_RECENT_TABS_MAX) {
+            // Drop the oldest entry so the map doesn't grow unbounded in
+            // long-lived sessions.
+            let oldestId = null; let oldestAt = Infinity;
+            for (const [id, info] of __geRecentTabs) {
+                if (info.createdAt < oldestAt) { oldestAt = info.createdAt; oldestId = id; }
+            }
+            if (oldestId !== null) __geRecentTabs.delete(oldestId);
+        }
+    } catch { /* ignore */ }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+    __geRecentTabs.delete(tabId);
+});
+
+// ============================================
 // Message Handlers
 // ============================================
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -751,6 +786,95 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         pinned: !!t.pinned
                     }))
                 });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Find the newest tab created since a given timestamp. Used by the agent
+    // loop to auto-adopt a tab opened as a side-effect of `click` (target=_blank,
+    // window.open, etc.) so the LLM doesn't need to manually `switchTab`.
+    // Accepts:
+    //   sinceMs      — only return tabs created at/after this epoch ms (required)
+    //   openerTabId  — optional: prefer tabs whose openerTabId matches this
+    //   hrefHint     — optional: URL substring the new tab is expected to navigate to
+    //   timeout      — how long to poll before giving up (500..10000 ms, default 4000)
+    if (message.type === 'ge-get-newest-tab') {
+        (async () => {
+            try {
+                const sinceMs = Number(message.sinceMs) || 0;
+                const openerTabId = typeof message.openerTabId === 'number' ? message.openerTabId : null;
+                const hrefHint = (message.hrefHint || '').toString().toLowerCase();
+                const timeout = Math.min(Math.max(Number(message.timeout) || 4000, 500), 10000);
+                const deadline = Date.now() + timeout;
+
+                // Pick the best candidate from the recent-tabs map. Prefers, in order:
+                //   1. Tabs whose openerTabId matches (when provided)
+                //   2. Tabs whose current URL contains hrefHint (when provided)
+                //   3. Most recently created
+                const pickBest = async () => {
+                    const candidates = [];
+                    for (const [tabId, info] of __geRecentTabs) {
+                        if (info.createdAt < sinceMs) continue;
+                        candidates.push({ tabId, info });
+                    }
+                    if (!candidates.length) return null;
+
+                    // Score: opener match = +1000, href-hint match = +500, recency = createdAt.
+                    let best = null;
+                    for (const c of candidates) {
+                        let score = c.info.createdAt;
+                        if (openerTabId && c.info.openerTabId === openerTabId) score += 1e12;
+                        if (hrefHint) {
+                            const liveUrl = (c.info.url || '').toLowerCase();
+                            if (liveUrl.includes(hrefHint)) score += 5e11;
+                        }
+                        if (!best || score > best.score) best = { ...c, score };
+                    }
+                    return best;
+                };
+
+                // Poll for a match. Refresh info from chrome.tabs.get on each
+                // iteration so we catch the real post-navigation URL even when
+                // the tab was created with about:blank.
+                while (Date.now() < deadline) {
+                    const best = await pickBest();
+                    if (best) {
+                        try {
+                            const live = await chrome.tabs.get(best.tabId);
+                            // Update cached info with the live URL/title so
+                            // subsequent picks score correctly.
+                            best.info.url = live.url || best.info.url;
+                            best.info.title = live.title || best.info.title;
+
+                            const looksReady =
+                                live.status === 'complete' ||
+                                (live.url && live.url !== 'about:blank' && live.url !== 'chrome://newtab/');
+                            if (looksReady) {
+                                // Wait (best-effort, short) for the tab to finish loading.
+                                try { await waitForTabLoad(best.tabId, Math.max(500, deadline - Date.now())); } catch { /* ignore */ }
+                                const finalTab = await chrome.tabs.get(best.tabId).catch(() => live);
+                                sendResponse({
+                                    success: true,
+                                    tabId: finalTab.id,
+                                    url: finalTab.url || '',
+                                    title: finalTab.title || '',
+                                    index: finalTab.index,
+                                    openerTabId: typeof finalTab.openerTabId === 'number' ? finalTab.openerTabId : (best.info.openerTabId || null),
+                                    createdAt: best.info.createdAt
+                                });
+                                return;
+                            }
+                        } catch {
+                            // Tab closed between pick and get — drop it and keep polling.
+                            __geRecentTabs.delete(best.tabId);
+                        }
+                    }
+                    await new Promise(r => setTimeout(r, 150));
+                }
+                sendResponse({ success: false, error: 'No new tab detected within timeout' });
             } catch (err) {
                 sendResponse({ success: false, error: err.message });
             }

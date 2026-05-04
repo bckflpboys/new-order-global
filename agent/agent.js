@@ -1471,6 +1471,12 @@
             }
           } else {
             // Actions that run in the content script: readPage, click, type, scroll, select, pressKey, clear, extract, waitForElement
+            // Snapshot the timestamp just BEFORE dispatching a click so the
+            // auto-adopt logic (below) can filter the recent-tabs map to
+            // tabs created as a side-effect of THIS click. Minus 300 ms to
+            // tolerate clock skew between the renderer and the background.
+            const preActionAt = (action === 'click') ? (Date.now() - 300) : 0;
+
             const response = await sendToBackground('ge-execute-in-tab', {
               tabId: currentTabId,
               action,
@@ -1479,6 +1485,74 @@
 
             if (response?.success) {
               result = response.result;
+
+              // === Auto-adopt new tabs opened by target=_blank / window.open ===
+              // Previously the LLM had to emit a separate `switchTab` call
+              // after a click that opened a new tab, and fumbled params
+              // (e.g. `switchTab` with no url) derailed the whole run.
+              // Now we proactively resolve the newly-opened tab, activate
+              // it in Chrome, and rewrite `currentTabId` so the NEXT step
+              // already operates on the right page. The LLM sees an
+              // `autoAdoptedTab` block in the result and is instructed NOT
+              // to call switchTab for it.
+              if (action === 'click' && result?.openedNewTab) {
+                try {
+                  const hrefHint = (result?.clicked?.href || '').toString();
+                  const newest = await sendToBackground('ge-get-newest-tab', {
+                    sinceMs: preActionAt,
+                    openerTabId: currentTabId,
+                    hrefHint,
+                    timeout: 5000
+                  });
+                  if (newest?.success && typeof newest.tabId === 'number' && newest.tabId !== currentTabId) {
+                    // Record the adopted tab in trackedTabs so subsequent
+                    // tabIndex-based actions (closeTab, switchTab) can reach it.
+                    const existingIdx = trackedTabs.findIndex(t => t.tabId === newest.tabId);
+                    if (existingIdx >= 0) {
+                      trackedTabs[existingIdx].url = newest.url || trackedTabs[existingIdx].url;
+                      trackedTabs[existingIdx].title = newest.title || trackedTabs[existingIdx].title;
+                      trackedTabs[existingIdx].status = 'active';
+                      activeTabIndex = existingIdx;
+                    } else {
+                      trackedTabs.push({
+                        tabId: newest.tabId,
+                        tabIndex: trackedTabs.length,
+                        url: newest.url || '',
+                        title: newest.title || '',
+                        openedByAgent: true,
+                        status: 'active'
+                      });
+                      activeTabIndex = trackedTabs.length - 1;
+                    }
+                    currentTabId = newest.tabId;
+
+                    // Bring the new tab to the foreground so the user can
+                    // watch what the agent is doing, and so any content-
+                    // script actions route correctly.
+                    try { await sendToBackground('ge-switch-tab', { tabId: newest.tabId }); } catch { /* best-effort */ }
+
+                    // Enrich the action result — the server injects this
+                    // into the next prompt so the LLM knows it's ALREADY
+                    // on the new tab and must not call switchTab again.
+                    result.autoAdoptedTab = {
+                      tabId: newest.tabId,
+                      url: newest.url || '',
+                      title: newest.title || ''
+                    };
+                    result.hint = `New tab opened by this click was AUTO-ADOPTED. You are now on tab "${(newest.title || newest.url || '').slice(0, 80)}". Do NOT call \`switchTab\` for this tab. Proceed directly with your next action (readPage / extract / click / etc.) on this tab.`;
+                  } else if (newest && newest.success === false) {
+                    // Couldn't find a new tab (rare race — popup blocked,
+                    // or the link was same-origin and navigated the CURRENT
+                    // tab after all). Leave the result untouched; the LLM
+                    // still has the original `openedNewTab` hint and can
+                    // fall back to manual switchTab if it actually opened.
+                    result.autoAdoptFailed = true;
+                  }
+                } catch (adoptErr) {
+                  console.warn('[Global Executive] Auto-adopt new tab failed:', adoptErr?.message || adoptErr);
+                  result.autoAdoptFailed = true;
+                }
+              }
             } else {
               error = response?.error || 'Action failed';
             }
