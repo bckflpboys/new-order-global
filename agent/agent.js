@@ -299,8 +299,8 @@
     list.innerHTML = filteredModels.map(m => {
       const isSelected = m.id === selectedModelId;
       const tags = [];
-      if (m.name.toLowerCase().includes('reasoning') || m.name.toLowerCase().includes('sonnet')) tags.push('<span class="model-tag reasoning">Reasoning</span>');
-      if (m.name.toLowerCase().includes('vision')) tags.push('<span class="model-tag vision">Vision</span>');
+      if (m.isAgentModel || m.name.toLowerCase().includes('reasoning') || m.name.toLowerCase().includes('sonnet')) tags.push('<span class="model-tag reasoning">Agent</span>');
+      if (m.isVisionModel || m.name.toLowerCase().includes('vision')) tags.push('<span class="model-tag vision">Vision</span>');
       if (m.tier === 'free') tags.push('<span class="model-tag fast">Fast</span>');
       if (m.tier === 'premium') tags.push('<span class="model-tag full">Full</span>');
 

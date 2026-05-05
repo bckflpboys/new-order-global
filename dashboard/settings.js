@@ -11,6 +11,82 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('display-name').value = user.displayName;
   }
 
+  // ============================================
+  // Server URL (Self-Hosted / Local)
+  // ============================================
+  const serverUrlInput = document.getElementById('server-url');
+  const serverStatusBadge = document.getElementById('server-status-badge');
+  const serverStatusText = document.getElementById('server-status-text');
+
+  // Load current server URL
+  async function loadServerUrl() {
+    const baseUrl = await NewOrderAPI.getBaseUrl();
+    if (baseUrl !== NewOrderAPI.DEFAULT_BASE_URL) {
+      serverUrlInput.value = baseUrl;
+    } else {
+      serverUrlInput.value = '';
+    }
+    await checkServerStatus(baseUrl);
+  }
+
+  async function checkServerStatus(url) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const resp = await fetch(`${url}/api/models`, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: { 'Authorization': `Bearer ${await NewOrderAPI.getToken()}` }
+      });
+      clearTimeout(timeout);
+      if (resp.ok) {
+        serverStatusBadge.className = 'status-badge connected';
+        serverStatusBadge.querySelector('svg').innerHTML = '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>';
+        const isLocal = url !== NewOrderAPI.DEFAULT_BASE_URL;
+        serverStatusText.textContent = isLocal ? `Connected to ${url}` : 'Connected (cloud)';
+      } else {
+        serverStatusBadge.className = 'status-badge';
+        serverStatusBadge.querySelector('svg').innerHTML = '<circle cx="12" cy="12" r="10"/>';
+        serverStatusText.textContent = `Server responded with error (${resp.status})`;
+      }
+    } catch (e) {
+      serverStatusBadge.className = 'status-badge';
+      serverStatusBadge.querySelector('svg').innerHTML = '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>';
+      serverStatusText.textContent = 'Cannot reach server';
+    }
+  }
+
+  loadServerUrl();
+
+  document.getElementById('server-url-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const url = serverUrlInput.value.trim();
+
+    if (url) {
+      // Validate URL format
+      try {
+        new URL(url);
+      } catch {
+        alert('Please enter a valid URL (e.g. http://localhost:3001)');
+        return;
+      }
+      NewOrderAPI.setBaseUrl(url.replace(/\/+$/, ''));
+    } else {
+      NewOrderAPI.resetBaseUrl();
+    }
+
+    const newUrl = await NewOrderAPI.getBaseUrl();
+    await checkServerStatus(newUrl);
+    alert(url ? `Server URL set to ${newUrl}. Reload any open New Order tabs for the change to take effect.` : 'Reset to cloud server. Reload any open New Order tabs for the change to take effect.');
+  });
+
+  document.getElementById('btn-reset-server').addEventListener('click', () => {
+    NewOrderAPI.resetBaseUrl();
+    serverUrlInput.value = '';
+    checkServerStatus(NewOrderAPI.DEFAULT_BASE_URL);
+    alert('Reset to cloud server. Reload any open New Order tabs for the change to take effect.');
+  });
+
   // Profile form handler
   document.getElementById('profile-form').addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -22,7 +98,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-      const response = await fetch(`${NewOrderAPI.BASE_URL}/api/user/profile`, {
+      const baseUrl = await NewOrderAPI.getBaseUrl();
+      const response = await fetch(`${baseUrl}/api/user/profile`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -60,7 +137,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-      const response = await fetch(`${NewOrderAPI.BASE_URL}/api/user/password`, {
+      const baseUrl = await NewOrderAPI.getBaseUrl();
+      const response = await fetch(`${baseUrl}/api/user/password`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -94,7 +172,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!secondConfirmed) return;
 
     try {
-      const response = await fetch(`${NewOrderAPI.BASE_URL}/api/user/account`, {
+      const baseUrl = await NewOrderAPI.getBaseUrl();
+      const response = await fetch(`${baseUrl}/api/user/account`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${user.token}`

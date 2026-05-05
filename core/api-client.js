@@ -2,12 +2,39 @@
 // Handles all communication with the backend server
 
 const NewOrderAPI = (() => {
-  // Backend API server URL 
-  const BASE_URL = 'https://apiv2.global-order.32d.one';
+  // Default cloud API server URL
+  const DEFAULT_BASE_URL = 'https://apiv2.global-order.32d.one';
   // For testing (Render):
-  // const BASE_URL = 'https://api.global-order.32d.one';
-  // For local development:
-  // const BASE_URL = 'http://localhost:3001';
+  // const DEFAULT_BASE_URL = 'https://api.global-order.32d.one';
+
+  // Dynamic BASE_URL — checks chrome.storage.local for a custom server URL
+  // (self-hosted / local users can set their own). Falls back to cloud.
+  let _cachedBaseUrl = null;
+
+  async function getBaseUrl() {
+    if (_cachedBaseUrl) return _cachedBaseUrl;
+    return new Promise((resolve) => {
+      chrome.storage.local.get(['noServerUrl'], (result) => {
+        _cachedBaseUrl = result.noServerUrl || DEFAULT_BASE_URL;
+        resolve(_cachedBaseUrl);
+      });
+    });
+  }
+
+  function setBaseUrl(url) {
+    _cachedBaseUrl = url || DEFAULT_BASE_URL;
+    chrome.storage.local.set({ noServerUrl: _cachedBaseUrl });
+  }
+
+  function resetBaseUrl() {
+    _cachedBaseUrl = null;
+    chrome.storage.local.remove('noServerUrl');
+  }
+
+  // Synchronous getter for code that can't await (returns null if not cached yet)
+  function getBaseUrlSync() {
+    return _cachedBaseUrl || DEFAULT_BASE_URL;
+  }
 
   let _authToken = null;
   let _user = null;
@@ -101,7 +128,8 @@ const NewOrderAPI = (() => {
 
   async function request(endpoint, options = {}) {
     const token = await getToken();
-    const url = `${BASE_URL}${endpoint}`;
+    const baseUrl = await getBaseUrl();
+    const url = `${baseUrl}${endpoint}`;
     const maxAttempts = options.maxAttempts || DEFAULT_MAX_ATTEMPTS;
 
     const headers = {
@@ -278,7 +306,8 @@ const NewOrderAPI = (() => {
   // ============================================
   async function generateToolStream(prompt, context = {}, modelId = 'gemini-2-5-flash', conversationId = null, onChunk = null) {
     const token = await getToken();
-    const url = `${BASE_URL}/api/ai/generate-stream`;
+    const baseUrl = await getBaseUrl();
+    const url = `${baseUrl}/api/ai/generate-stream`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -306,7 +335,8 @@ const NewOrderAPI = (() => {
 
   async function iterateToolStream(toolId, feedback, currentCode, modelId = 'gemini-2-5-flash', conversationId = null, onChunk = null) {
     const token = await getToken();
-    const url = `${BASE_URL}/api/ai/iterate-stream`;
+    const baseUrl = await getBaseUrl();
+    const url = `${baseUrl}/api/ai/iterate-stream`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -562,7 +592,11 @@ const NewOrderAPI = (() => {
     request,
 
     // Config
-    BASE_URL
+    getBaseUrl,
+    setBaseUrl,
+    resetBaseUrl,
+    getBaseUrlSync,
+    DEFAULT_BASE_URL
   };
 })();
 

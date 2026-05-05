@@ -80,6 +80,32 @@
       </form>
     </div>
 
+    <!-- Server Connection (Self-Hosted / Local) -->
+    <div class="settings-card">
+      <h3>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+        Server Connection
+      </h3>
+      <p>Running the open-source server locally or self-hosted? Change the URL below so the extension connects to your own server instead of the cloud. Models are configured via <code>.env</code> on your server.</p>
+      <form id="server-url-form" style="max-width: 500px;">
+        <div class="form-group">
+          <label>Server URL</label>
+          <input type="url" id="server-url" class="input-text" placeholder="http://localhost:3001">
+          <p style="margin-top: 6px; font-size: 12px; color: var(--on-surface-muted);">Leave blank to use the default cloud server. For local/self-hosted, enter your server URL (e.g. <code>http://localhost:3001</code>).</p>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+          <span class="status-badge" id="server-status-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+            <span id="server-status-text">Checking...</span>
+          </span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="submit" class="btn-primary">Save & Reconnect</button>
+          <button type="button" class="btn-secondary" id="btn-reset-server">Reset to Cloud</button>
+        </div>
+      </form>
+    </div>
+
     <!-- Extension Connection -->
     <div class="settings-card">
       <h3>
