@@ -180,9 +180,31 @@ async function loadPurchaseHistory() {
       return;
     }
 
+    // Subscription plan credit fallback (in case server didn't send credits)
+    const SUB_CREDITS = { monthly: 150, yearly: 900, super_agent: 600 };
+    const TYPE_BADGES = {
+      'one-time': 'One-time Credits',
+      'monthly': 'Monthly Subscription',
+      'yearly': 'Yearly Subscription',
+      'super_agent': 'Super Agent Subscription',
+      'subscription': 'Subscription',
+      'unknown': 'Purchase'
+    };
+
     container.innerHTML = purchases.map(purchase => {
-      const statusClass = purchase.status === 'completed' ? 'completed' : purchase.status === 'pending' ? 'pending' : 'failed';
-      const typeLabels = { 'one-time': 'One-time', 'monthly': 'Monthly', 'yearly': 'Yearly', 'subscription': 'Subscription' };
+      const statusClass = purchase.status === 'completed' || purchase.status === 'paid'
+        ? 'completed'
+        : purchase.status === 'pending' ? 'pending' : 'failed';
+
+      const typeBadge = TYPE_BADGES[purchase.type] || 'Purchase';
+      const planName = purchase.name || typeBadge;
+
+      // Fallback: if subscription has 0 credits, use the canonical plan amount
+      let credits = Number(purchase.credits) || 0;
+      if (!credits && SUB_CREDITS[purchase.type]) credits = SUB_CREDITS[purchase.type];
+
+      // Prefer server-formatted amount string (handles currency correctly)
+      const amountStr = purchase.amountFormatted || `$${(Number(purchase.amount) || 0).toFixed(2)}`;
 
       return `
         <div class="purchase-row">
@@ -191,17 +213,20 @@ async function loadPurchaseHistory() {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--on-surface-variant);"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
             </div>
             <div>
-              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px;">
-                <span style="font-family: var(--font-headline); font-size: 16px; font-weight: 600; color: var(--on-surface);">${typeLabels[purchase.type] || purchase.type} Purchase</span>
-                <span class="purchase-status ${statusClass}">${purchase.status}</span>
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 4px; flex-wrap: wrap;">
+                <span style="font-family: var(--font-headline); font-size: 16px; font-weight: 600; color: var(--on-surface);">${escapeHtmlBilling(planName)}</span>
+                <span class="purchase-status ${statusClass}">${escapeHtmlBilling(purchase.status)}</span>
               </div>
-              <p style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant);">${new Date(purchase.date).toLocaleDateString()}</p>
+              <p style="font-family: var(--font-body); font-size: 13px; color: var(--on-surface-variant);">
+                <span style="text-transform: uppercase; letter-spacing: 0.06em; font-size: 11px; font-weight: 600; margin-right: 8px;">${escapeHtmlBilling(typeBadge)}</span>
+                ${new Date(purchase.date).toLocaleDateString()}
+              </p>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 24px;">
             <div style="text-align: right;">
-              <div style="font-family: var(--font-headline); font-size: 18px; font-weight: 600; color: var(--on-surface);">$${purchase.amount.toFixed(2)}</div>
-              <div style="font-family: var(--font-label); font-size: 11px; color: var(--on-surface-variant);">${purchase.credits} credits</div>
+              <div style="font-family: var(--font-headline); font-size: 18px; font-weight: 600; color: var(--on-surface);">${escapeHtmlBilling(amountStr)}</div>
+              <div style="font-family: var(--font-label); font-size: 11px; color: var(--on-surface-variant);">${credits ? credits + ' credits' : '—'}</div>
             </div>
             ${purchase.receiptUrl ? `
               <a href="${purchase.receiptUrl}" target="_blank" rel="noopener noreferrer" style="font-family: var(--font-label); font-size: 13px; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; cursor: pointer;">
