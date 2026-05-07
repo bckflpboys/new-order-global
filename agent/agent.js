@@ -361,7 +361,7 @@
       }
 
       historyList.innerHTML = tasks.map(t => {
-        const isRunning = ['running', 'planning'].includes(t.status);
+        const isRunning = ['running', 'planning', 'briefing', 'awaiting_user'].includes(t.status);
         const stopBtn = isRunning
           ? `<button class="history-stop-btn" data-task-id="${t.id}" title="Stop task">&#10005;</button>`
           : '';
@@ -410,7 +410,7 @@
 
       // Wire up the viewed task so stop works on it
       currentTaskId = task.id;
-      isRunning = ['running', 'planning'].includes(task.status);
+      isRunning = ['running', 'planning', 'briefing', 'awaiting_user'].includes(task.status);
       setSendingState(isRunning);
 
       showTaskView(task.title);
@@ -606,7 +606,7 @@
     const badge = taskStatus;
     badge.className = `task-status-badge ${status}`;
     badge.querySelector('.status-text').textContent = status.charAt(0).toUpperCase() + status.slice(1);
-    btnStopTask.style.display = ['running', 'planning'].includes(status) ? 'flex' : 'none';
+    btnStopTask.style.display = ['running', 'planning', 'briefing', 'awaiting_user'].includes(status) ? 'flex' : 'none';
   }
 
   function renderStep(step) {
