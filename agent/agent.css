@@ -1600,6 +1600,17 @@ body.autopilot-mode .agent-app {
   border-color: var(--primary);
 }
 
+.form-group input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  background: none;
+  border: none;
+  accent-color: var(--primary);
+  flex: 0 0 auto;
+}
+
 .btn-auth-submit {
   width: 100%;
   padding: 10px;

@@ -204,15 +204,33 @@ const NewOrderAPI = (() => {
   }
 
   async function register(email, password, displayName, extras = {}) {
+    let tosAccepted = !!(extras && extras.tosAccepted);
+    let privacyAccepted = !!(extras && extras.privacyAccepted);
+
+    // Final safety net: if either flag is missing, read directly from DOM.
+    // Covers any caller that forgets to pass extras.
+    if (!tosAccepted || !privacyAccepted) {
+      try {
+        const tosCb = document.getElementById('popup-register-tos')
+                   || document.getElementById('register-tos');
+        const privacyCb = document.getElementById('popup-register-privacy')
+                       || document.getElementById('register-privacy');
+        if (tosCb && tosCb.checked) tosAccepted = true;
+        if (privacyCb && privacyCb.checked) privacyAccepted = true;
+      } catch (e) { /* not in DOM context */ }
+    }
+
+    const requestBody = {
+      email,
+      password,
+      displayName,
+      tosAccepted,
+      privacyAccepted
+    };
+
     const data = await request('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({
-        email,
-        password,
-        displayName,
-        tosAccepted: !!extras.tosAccepted,
-        privacyAccepted: !!extras.privacyAccepted
-      })
+      body: JSON.stringify(requestBody)
     });
     await setToken(data.token);
     await setUser(data.user);

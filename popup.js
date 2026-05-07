@@ -709,16 +709,16 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <input type="password" id="popup-register-password" minlength="8" required placeholder="••••••••" style="width: 100%; padding: 11px 14px; background: var(--surface-container-lowest); border: 1px solid var(--ghost-border-strong); border-radius: var(--radius-md); color: var(--on-surface); font-family: var(--font-body); font-size: 14px; outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;">
                             </div>
                             <div style="margin-bottom: 12px;">
-                                <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12px; color: var(--on-surface-variant); line-height: 1.4;">
-                                    <input type="checkbox" id="popup-register-tos" required style="margin-top: 2px; flex-shrink: 0;">
-                                    <span>I have read and agree to the <a href="https://global-order.32d.one/tos" target="_blank" style="color: var(--primary); text-decoration: none;">Terms of Service</a></span>
-                                </label>
+                                <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--on-surface-variant); line-height: 1.4;">
+                                    <input type="checkbox" id="popup-register-tos" name="tosAccepted" style="margin-top: 2px; flex-shrink: 0; cursor: pointer;">
+                                    <label for="popup-register-tos" style="flex: 1; cursor: pointer;">I have read and agree to the <a href="https://global-order.32d.one/tos" target="_blank" style="color: var(--primary); text-decoration: none;">Terms of Service</a></label>
+                                </div>
                             </div>
                             <div style="margin-bottom: 14px;">
-                                <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 12px; color: var(--on-surface-variant); line-height: 1.4;">
-                                    <input type="checkbox" id="popup-register-privacy" required style="margin-top: 2px; flex-shrink: 0;">
-                                    <span>I have read and agree to the <a href="https://global-order.32d.one/privacy-policy" target="_blank" style="color: var(--primary); text-decoration: none;">Privacy Policy</a></span>
-                                </label>
+                                <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: var(--on-surface-variant); line-height: 1.4;">
+                                    <input type="checkbox" id="popup-register-privacy" name="privacyAccepted" style="margin-top: 2px; flex-shrink: 0; cursor: pointer;">
+                                    <label for="popup-register-privacy" style="flex: 1; cursor: pointer;">I have read and agree to the <a href="https://global-order.32d.one/privacy-policy" target="_blank" style="color: var(--primary); text-decoration: none;">Privacy Policy</a></label>
+                                </div>
                             </div>
                             <button type="submit" style="width: 100%; padding: 13px; background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%); color: var(--on-primary); border: none; border-radius: var(--radius-md); font-family: var(--font-label); font-size: 13px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease; margin-top: 10px; box-shadow: var(--shadow-xs);">Create Account</button>
                             <div id="popup-register-error" style="color: var(--on-error-container); font-size: 13px; margin-top: 14px; padding: 11px 14px; background: var(--error-container); border-radius: var(--radius-md); text-align: center; display: none;"></div>
@@ -766,18 +766,49 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 });
 
+                // Store checkbox values in variables that persist
+                let tosChecked = false;
+                let privacyChecked = false;
+
+                // Add click handlers to track checkbox state
+                const tosCb = document.getElementById('popup-register-tos');
+                const privacyCb = document.getElementById('popup-register-privacy');
+                
+                if (tosCb) {
+                    tosCb.addEventListener('change', () => {
+                        tosChecked = tosCb.checked;
+                        console.log('TOS checkbox changed to:', tosChecked);
+                    });
+                }
+                if (privacyCb) {
+                    privacyCb.addEventListener('change', () => {
+                        privacyChecked = privacyCb.checked;
+                        console.log('Privacy checkbox changed to:', privacyChecked);
+                    });
+                }
+
                 registerForm.addEventListener('submit', async (e) => {
                     e.preventDefault();
+                    
+                    // Get all form elements
                     const name = document.getElementById('popup-register-name').value;
                     const email = document.getElementById('popup-register-email').value;
                     const password = document.getElementById('popup-register-password').value;
-                    const tosChecked = document.getElementById('popup-register-tos').checked;
-                    const privacyChecked = document.getElementById('popup-register-privacy').checked;
+                    
+                    // Re-read checkboxes at submit time to be absolutely sure
+                    const tosCheckbox = document.getElementById('popup-register-tos');
+                    const privacyCheckbox = document.getElementById('popup-register-privacy');
+                    
+                    // Use the current DOM values (most reliable)
+                    const finalTosChecked = tosCheckbox ? tosCheckbox.checked : false;
+                    const finalPrivacyChecked = privacyCheckbox ? privacyCheckbox.checked : false;
+                    
                     const errorEl = document.getElementById('popup-register-error');
                     errorEl.style.display = 'none';
 
-                    if (!tosChecked || !privacyChecked) {
-                        errorEl.textContent = 'You must agree to both the Terms of Service and Privacy Policy';
+                    // Client-side validation
+                    if (!finalTosChecked || !finalPrivacyChecked) {
+                        errorEl.textContent = 'You must accept both the Terms of Service and Privacy Policy';
                         errorEl.style.display = 'block';
                         return;
                     }
@@ -786,8 +817,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         const submitBtn = registerForm.querySelector('button[type="submit"]');
                         submitBtn.textContent = 'Creating...';
                         submitBtn.disabled = true;
-                        const result = await NewOrderAuth.register(email, password, name, { tosAccepted: tosChecked, privacyAccepted: privacyChecked });
                         
+                        const extras = { tosAccepted: finalTosChecked, privacyAccepted: finalPrivacyChecked };
+                        const result = await NewOrderAuth.register(email, password, name, extras);
+
                         if (!result.onboardingCompleted) {
                             showOnboardingFlow();
                         } else {
@@ -797,6 +830,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const submitBtn = registerForm.querySelector('button[type="submit"]');
                         submitBtn.textContent = 'Create Account';
                         submitBtn.disabled = false;
+                        console.error('Registration error:', err);
                         errorEl.textContent = err.message;
                         errorEl.style.display = 'block';
                     }

@@ -89,6 +89,23 @@ const NewOrderAuth = (() => {
   // Register
   // ============================================
   async function register(email, password, displayName, extras = {}) {
+    // Failsafe: if extras is empty or missing, try to read from DOM
+    // (popup, agent, and builder all use slightly different IDs)
+    if (!extras || (!extras.tosAccepted && !extras.privacyAccepted)) {
+      try {
+        const tosCb = document.getElementById('popup-register-tos')
+                   || document.getElementById('register-tos');
+        const privacyCb = document.getElementById('popup-register-privacy')
+                       || document.getElementById('register-privacy');
+        if (tosCb || privacyCb) {
+          extras = {
+            tosAccepted: !!(tosCb && tosCb.checked),
+            privacyAccepted: !!(privacyCb && privacyCb.checked)
+          };
+        }
+      } catch (e) { /* not in DOM context */ }
+    }
+    
     // Brand-new account → always wipe any stale local tool state
     await _wipeLocalTools(true);
 

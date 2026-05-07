@@ -350,11 +350,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const name = document.getElementById('register-name').value;
     const email = document.getElementById('register-email').value;
     const password = document.getElementById('register-password').value;
+    const tosCheckbox = document.getElementById('register-tos');
+    const privacyCheckbox = document.getElementById('register-privacy');
+    const tosChecked = tosCheckbox ? tosCheckbox.checked : false;
+    const privacyChecked = privacyCheckbox ? privacyCheckbox.checked : false;
     const errorEl = document.getElementById('register-error');
+
+    if (!tosChecked || !privacyChecked) {
+      errorEl.textContent = 'You must accept both the Terms of Service and Privacy Policy';
+      errorEl.style.display = 'block';
+      return;
+    }
 
     try {
       errorEl.style.display = 'none';
-      const result = await NewOrderAuth.register(email, password, name);
+      const result = await NewOrderAuth.register(email, password, name, { tosAccepted: tosChecked, privacyAccepted: privacyChecked });
       updateUserUI(result.user);
       authModal.style.display = 'none';
     } catch (err) {
