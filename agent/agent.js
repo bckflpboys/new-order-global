@@ -313,20 +313,23 @@
       if (m.isVisionModel || m.name.toLowerCase().includes('vision')) tags.push('<span class="model-tag vision">Vision</span>');
       if (m.tier === 'free') tags.push('<span class="model-tag fast">Fast</span>');
       if (m.tier === 'premium') tags.push('<span class="model-tag full">Full</span>');
+      // Provider badge
+      const provider = (m.provider || 'openrouter').toUpperCase();
+      tags.push(`<span class="model-tag provider">${provider}</span>`);
 
       return `
         <div class="model-card ${isSelected ? 'selected' : ''}" data-id="${m.id}">
           <div class="model-card-icon">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-              <path d="M12,2A10,10,0,0,0,2,12a9.89,9.89,0,0,0,2.26,6.33l-2,2a1,1,0,0,0,1.42,1.42l2-2A9.94,9.94,0,0,0,12,22a10,10,0,0,0,0-20Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"/>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M12,2A10,10,0,0,0,2,12a9.89,9.89,0,0,0,2.26,6.33l-2,2a1,1,0,0,0,1.42,1.42l2-2A9.94,9.94,0,0,0,12,22a10,10,0,0,0,0-20Zm0,18a8,8,1,1,1,8-8A8,8,0,0,1,12,20Z"/>
               <circle cx="8.5" cy="11.5" r="1.5"/><circle cx="15.5" cy="11.5" r="1.5"/><path d="M8,15a4,4,0,0,0,8,0H8Z"/>
             </svg>
           </div>
           <div class="model-card-info">
             <div class="model-card-name">${m.name}</div>
             <div class="model-card-tags">${tags.join('')}</div>
+            <div class="model-card-pricing"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> ${m.estimatedToolCost.toFixed(2)} In / ${(m.estimatedToolCost * 2).toFixed(2)} Out / 1K</div>
           </div>
-          ${isSelected ? '<div class="model-card-check"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>' : ''}
         </div>
       `;
     }).join('');

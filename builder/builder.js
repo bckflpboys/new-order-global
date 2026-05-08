@@ -256,12 +256,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (m.isVisionModel || m.name.toLowerCase().includes('vision')) tags.push('<span class="model-tag vision">Vision</span>');
       if (m.tier === 'free') tags.push('<span class="model-tag fast">Fast</span>');
       if (m.tier === 'premium') tags.push('<span class="model-tag full">Full</span>');
+      // Provider badge
+      const provider = (m.provider || 'openrouter').toUpperCase();
+      tags.push(`<span class="model-tag provider">${provider}</span>`);
 
       return `
         <div class="model-card ${isSelected ? 'selected' : ''}" data-id="${m.id}">
           <div class="model-card-icon">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-              <path d="M12,2A10,10,0,0,0,2,12a9.89,9.89,0,0,0,2.26,6.33l-2,2a1,1,0,0,0,1.42,1.42l2-2A9.94,9.94,0,0,0,12,22a10,10,0,0,0,0-20Zm0,18a8,8,0,1,1,8-8A8,8,0,0,1,12,20Z"/>
+              <path d="M12,2A10,10,0,0,0,2,12a9.89,9.89,0,0,0,2.26,6.33l-2,2a1,1,0,0,0,1.42,1.42l2-2A9.94,9.94,0,0,0,12,22a10,10,0,0,0,0-20Zm0,18a8,8,1,1,1,8-8A8,8,0,0,1,12,20Z"/>
               <circle cx="8.5" cy="11.5" r="1.5"/><circle cx="15.5" cy="11.5" r="1.5"/><path d="M8,15a4,4,0,0,0,8,0H8Z"/>
             </svg>
           </div>
