@@ -1234,7 +1234,8 @@
       'readPage', 'click', 'type', 'scroll', 'extract',
       'waitForElement', 'select', 'pressKey', 'clear',
       // Compound macro actions — see executeLoop dispatch.
-      'clickAndWait', 'typeAndSubmit', 'gotoAndRead'
+      'clickAndWait', 'typeAndSubmit', 'gotoAndRead',
+      'readAndExtract', 'scrollAndExtract'
     ]);
 
     // Actions that INTRINSICALLY change the URL — staleness check below
@@ -1470,7 +1471,31 @@
             return;
           }
 
-          if (action === 'think') {
+          // === Server-only action safety net ===
+          // These actions are executed entirely on the backend; the server
+          // is supposed to rewrite them to a `message` (or handle the side
+          // effect like ledger update / SERP fetch / file capture) BEFORE
+          // they reach the extension. If a rewrite slips through (e.g. an
+          // older server build, /start before its server-only-action
+          // guard, or a network reordering), dispatching the raw action
+          // to the in-tab runtime would return "Unknown action: X" and
+          // fail the step. We intercept here and return a success no-op
+          // so the agent loop continues and the server can re-handle on
+          // the next /step call.
+          const SERVER_ONLY_ACTIONS = new Set([
+            'setMilestones', 'completeMilestone', 'addMilestone',
+            'webSearch', 'researchNote',
+            'captureFile', 'viewCapturedFile',
+            'pdfPages', 'viewPdfPages', 'editPdf', 'fillPdf',
+            'readFile', 'createTool', 'spawnSubAgent', 'useTool'
+          ]);
+          if (SERVER_ONLY_ACTIONS.has(action)) {
+            result = {
+              success: true,
+              serverOnly: true,
+              note: `Server-only action "${action}" was acknowledged on the client. The server handles its side effect; on your next step the relevant state (ledger / research notes / captured file / etc.) will be reflected in your context.`
+            };
+          } else if (action === 'think') {
             result = { success: true };
           } else if (action === 'message') {
             result = { success: true };
@@ -1699,11 +1724,29 @@
                     } else if (trackedTabs[activeTabIndex]) {
                       trackedTabs[activeTabIndex].url = g.url;
                     }
-                    // Wait for the page to settle, then readPage. Slightly
-                    // longer than plain `goto` because we know we're going
-                    // to read immediately and don't want partial DOM.
-                    await sleep(1200);
-                    const r = await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'readPage', params: {} });
+                    // Wait for the page to actually settle before reading.
+                    // ge-goto already awaited waitForTabLoad (status=='complete'),
+                    // but many SPAs paint after that — Tripadvisor, Google,
+                    // Amazon all show "loading: true, mutationCount: 1" if
+                    // we readPage immediately. We layer two waits:
+                    //   1. waitForStable (MutationObserver-based) — returns
+                    //      as soon as the DOM goes quiet for ~600ms.
+                    //   2. If the resulting readPage STILL reports loading,
+                    //      sleep + re-read once.
+                    try {
+                      await sendToBackground('ge-execute-in-tab', {
+                        tabId: currentTabId,
+                        action: 'waitForStable',
+                        params: { timeout: 4000, quietMs: 600 }
+                      });
+                    } catch { /* best effort — fall through to readPage */ }
+                    let r = await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'readPage', params: {} });
+                    if (r?.success && r.result && r.result.loading === true) {
+                      // Partial DOM — give the page another moment then re-read.
+                      await sleep(1500);
+                      const r2 = await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'readPage', params: {} });
+                      if (r2?.success) r = r2;
+                    }
                     if (r?.success) {
                       subResults.readPage = r.result;
                       result = {
@@ -1805,6 +1848,97 @@
             } catch (macroErr) {
               error = `${action} macro failed: ${macroErr?.message || macroErr}`;
             }
+          } else if (action === 'readAndExtract') {
+            // Macro: readPage + extract in one round-trip. The agent already
+            // knows the repeating selector, so we save the round-trip cost
+            // of a separate `readPage` followed by a separate `extract`.
+            try {
+              const itemsSel = params?.items || params?.selector;
+              const extractParams = {
+                items: itemsSel,
+                fields: params?.fields || params?.selectors || {},
+                limit: typeof params?.limit === 'number' ? params.limit : 50
+              };
+              const r = await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'readPage', params: {} });
+              const subResults = {};
+              if (!r?.success) {
+                error = r?.error || 'readAndExtract: readPage failed';
+              } else {
+                subResults.readPage = r.result;
+                const e = await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'extract', params: extractParams });
+                subResults.extract = e?.success ? e.result : { success: false, error: e?.error || 'extract failed' };
+                result = {
+                  success: true,
+                  macro: 'readAndExtract',
+                  readPage: r.result,
+                  extract: subResults.extract,
+                  macroSubResults: subResults,
+                  hint: 'Macro: read page AND extracted in one step. Inspect `extract.items` for the data array.'
+                };
+              }
+            } catch (macroErr) {
+              error = `readAndExtract macro failed: ${macroErr?.message || macroErr}`;
+            }
+          } else if (action === 'scrollAndExtract') {
+            // Macro: scroll N times, extract on each pass, dedupe.
+            // Collapses the typical 6-12 step infinite-scroll harvesting
+            // pattern into ONE call. Hard-cap passes at 8 to bound credits.
+            try {
+              const itemsSel = params?.items || params?.selector;
+              const fields = params?.fields || params?.selectors || {};
+              const direction = (params?.direction === 'up') ? 'up' : 'down';
+              const amount = Math.max(100, Math.min(parseInt(params?.amount, 10) || 1000, 5000));
+              const passesReq = parseInt(params?.passes, 10);
+              const passes = Math.max(1, Math.min(Number.isFinite(passesReq) ? passesReq : 3, 8));
+              const dedupBy = String(params?.dedupBy || Object.keys(fields)[0] || '').trim();
+
+              const collected = [];
+              const seenKeys = new Set();
+              const subResults = { perPass: [] };
+              for (let i = 0; i < passes; i++) {
+                // Extract first (so pass 0 captures what's already on screen),
+                // then scroll to load more for the next pass.
+                const e = await sendToBackground('ge-execute-in-tab', {
+                  tabId: currentTabId,
+                  action: 'extract',
+                  params: { items: itemsSel, fields, limit: 200 }
+                });
+                const passItems = (e?.success && e.result && Array.isArray(e.result.items)) ? e.result.items : [];
+                let added = 0;
+                for (const it of passItems) {
+                  const key = dedupBy ? String(it?.[dedupBy] ?? '').trim() : JSON.stringify(it);
+                  if (!key) continue;
+                  if (seenKeys.has(key)) continue;
+                  seenKeys.add(key);
+                  collected.push(it);
+                  added++;
+                }
+                subResults.perPass.push({ pass: i, extracted: passItems.length, newItems: added });
+                // Don't scroll on the last pass — we already extracted everything we'll see.
+                if (i < passes - 1) {
+                  await sendToBackground('ge-execute-in-tab', {
+                    tabId: currentTabId,
+                    action: 'scroll',
+                    params: { direction, amount }
+                  });
+                  // Brief settle for lazy-loaded content. Keep short so the
+                  // macro doesn't drift toward becoming a sleep.
+                  await sleep(500);
+                }
+              }
+              result = {
+                success: true,
+                macro: 'scrollAndExtract',
+                passes,
+                totalExtracted: collected.length,
+                items: collected,
+                dedupBy: dedupBy || null,
+                macroSubResults: subResults,
+                hint: `Macro: scrolled ${passes} time(s) and harvested ${collected.length} unique item(s). If you need more, call again — the page is already scrolled past what you've seen.`
+              };
+            } catch (macroErr) {
+              error = `scrollAndExtract macro failed: ${macroErr?.message || macroErr}`;
+            }
           } else if (action === 'askUser' || action === 'confirmAction') {
             // Server set status='awaiting_user' and persisted the question. Show modal.
             const reply = action === 'askUser'
@@ -1847,6 +1981,20 @@
             }
           } else {
             // Actions that run in the content script: readPage, click, type, scroll, select, pressKey, clear, extract, waitForElement
+            // === Humanization jitter ===
+            // Bot-detection systems (Cloudflare, PerimeterX, DataDome,
+            // TripAdvisor, etc.) flag automation when DOM events arrive in
+            // sub-100ms bursts with no variance. We add a randomized sleep
+            // BEFORE every interactive action so the timing distribution
+            // looks more like a human operator. Skipped for "readPage" and
+            // "extract" (pure DOM reads — no event fingerprint) to save
+            // credits, and capped so long-running tasks don't drag.
+            const INTERACTIVE = new Set(['click', 'type', 'scroll', 'select', 'pressKey', 'clear', 'hover', 'uploadFile']);
+            if (INTERACTIVE.has(action)) {
+              // 400-1200ms jitter with a bias toward the middle of the range.
+              const jitter = 400 + Math.floor(Math.random() * 400) + Math.floor(Math.random() * 400);
+              await sleep(jitter);
+            }
             // Snapshot the timestamp just BEFORE dispatching a click so the
             // auto-adopt logic (below) can filter the recent-tabs map to
             // tabs created as a side-effect of THIS click. Minus 300 ms to

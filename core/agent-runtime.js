@@ -142,6 +142,10 @@
       readyState: document.readyState,
       // True if the DOM has mutated within the last ~600ms (page likely still rendering)
       loading: stillMutating || document.readyState !== 'complete',
+      // Deterministic signal: page is fully loaded AND idle for ≥600ms.
+      // Callers (server, macros) should prefer this over inferring from
+      // the loading/readyState/msSinceLastMutation triple.
+      pageLoadComplete: document.readyState === 'complete' && !stillMutating,
       msSinceLastMutation: sinceMutation,
       mutationCount: __geMutationCount,
       visibleText: '',
@@ -1326,7 +1330,19 @@
             result = await executeReadClipboard(params);
             break;
           default:
-            result = { success: false, error: `Unknown action: ${action}` };
+            // Structured failure: the agent loop's safety net SHOULD have
+            // intercepted server-only actions before they reached the
+            // runtime. If we got here, either (a) the server hasn't been
+            // updated to rewrite this action, (b) the action is genuinely
+            // misspelled, or (c) the runtime is older than the action.
+            // Surface enough context for the LLM (and the server's failure
+            // classifier) to choose a recovery without guessing.
+            result = {
+              success: false,
+              reason: 'unknown_action',
+              error: `Unknown action: "${action}". This action is not implemented in the in-tab runtime.`,
+              recovery: 'If you believe this is a server-handled action (setMilestones, webSearch, researchNote, captureFile, viewCapturedFile, pdfPages, viewPdfPages, editPdf, readFile, createTool, useTool, spawnSubAgent), the server normally rewrites it before dispatch — re-emit on the next step. Otherwise pick a known primitive (readPage, click, type, scroll, screenshot, goto, switchTab, extract, waitForElement, waitForStable, waitUntil, hover, pressKey, clear, uploadFile) or a macro (gotoAndRead, clickAndWait, typeAndSubmit, readAndExtract, scrollAndExtract).'
+            };
         }
         sendResponse({ success: true, result });
       } catch (err) {
