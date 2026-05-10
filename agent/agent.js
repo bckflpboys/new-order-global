@@ -939,7 +939,14 @@
       }
     } catch (err) {
       console.error('[Global Executive] chat-nudge failed:', err);
-      showInlineNotice('Could not deliver message: ' + (err.message || err), 'warning');
+      // The server returns `sessionLimitReached: true` when the tier's
+      // maxSessionMessages cap is hit. Surface a clearer CTA in that case.
+      const detail = err?.data || err?.body || {};
+      if (detail && detail.sessionLimitReached) {
+        showInlineNotice(detail.error || 'Session message limit reached.', 'warning');
+      } else {
+        showInlineNotice('Could not deliver message: ' + (err.message || err), 'warning');
+      }
     }
   }
 
