@@ -12,7 +12,7 @@
 // ============================================
 // Import core modules
 // ============================================
-importScripts('core/api-client.js', 'core/tool-manager.js', 'core/auth.js', 'core/bg-agent-loop.js');
+importScripts('core/api-client.js', 'core/tool-manager.js', 'core/auth.js', 'core/bg-agent-loop.js', 'core/extension-updates.js');
 
 // ============================================
 // Lightweight authenticated fetch helper for background-side API calls

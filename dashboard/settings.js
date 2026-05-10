@@ -468,3 +468,89 @@ function showSignOutModal(user) {
     window.location.href = '../builder/builder.html';
   });
 }
+
+// ============================================
+// Extension Updates section — wires the toggle + "Check now" button.
+// Defined as a separate IIFE so it can co-exist with the existing
+// DOMContentLoaded handler at the top of this file. We wait for the
+// next tick so all DOM ids the handler reads are present.
+// ============================================
+document.addEventListener('DOMContentLoaded', () => {
+  const toggle = document.getElementById('auto-extension-updates');
+  const checkBtn = document.getElementById('btn-check-updates');
+  const versionBadge = document.getElementById('ext-version-badge');
+  const versionText = document.getElementById('ext-version-text');
+  const resultEl = document.getElementById('update-result');
+  if (!toggle || !checkBtn || !versionText) return;
+
+  // Show the currently installed version from the manifest.
+  try {
+    const v = chrome.runtime.getManifest().version;
+    versionText.textContent = `Installed: v${v}`;
+  } catch {
+    versionText.textContent = 'Installed: unknown';
+  }
+
+  // Hydrate the toggle from /api/agent-settings.
+  (async function loadAutoUpdatesPref() {
+    try {
+      const data = await NewOrderAPI.request('/api/agent-settings');
+      // Default ON when settings missing or the field is undefined.
+      const auto = !data?.settings || data.settings.autoExtensionUpdates !== false;
+      toggle.checked = auto;
+    } catch (err) {
+      console.warn('[Settings] Failed to load auto-update pref:', err);
+    }
+  })();
+
+  // Persist the toggle. We send the autoExtensionUpdates flag alone; the
+  // /agent-settings PUT route preserves other fields it doesn't see.
+  toggle.addEventListener('change', async () => {
+    try {
+      await NewOrderAPI.request('/api/agent-settings', {
+        method: 'PUT',
+        body: JSON.stringify({ autoExtensionUpdates: toggle.checked })
+      });
+    } catch (err) {
+      console.error('[Settings] Failed to save auto-update pref:', err);
+      // Roll back the visual on error so the UI matches the server.
+      toggle.checked = !toggle.checked;
+      alert('Could not save: ' + (err.message || err));
+    }
+  });
+
+  // Manual check — hits the same endpoint the bg worker uses, but reports
+  // the result inline regardless of the toggle (so users can verify their
+  // setup even with auto-checks off).
+  checkBtn.addEventListener('click', async () => {
+    checkBtn.disabled = true;
+    resultEl.textContent = 'Checking…';
+    try {
+      const installed = chrome.runtime.getManifest().version;
+      const data = await NewOrderAPI.request(
+        `/api/extension/latest-release?currentVersion=${encodeURIComponent(installed)}`
+      );
+      if (!data.release) {
+        resultEl.textContent = 'No releases published yet.';
+      } else if (data.hasUpdate) {
+        resultEl.innerHTML =
+          `<strong>New version available:</strong> v${data.release.version} \u2014 ` +
+          `<a href="${data.release.githubReleaseUrl}" target="_blank" rel="noopener">Open release page</a>`;
+        // Forward to the bg worker so it surfaces the standard popup
+        // dialog with the full changelog (re-uses the same UI users get
+        // automatically).
+        chrome.runtime.sendMessage({
+          type: 'EXT_UPDATE_FORCE_SHOW',
+          release: data.release
+        });
+      } else {
+        resultEl.textContent = `You're on the latest version (v${data.release.version}).`;
+      }
+    } catch (err) {
+      console.error('[Settings] check-updates failed:', err);
+      resultEl.textContent = 'Check failed: ' + (err.message || err);
+    } finally {
+      checkBtn.disabled = false;
+    }
+  });
+});

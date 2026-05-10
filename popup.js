@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', () => {
+    // Admin broadcast notifications: pop unread messages as modal
+    // dialogs over the popup. Helper is loaded by core/notifications-popup.js
+    // ahead of this file. Best-effort \u2014 silent on any error.
+    try { window.NgoNotifications && window.NgoNotifications.pollAndShow(); } catch {}
+
     // --- Vertical Slider (Notifications) ---
     const verticalSlider = document.getElementById('vertical-slider');
     const btnNotifications = document.getElementById('btn-notifications');

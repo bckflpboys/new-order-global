@@ -122,6 +122,30 @@
       </div>
     </div>
 
+    <!-- Extension Updates -->
+    <div class="settings-card">
+      <h3>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9c2.52 0 4.93 1.06 6.7 2.82L21 8"/><polyline points="21 3 21 8 16 8"/></svg>
+        Extension Updates
+      </h3>
+      <p>When you have automatic updates on, the extension checks the New Order Global server for new releases and shows you a popup with the changelog. Updates are <strong>not</strong> installed automatically — you'll get a one-click link to download the new release ZIP from GitHub.</p>
+      <div style="display: flex; align-items: center; gap: 12px; margin: 16px 0;">
+        <label class="tool-toggle-switch">
+          <input type="checkbox" id="auto-extension-updates" checked>
+          <span class="tool-toggle-slider"></span>
+        </label>
+        <span style="font-family: var(--font-body); font-size: 14px;">Automatically check for updates</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+        <span class="status-badge" id="ext-version-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/></svg>
+          <span id="ext-version-text">Loading…</span>
+        </span>
+        <button type="button" class="btn-secondary" id="btn-check-updates">Check for updates now</button>
+      </div>
+      <div id="update-result" style="margin-top: 12px; font-family: var(--font-body); font-size: 13px;"></div>
+    </div>
+
     <!-- Danger Zone -->
     <div class="settings-card danger">
       <h3>

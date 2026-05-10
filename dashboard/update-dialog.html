@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>New Order Global — Update Available</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <style>
+    /* The dialog renders inside its own popup chrome window (560x640).
+       Keep the body padding modest and let content scroll. */
+    body {
+      margin: 0;
+      padding: 28px 28px 24px;
+      background: var(--surface, #0e0f12);
+      color: var(--on-surface, #e6e6e6);
+      font-family: var(--font-body, system-ui, -apple-system, sans-serif);
+      min-height: 100vh;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+    }
+    .ud-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
+    .ud-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      background: linear-gradient(135deg, #5b6cff, #b066ff);
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; flex-shrink: 0;
+    }
+    .ud-title { font-size: 20px; font-weight: 700; line-height: 1.2; }
+    .ud-version-row { font-size: 13px; opacity: 0.7; margin-top: 2px; }
+    .ud-version-row strong { color: #b066ff; }
+    .ud-changelog {
+      flex: 1;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 16px 18px;
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      margin-bottom: 16px;
+      max-height: 360px;
+    }
+    .ud-changelog:empty::before {
+      content: "No changelog provided.";
+      opacity: 0.45;
+      font-style: italic;
+    }
+    .ud-help {
+      font-size: 12px;
+      opacity: 0.65;
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+    .ud-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .ud-btn {
+      padding: 10px 16px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.06);
+      color: var(--on-surface, #e6e6e6);
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    .ud-btn:hover { background: rgba(255,255,255,0.12); }
+    .ud-btn:active { transform: scale(0.97); }
+    .ud-btn.primary {
+      background: linear-gradient(135deg, #5b6cff, #b066ff);
+      border-color: transparent;
+      color: #fff;
+    }
+    .ud-btn.primary:hover { filter: brightness(1.1); }
+    .ud-btn.subtle {
+      background: transparent;
+      border-color: transparent;
+      opacity: 0.7;
+    }
+    .ud-btn.subtle:hover { opacity: 1; background: rgba(255,255,255,0.06); }
+  </style>
+</head>
+<body>
+  <div class="ud-header">
+    <div class="ud-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9c2.52 0 4.93 1.06 6.7 2.82L21 8"/>
+        <polyline points="21 3 21 8 16 8"/>
+      </svg>
+    </div>
+    <div>
+      <div class="ud-title" id="ud-title">A new version is available</div>
+      <div class="ud-version-row">
+        Installed: v<span id="ud-current">…</span> &nbsp;→&nbsp; Latest: <strong>v<span id="ud-latest">…</span></strong>
+      </div>
+    </div>
+  </div>
+
+  <div class="ud-changelog" id="ud-changelog"></div>
+
+  <p class="ud-help">
+    Chrome doesn't allow extensions to overwrite their own files automatically.
+    Click <strong>Open release page</strong> (or <strong>Download ZIP</strong>) to grab the new build,
+    then unzip into your extension folder and reload from <code>chrome://extensions</code>.
+  </p>
+
+  <div class="ud-actions">
+    <button id="ud-open" class="ud-btn primary">Open release page</button>
+    <button id="ud-zip"  class="ud-btn" hidden>Download ZIP</button>
+    <button id="ud-extensions" class="ud-btn">Open chrome://extensions</button>
+    <button id="ud-later" class="ud-btn subtle">Remind me later</button>
+  </div>
+
+  <script src="update-dialog.js"></script>
+</body>
+</html>
