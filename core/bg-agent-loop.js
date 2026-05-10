@@ -320,7 +320,13 @@
                 const out = await executeAction(state, currentStep.action, currentStep.params);
                 if (out && out.success) result = out;
                 else error = (out && out.error) || 'Action failed';
-                if (currentStep.action === 'done') return { ok: true, taskId, stage: 'done_local' };
+                // NOTE: do NOT early-return on `done` here. The server's
+                // /step handler is what marks the task completed, persists
+                // the summary, and (critically) relays it back to the
+                // originating channel (Telegram / WhatsApp). Returning
+                // locally would leave the user texting us with no reply.
+                // Falling through posts the done step → server finalizes
+                // → loop exits via the `nextData.done` branch below.
             } catch (e) {
                 error = e.message || String(e);
             }
@@ -428,7 +434,7 @@
     // ============================================
     // Main loop — fresh task from /inbox queue
     // ============================================
-    async function runOneTask({ prompt, source }) {
+    async function runOneTask({ prompt, source, resumeFromTaskId }) {
         const tabId = await pickOrOpenTargetTab();
         const state = makeTabState(tabId);
         let tabInfo;
@@ -448,7 +454,11 @@
                         mode: 'autopilot', // server may override with user's /copilot /autopilot preference
                         tabUrl: tabInfo.url || '',
                         tabTitle: tabInfo.title || '',
-                        allTabs: []
+                        allTabs: [],
+                        // If the server's /inbox drain flagged a resume target
+                        // (paid-tier session persistence), thread the new
+                        // request onto that prior session.
+                        resumeFromTaskId: resumeFromTaskId || undefined
                     })
                 });
             } catch (err) {
@@ -588,7 +598,11 @@
             if (!inbox || !inbox.queuedPrompt || !inbox.backgroundEligible) return;
 
             console.log('[GE bg-agent] Running task from', inbox.source, ':', inbox.queuedPrompt.substring(0, 80));
-            const r = await runOneTask({ prompt: inbox.queuedPrompt, source: inbox.source });
+            const r = await runOneTask({
+                prompt: inbox.queuedPrompt,
+                source: inbox.source,
+                resumeFromTaskId: inbox.resumeFromTaskId || null
+            });
             console.log('[GE bg-agent] Task finished:', r);
         } catch (e) {
             console.error('[GE bg-agent] Tick crashed:', e);

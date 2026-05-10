@@ -710,6 +710,47 @@ body.autopilot-mode .agent-app {
   color: var(--on-surface);
 }
 
+.task-id-chip {
+  font-family: var(--font-mono, ui-monospace, "SFMono-Regular", Menlo, monospace);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--on-surface);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, transform 0.1s ease;
+}
+.task-id-chip:hover { background: rgba(255, 255, 255, 0.12); }
+.task-id-chip:active { transform: scale(0.96); }
+.task-id-chip.copied { background: rgba(80, 200, 120, 0.25); border-color: rgba(80, 200, 120, 0.5); }
+
+/* Separates tasks inside a resumed session chain so the conversation
+   reads top-to-bottom. Each divider is a hairline with a centered label. */
+.session-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 18px 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+}
+.session-divider::before,
+.session-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.15), transparent);
+}
+.session-divider span { white-space: nowrap; }
+
 .task-status-badge {
   display: flex;
   align-items: center;

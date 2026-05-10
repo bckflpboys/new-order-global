@@ -12,6 +12,9 @@
   let selectedModelId = null;
   let availableModels = [];
   let currentTierMaxSteps = 50;
+  // Cached from /api/auth/profile. When false, typing into a finished task
+  // starts a fresh task instead of threading onto it (matches server gate).
+  let sessionPersistenceActive = false;
   let keepAlivePort = null; // MV3 SW keep-alive
   let selectedMode = 'copilot'; // 'copilot' | 'autopilot'
   let pendingTaskContext = null; // { taskId, plan, requiredInputs, permissionsRequested, allTabs, activeTab }
@@ -39,6 +42,40 @@
   const authModal = document.getElementById('auth-modal');
   const loadingOverlay = document.getElementById('initial-loading-overlay');
   const modelSelectorContainer = document.getElementById('model-selector-container');
+  const taskIdChip = document.getElementById('task-id-chip');
+
+  // ============================================
+  // URL <-> task-id sync
+  // The page lives at chrome-extension://.../agent/agent.html. We append
+  // ?taskId=<id> so a refresh keeps the user inside the same task instead
+  // of dumping them at the welcome screen, and so the URL itself is a
+  // shareable pointer to the conversation.
+  // ============================================
+  function setTaskInUrl(taskId) {
+    try {
+      const url = new URL(window.location.href);
+      if (taskId) url.searchParams.set('taskId', String(taskId));
+      else url.searchParams.delete('taskId');
+      window.history.replaceState(null, '', url.toString());
+    } catch { /* best effort */ }
+  }
+  function getTaskFromUrl() {
+    try { return new URL(window.location.href).searchParams.get('taskId') || ''; }
+    catch { return ''; }
+  }
+  function updateTaskIdChip(taskId) {
+    if (!taskIdChip) return;
+    if (!taskId) { taskIdChip.style.display = 'none'; taskIdChip.textContent = ''; return; }
+    const short = String(taskId).slice(-6);
+    taskIdChip.style.display = '';
+    taskIdChip.textContent = '#' + short;
+    taskIdChip.dataset.fullId = String(taskId);
+  }
+  function setCurrentTaskId(taskId) {
+    currentTaskId = taskId || null;
+    setTaskInUrl(currentTaskId);
+    updateTaskIdChip(currentTaskId);
+  }
 
   // ============================================
   // Initialization
@@ -68,6 +105,15 @@
       setupStageFileButton();
       setupInboxPolling();
       startPanelPresenceHeartbeat();
+
+      // Restore task from ?taskId=... so a refresh keeps the user where
+      // they were (running task / viewing an old one). Falls back to the
+      // welcome screen if the id is unknown or finished.
+      const urlTaskId = getTaskFromUrl();
+      if (urlTaskId) {
+        try { await viewPastTask(urlTaskId); }
+        catch (e) { console.warn('[Global Executive] Failed to restore task from URL:', e?.message); setTaskInUrl(''); }
+      }
 
       hideLoading();
     } catch (err) {
@@ -184,6 +230,12 @@
         // Store tier info from profile
         if (user.agentTier) {
           currentTierMaxSteps = user.agentTier.maxSteps || 50;
+          // Session persistence is "active" only when the tier supports it
+          // AND the user has enabled the setting in Setup. Governs whether
+          // typing into a finished task chains onto it or starts fresh.
+          sessionPersistenceActive =
+            !!user.agentTier.canPersistSession &&
+            !!user.agentTier.sessionPersistenceEnabled;
         }
       }
     } catch (err) {
@@ -409,36 +461,49 @@
       const data = await NewOrderAPI.request(`/api/agent/tasks/${taskId}`);
       if (!data.task) return;
 
-      const task = data.task;
+      // When session persistence produced a chain of tasks, the server
+      // returns `chain: [rootTask, ...children]` (root-first). Render them
+      // as one continuous conversation. Wire currentTaskId to the LATEST
+      // (tail) task so Stop / chat-nudge target the right place; keep the
+      // URL on the session root so refresh stays in-session.
+      const chain = Array.isArray(data.chain) && data.chain.length ? data.chain : [data.task];
+      const tail = chain[chain.length - 1];
+      const root = chain[0];
 
-      // Wire up the viewed task so stop works on it
-      currentTaskId = task.id;
-      isRunning = ['running', 'planning', 'briefing', 'awaiting_user'].includes(task.status);
+      // Wire up the latest task (for stop / follow-up routing) and
+      // anchor the URL to the session root.
+      setCurrentTaskId(tail.id);
+      if (root.id !== tail.id) setTaskInUrl(root.id);
+      isRunning = ['running', 'planning', 'briefing', 'awaiting_user'].includes(tail.status);
       setSendingState(isRunning);
 
-      showTaskView(task.title);
-      updateTaskStatus(task.status);
-      taskStepCounter.textContent = `${task.currentStepNumber}/${task.maxSteps} steps`;
-      taskCredits.textContent = task.totalCreditsUsed.toFixed(2) + ' credits';
+      showTaskView(tail.title);
+      updateTaskStatus(tail.status);
+      taskStepCounter.textContent = `${tail.currentStepNumber}/${tail.maxSteps} steps`;
+      taskCredits.textContent = tail.totalCreditsUsed.toFixed(2) + ' credits';
 
       stepLog.innerHTML = '';
-      // Show original prompt as a user bubble so the replay reads as a chat thread.
-      if (task.originalPrompt) renderUserPromptBubble(task.originalPrompt);
-      // Restore milestone state BEFORE step replay so per-step milestone updates
-      // animate naturally as we walk forward.
-      if (task.goalLedger) renderGoalLedger(task.goalLedger);
-      task.steps.forEach(step => {
-        renderStep(step);
+      // Replay every member of the chain as a chat thread: user prompt,
+      // goal-ledger (if any), steps, summary. A subtle divider separates
+      // each member so the conversation reads top-to-bottom.
+      chain.forEach((t, idx) => {
+        if (idx > 0) {
+          const divider = document.createElement('div');
+          divider.className = 'session-divider';
+          divider.innerHTML = '<span>continuing session</span>';
+          stepLog.appendChild(divider);
+        }
+        if (t.originalPrompt) renderUserPromptBubble(t.originalPrompt);
+        if (t.goalLedger) renderGoalLedger(t.goalLedger);
+        (t.steps || []).forEach(step => renderStep(step));
+        if (t.summary) renderDoneStep(t.summary);
       });
 
-      if (task.summary) {
-        renderDoneStep(task.summary);
-      }
-
-      updateTabTracker(task.trackedTabs, task.activeTabIndex);
-
-      if (task.storedData && Object.keys(task.storedData).length > 0) {
-        showStoredData(task.storedData);
+      // Use the latest task's tab tracker / stored data snapshot \u2014 it is
+      // the current state of the session.
+      updateTabTracker(tail.trackedTabs, tail.activeTabIndex);
+      if (tail.storedData && Object.keys(tail.storedData).length > 0) {
+        showStoredData(tail.storedData);
       }
 
       historySidebar.classList.remove('open');
@@ -830,9 +895,58 @@
   }
 
   // ============================================
+  // Conversation continuity
+  // When the user types into the input while a task is already running,
+  // we deliver the message as a chat-nudge to the active task instead of
+  // spawning a brand-new task. This mirrors the Telegram / WhatsApp
+  // behaviour and lets the in-flight agent see the new instruction on its
+  // next /step round (services/agentService.js consumes task.chatNudges).
+  // ============================================
+  function handleUserSubmit(prompt) {
+    if (isRunning && currentTaskId) {
+      // Task is live — deliver as chat nudge.
+      sendChatToActiveTask(prompt);
+      return;
+    }
+    if (currentTaskId && !isRunning && sessionPersistenceActive) {
+      // We're viewing a FINISHED task (completed / failed / cancelled)
+      // AND session persistence is enabled on the user's tier + Setup.
+      // Thread the new prompt onto the existing session.
+      startTask(prompt, { resumeFromTaskId: currentTaskId });
+      return;
+    }
+    // Otherwise (welcome screen, or finished task without persistence),
+    // start a brand-new task.
+    startTask(prompt);
+  }
+
+  async function sendChatToActiveTask(text) {
+    const trimmed = String(text || '').trim();
+    if (!trimmed || !currentTaskId) return;
+    // Clear the input immediately for a snappy chat feel and render the
+    // user's bubble so the conversation reads top-to-bottom.
+    taskInput.value = '';
+    taskInput.style.height = 'auto';
+    renderUserPromptBubble(trimmed);
+    scrollToBottom();
+    try {
+      const r = await NewOrderAPI.request('/api/agent/chat-nudge', {
+        method: 'POST',
+        body: JSON.stringify({ taskId: currentTaskId, text: trimmed })
+      });
+      if (r && r.kind === 'reply') {
+        showInlineNotice('Reply delivered to the awaiting question.', 'info');
+      }
+    } catch (err) {
+      console.error('[Global Executive] chat-nudge failed:', err);
+      showInlineNotice('Could not deliver message: ' + (err.message || err), 'warning');
+    }
+  }
+
+  // ============================================
   // Agent Loop
   // ============================================
-  async function startTask(prompt) {
+  async function startTask(prompt, opts = {}) {
     if (isRunning) return;
 
     const trimmed = prompt.trim();
@@ -840,12 +954,35 @@
       alert('Please describe the task in more detail.');
       return;
     }
+    const resumeFromTaskId = opts.resumeFromTaskId || null;
 
     setSendingState(true);
     // Show the user's prompt as a chat bubble immediately so they get instant
     // feedback that their message landed. We swap to the task view first so
     // the bubble lands in step-log even if the welcome screen is still up.
-    showTaskView(trimmed.length > 60 ? trimmed.substring(0, 57) + '…' : trimmed);
+    // IMPORTANT: when resuming, do NOT wipe the existing step-log — the
+    // user is continuing an ongoing conversation, so the prior chain must
+    // stay visible. We only update the title and append a thin divider +
+    // the new user bubble.
+    const newTitle = trimmed.length > 60 ? trimmed.substring(0, 57) + '…' : trimmed;
+    // Only preserve the visible thread when the user is actually looking
+    // at the task we're resuming onto. If a Telegram inbox poll brought us
+    // here with a resume pointer for a different task than the one on
+    // screen, wipe and start a clean view so the UI doesn't misrepresent
+    // the session the server is threading into.
+    const canPreserve =
+      resumeFromTaskId &&
+      taskView.style.display === 'flex' &&
+      String(currentTaskId || '') === String(resumeFromTaskId);
+    if (canPreserve) {
+      taskTitle.textContent = newTitle;
+      const divider = document.createElement('div');
+      divider.className = 'session-divider';
+      divider.innerHTML = '<span>continuing session</span>';
+      stepLog.appendChild(divider);
+    } else {
+      showTaskView(newTitle);
+    }
     renderUserPromptBubble(trimmed);
     // Show a transient "Planning…" thinking bubble while we wait for /plan.
     const planningBubble = document.createElement('div');
@@ -863,6 +1000,9 @@
       const { activeTab, allTabs } = await getAgentContext();
 
       // === Phase 0: ask the planner what's needed ===
+      // When resumeFromTaskId is set, the server will (if the user's tier
+      // and Setup > Session persistence allow it) thread the new request
+      // onto the prior task's context.
       const planData = await NewOrderAPI.request('/api/agent/plan', {
         method: 'POST',
         body: JSON.stringify({
@@ -872,6 +1012,7 @@
           tabUrl: activeTab?.url || '',
           tabTitle: activeTab?.title || '',
           allTabs: allTabs.map(t => ({ url: t.url, title: t.title, active: t.active })),
+          resumeFromTaskId,
           ...getBrowserEnv()
         })
       });
@@ -1196,7 +1337,7 @@
         })
       });
 
-      currentTaskId = data.taskId;
+      setCurrentTaskId(data.taskId);
       updateCreditsDisplay(data.usage.creditsRemaining);
       taskCredits.textContent = data.usage.totalTaskCredits.toFixed(2) + ' credits';
       currentTierMaxSteps = data.tier?.maxSteps || currentTierMaxSteps;
@@ -2582,7 +2723,9 @@
           }
           // Mark as remote-triggered so plan modal can auto-approve when possible
           window.__geNextTaskIsRemote = true;
-          startTask(prompt);
+          // If the server flagged a resume pointer (session persistence on
+          // the paid tier), thread the new prompt onto that prior session.
+          startTask(prompt, data.resumeFromTaskId ? { resumeFromTaskId: data.resumeFromTaskId } : {});
         }
       } catch (err) {
         const m = err?.message || '';
@@ -2728,7 +2871,7 @@
         updateTaskStatus('cancelled');
         renderDoneStep('Task cancelled by user');
         setSendingState(false);
-        currentTaskId = null;
+        setCurrentTaskId(null);
         stopKeepAlive();
         sendToBackground('ge-clear-staged-files').catch(() => {});
       }
@@ -2881,7 +3024,7 @@
     if (isRunning && currentTaskId) {
       await stopTask();
     }
-    currentTaskId = null;
+    setCurrentTaskId(null);
     isRunning = false;
     setSendingState(false);
     removeExecutingIndicator();
@@ -2902,7 +3045,7 @@
     // Send button
     btnSend.addEventListener('click', () => {
       const prompt = taskInput.value.trim();
-      if (prompt) startTask(prompt);
+      if (prompt) handleUserSubmit(prompt);
     });
 
     // Enter to send (Shift+Enter for newline)
@@ -2910,8 +3053,19 @@
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         const prompt = taskInput.value.trim();
-        if (prompt) startTask(prompt);
+        if (prompt) handleUserSubmit(prompt);
       }
+    });
+
+    // Task-id chip: click to copy full ObjectId.
+    taskIdChip?.addEventListener('click', async () => {
+      const full = taskIdChip.dataset.fullId || '';
+      if (!full) return;
+      try {
+        await navigator.clipboard.writeText(full);
+        taskIdChip.classList.add('copied');
+        setTimeout(() => taskIdChip.classList.remove('copied'), 900);
+      } catch { /* clipboard may be denied; no-op */ }
     });
 
     // Auto-resize textarea
