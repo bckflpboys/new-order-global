@@ -93,6 +93,34 @@
     return null;
   }
 
+  // Read the unread-badge count on a chat row. Multiple strategies because
+  // WhatsApp Web's DOM evolves; we want this to keep working across releases.
+  function getUnreadCount(row) {
+    if (!row) return 0;
+    try {
+      // Strategy 1: aria-label "N unread message(s)"
+      const aria = row.querySelector('[aria-label*="unread" i]');
+      if (aria) {
+        const m = (aria.getAttribute('aria-label') || '').match(/(\d+)/);
+        if (m) return parseInt(m[1], 10) || 0;
+        return 1;
+      }
+      // Strategy 2: explicit testid badge
+      const badge = row.querySelector('[data-testid="icon-unread-count"], span[data-icon="unread-count"]');
+      if (badge) {
+        const n = parseInt((badge.textContent || '').trim(), 10);
+        return Number.isFinite(n) && n > 0 ? n : 1;
+      }
+      // Strategy 3: anything with "unread" in the class name
+      const unreadHost = row.querySelector('[class*="unread" i]');
+      if (unreadHost) {
+        const n = parseInt((unreadHost.textContent || '').trim(), 10);
+        return Number.isFinite(n) && n > 0 ? n : 1;
+      }
+    } catch { /* best effort */ }
+    return 0;
+  }
+
   // Find the open conversation panel
   function findConversationPanel() {
     return $first(
@@ -162,6 +190,13 @@
   // ============================================
   function scanForNewIncoming() {
     if (!state.enabled) return;
+    // Title guard — only scan when the currently-open conversation IS the
+    // agent group. Previously this function would happily walk whichever
+    // chat was on screen and forward those bubbles as agent prompts, which
+    // (a) leaked unrelated messages and (b) silently dropped real agent
+    // messages whenever the user was on another chat.
+    const openTitle = (getOpenChatTitle() || '').trim().toLowerCase();
+    if (!openTitle || openTitle !== (state.groupName || '').trim().toLowerCase()) return;
     const bubbles = getMessageBubbles();
     if (!bubbles.length) return;
     // IMPORTANT: The "My Agent" group is a self-chat (only the user is in it
@@ -202,6 +237,51 @@
       const arr = Array.from(state.lastSeenIds);
       state.lastSeenIds = new Set(arr.slice(-300));
     }
+  }
+
+  // ============================================
+  // Force-forward the latest N bubbles from the currently-open chat,
+  // bypassing the historical-seed gate. Used by the unread-badge sweep
+  // in tick() — we already know via the badge that these N bubbles are
+  // brand-new, so seeding them as "historical" would silently drop them.
+  // ============================================
+  function scanLatestUnread(n) {
+    if (!state.enabled || !n || n <= 0) return;
+    // Title guard — never forward bubbles from the wrong chat even on
+    // the unread-driven path.
+    const openTitle = (getOpenChatTitle() || '').trim().toLowerCase();
+    if (openTitle !== (state.groupName || '').trim().toLowerCase()) return;
+    const bubbles = Array.from(getMessageBubbles());
+    if (!bubbles.length) return;
+    // Last N bubbles — the most recent ones at the bottom of the chat.
+    // Cap to a sane upper bound so a corrupted unread reading can't make
+    // us forward 100s of historical messages.
+    const slice = bubbles.slice(-Math.min(n, 10));
+    let forwarded = 0;
+    slice.forEach(b => {
+      const parsed = parseBubble(b);
+      if (!parsed || !parsed.id || !parsed.text) return;
+      if (state.lastSeenIds.has(parsed.id)) return;
+      state.lastSeenIds.add(parsed.id);
+      if (parsed.text.startsWith(AGENT_PREFIX)) return;
+      chrome.runtime.sendMessage({
+        type: 'ge-wa-incoming',
+        text: parsed.text,
+        messageId: parsed.id
+      }).catch(() => {});
+      forwarded++;
+      LOG('Force-forwarded (unread-driven):', parsed.text.substring(0, 80));
+    });
+    // Mark all OTHER bubbles in the chat as seen so the regular observer
+    // path doesn't re-forward historical messages on its first tick.
+    if (!state.seeded) {
+      bubbles.forEach(b => {
+        const id = b.getAttribute('data-id') || b.getAttribute('id') || '';
+        if (id) state.lastSeenIds.add(id);
+      });
+      state.seeded = true;
+    }
+    if (forwarded > 0) LOG(`Unread-driven sweep forwarded ${forwarded} message(s).`);
   }
 
   // ============================================
@@ -295,6 +375,43 @@
         attachChatObserver();
       }
       if (!state.listObserver) attachListObserver();
+
+      // ============================================
+      // Unread-badge sweep — THE fix for "WhatsApp messages don't trigger
+      // the agent unless I'm sitting on the chat".
+      //
+      // The MutationObserver only fires while the agent chat is the
+      // currently-open conversation. If the user is anywhere else (another
+      // chat, the chat list, settings panel), incoming messages would
+      // never be picked up. Here we read the unread-badge count on the
+      // agent group's row in the chat list; when it's > 0, we force-open
+      // the chat for one scan, which lets scanForNewIncoming forward the
+      // new bubbles. Then the user can switch back to whatever they were
+      // doing — but next time WhatsApp shows another unread we'll do the
+      // same thing again.
+      // ============================================
+      try {
+        const row = findChatRowByName(state.groupName);
+        const unread = getUnreadCount(row);
+        const openTitle = (getOpenChatTitle() || '').trim().toLowerCase();
+        const onAgentChat = openTitle === (state.groupName || '').trim().toLowerCase();
+        if (unread > 0 && !onAgentChat) {
+          LOG(`Detected ${unread} unread on "${state.groupName}" while on a different chat — opening to scan.`);
+          const opened = await openGroupChat(state.groupName);
+          if (opened) {
+            attachChatObserver();
+            // Force-forward the LAST `unread` bubbles regardless of the
+            // historical-seed gate. This is the only safe way to bridge
+            // "we just opened the chat for the first time AND there are
+            // brand-new messages" without flooding the server with the
+            // entire historical backlog.
+            scanLatestUnread(unread);
+          }
+        }
+      } catch (e) {
+        ERR('unread sweep error:', e.message);
+      }
+
       // Drain anything queued
       await drainOutbox();
     } catch (e) {

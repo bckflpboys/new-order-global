@@ -14,8 +14,15 @@
     'use strict';
 
     const ALARM_NAME = 'geBgAgentPoll';
-    const POLL_MINUTES = 0.5; // 30s
-    const INTEG_CACHE_MS = 2 * 60 * 1000; // 2 minutes
+    const POLL_MINUTES = 0.5; // 30s (chrome.alarms minimum in MV3)
+    // Keep the integrations cache shorter than the alarm period so every tick
+    // sees a fresh `backgroundAgent.autoRun` status. Previously 2 minutes,
+    // which caused up-to-2-minute pickup delays after auth / plan changes
+    // exactly matching the user-reported symptom.
+    const INTEG_CACHE_MS = 25 * 1000; // 25s
+    // Opportunistic-wake debounce — we tick on browser activity, but not more
+    // often than this. Keeps us responsive without hammering the server.
+    const OPPORTUNISTIC_MIN_INTERVAL_MS = 8 * 1000;
 
     let _running = false;
     let _cachedIntegAt = 0;
@@ -609,6 +616,46 @@
             onTick().catch(err => console.error('[GE bg-agent] tick error:', err));
         }
     });
+
+    // ============================================
+    // Opportunistic wake — tick whenever the user is actively using the
+    // browser. This collapses the effective pickup latency from "up to 30s
+    // on the alarm" down to "seconds during active use" without raising the
+    // server-side QPS: we coalesce with OPPORTUNISTIC_MIN_INTERVAL_MS.
+    // ============================================
+    let _lastOpportunisticAt = 0;
+    function _opportunisticTick(reason) {
+        const now = Date.now();
+        if (now - _lastOpportunisticAt < OPPORTUNISTIC_MIN_INTERVAL_MS) return;
+        _lastOpportunisticAt = now;
+        // Best-effort; errors already logged inside onTick.
+        onTick().catch(() => {});
+    }
+    try {
+        if (chrome.tabs?.onActivated) {
+            chrome.tabs.onActivated.addListener(() => _opportunisticTick('tab-activated'));
+        }
+        if (chrome.tabs?.onUpdated) {
+            chrome.tabs.onUpdated.addListener((_id, changeInfo) => {
+                // Only on completed navigations (real user activity signal)
+                if (changeInfo && changeInfo.status === 'complete') {
+                    _opportunisticTick('tab-loaded');
+                }
+            });
+        }
+        if (chrome.windows?.onFocusChanged) {
+            chrome.windows.onFocusChanged.addListener((wid) => {
+                if (wid !== chrome.windows.WINDOW_ID_NONE) _opportunisticTick('window-focus');
+            });
+        }
+        // The WhatsApp watcher heartbeat already pings the SW every 25s while
+        // web.whatsapp.com is open. Hook into it for an extra wake path when
+        // the user is clearly active in the browser.
+        chrome.runtime.onMessage.addListener((msg) => {
+            if (msg && msg.type === 'ge-wa-heartbeat') _opportunisticTick('wa-heartbeat');
+            // Don't block other listeners — return undefined (no response).
+        });
+    } catch (e) { console.warn('[GE bg-agent] opportunistic wake setup failed:', e.message); }
 
     // Wake on install, update, and browser startup — then every POLL_MINUTES.
     chrome.runtime.onInstalled.addListener(ensureAlarm);
