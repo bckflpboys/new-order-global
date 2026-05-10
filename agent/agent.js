@@ -1231,8 +1231,9 @@
     // by the pre-action self-healing pass (see ensureLiveTab below).
     const TAB_REQUIRED_ACTIONS = new Set([
       'goto', 'goBack', 'goForward', 'reload', 'screenshot',
-      'readPage', 'click', 'type', 'scroll', 'extract',
-      'waitForElement', 'select', 'pressKey', 'clear',
+      'readPage', 'click', 'type', 'scroll', 'scrollUntil', 'extract',
+      'waitForElement', 'waitForStable', 'waitUntil',
+      'select', 'pressKey', 'clear', 'hover', 'uploadFile',
       // Compound macro actions — see executeLoop dispatch.
       'clickAndWait', 'typeAndSubmit', 'gotoAndRead',
       'readAndExtract', 'scrollAndExtract'
@@ -1525,12 +1526,16 @@
           } else if (action === 'openTab') {
             const newTab = await sendToBackground('ge-open-tab', { url: params.url });
             if (newTab?.tabId) {
-              trackedTabs.push({ tabId: newTab.tabId, tabIndex: trackedTabs.length });
+              trackedTabs.push({ tabId: newTab.tabId, tabIndex: trackedTabs.length, url: newTab.url, title: newTab.title, status: 'active' });
               currentTabId = newTab.tabId;
               activeTabIndex = trackedTabs.length - 1;
-              result = { success: true, tabId: newTab.tabId, title: newTab.title || '' };
-              // Wait for page load
-              await sleep(2000);
+              result = { success: true, tabId: newTab.tabId, url: newTab.url || '', title: newTab.title || '' };
+              // Layered wait for full page readiness so the next action sees
+              // a settled DOM. waitForStable returns as soon as mutations
+              // quiet for ~600ms (or 4s timeout as a hard cap).
+              try {
+                await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'waitForStable', params: { timeout: 4000, quietMs: 600 } });
+              } catch { /* best effort */ }
             } else {
               error = 'Failed to open tab';
             }
@@ -1566,7 +1571,11 @@
                 }
                 activeTabIndex = idx;
                 result = { success: true, tabId: r.tabId, url: r.url, title: r.title };
-                await sleep(500);
+                // Stable-wait the newly-foregrounded tab so the next action
+                // sees a settled DOM (some sites lazy-render on focus).
+                try {
+                  await sendToBackground('ge-execute-in-tab', { tabId: r.tabId, action: 'waitForStable', params: { timeout: 2500, quietMs: 500 } });
+                } catch { /* best effort */ }
               } else {
                 error = r?.error || 'switchTab failed';
                 if (r?.candidates) {
@@ -1638,7 +1647,10 @@
                 } else if (trackedTabs[activeTabIndex]) {
                   trackedTabs[activeTabIndex].url = r.url;
                 }
-                await sleep(800);
+                // Layered wait for SPA paints after status='complete'.
+                try {
+                  await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'waitForStable', params: { timeout: 4000, quietMs: 600 } });
+                } catch { /* best effort */ }
               } else {
                 error = r?.error || 'Navigation failed';
               }
@@ -1647,7 +1659,9 @@
             const r = await sendToBackground('ge-' + action.replace('go', 'go-').toLowerCase(), { tabId: currentTabId });
             if (r?.success) {
               result = { success: true, url: r.url, title: r.title };
-              await sleep(600);
+              try {
+                await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'waitForStable', params: { timeout: 3000, quietMs: 500 } });
+              } catch { /* best effort */ }
             } else {
               error = r?.error || `${action} failed`;
             }

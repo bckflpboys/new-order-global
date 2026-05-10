@@ -194,6 +194,26 @@
       }
     });
 
+    // Helper: viewport intersection check — agents should prefer
+    // in-viewport targets first to skip pre-scroll round-trips.
+    const vpW = innerWidth || 1, vpH = innerHeight || 1;
+    const inViewport = (rect) => rect.bottom > 0 && rect.right > 0 && rect.top < vpH && rect.left < vpW;
+
+    // === Build a form index up front ===
+    // Pre-collect forms so we can stamp `formIndex` onto every input/button
+    // we record. This is THE highest-leverage change for login / search /
+    // checkout flows: the agent sees "input #3 belongs to form #0 (the
+    // login form)" without having to cross-reference selectors manually.
+    const allForms = Array.from(document.querySelectorAll('form')).slice(0, 10);
+    const formIndexOf = (el) => {
+      try {
+        const f = el.closest && el.closest('form');
+        if (!f) return -1;
+        const idx = allForms.indexOf(f);
+        return idx;
+      } catch { return -1; }
+    };
+
     // Links (top 50)
     document.querySelectorAll('a[href]').forEach((a, i) => {
       if (i < 50) {
@@ -202,7 +222,9 @@
           state.links.push({
             text: a.textContent.trim().substring(0, 100),
             href: a.href,
-            selector: buildSelector(a)
+            selector: buildSelector(a),
+            inViewport: inViewport(rect),
+            target: a.target || undefined
           });
         }
       }
@@ -213,40 +235,85 @@
       if (i < 30) {
         const rect = btn.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
+          const fi = formIndexOf(btn);
           state.buttons.push({
             text: (btn.textContent || btn.value || btn.getAttribute('aria-label') || '').trim().substring(0, 100),
             selector: buildSelector(btn),
             type: btn.type || 'button',
-            disabled: btn.disabled
+            disabled: !!btn.disabled,
+            inViewport: inViewport(rect),
+            formIndex: fi >= 0 ? fi : undefined
           });
         }
       }
     });
 
-    // Inputs (top 30)
+    // Inputs (top 30) — now with interactability + form linkage so the
+    // agent never burns a step typing into a disabled / hidden / wrong-form
+    // field.
     document.querySelectorAll('input, textarea, select').forEach((inp, i) => {
       if (i < 30) {
+        const rect = (inp.getBoundingClientRect && inp.getBoundingClientRect()) || { width: 0, height: 0, top: 0, left: 0, right: 0, bottom: 0 };
+        const isHidden = (inp.type === 'hidden') || (rect.width === 0 && rect.height === 0);
+        const fi = formIndexOf(inp);
         state.inputs.push({
           type: inp.type || inp.tagName.toLowerCase(),
           name: inp.name || '',
           placeholder: inp.placeholder || '',
           value: inp.type === 'password' ? '***' : (inp.value || '').substring(0, 200),
           selector: buildSelector(inp),
-          label: getInputLabel(inp)
+          label: getInputLabel(inp),
+          disabled: !!inp.disabled,
+          required: !!inp.required,
+          readonly: !!inp.readOnly,
+          inViewport: !isHidden && inViewport(rect),
+          hidden: isHidden,
+          formIndex: fi >= 0 ? fi : undefined
         });
       }
     });
 
-    // Forms
-    document.querySelectorAll('form').forEach((form, i) => {
-      if (i < 10) {
-        state.forms.push({
-          action: form.action || '',
-          method: form.method || 'get',
-          selector: buildSelector(form),
-          inputCount: form.querySelectorAll('input, textarea, select').length
+    // Forms — nest field/button selectors so login + search + checkout
+    // forms are visible holistically. The agent can do `extract` on the
+    // form, or `type` into form.fields[i].selector, without joining tables.
+    allForms.forEach((form, i) => {
+      const fields = [];
+      const buttons = [];
+      try {
+        form.querySelectorAll('input, textarea, select').forEach((inp, j) => {
+          if (j >= 20) return;
+          const t = (inp.type || inp.tagName.toLowerCase()).toLowerCase();
+          if (t === 'hidden') return;
+          fields.push({
+            type: t,
+            name: inp.name || '',
+            label: getInputLabel(inp),
+            placeholder: inp.placeholder || '',
+            required: !!inp.required,
+            disabled: !!inp.disabled,
+            selector: buildSelector(inp)
+          });
         });
-      }
+        form.querySelectorAll('button, input[type="submit"], input[type="button"]').forEach((btn, j) => {
+          if (j >= 5) return;
+          buttons.push({
+            text: (btn.textContent || btn.value || btn.getAttribute('aria-label') || '').trim().substring(0, 80),
+            type: btn.type || 'button',
+            disabled: !!btn.disabled,
+            selector: buildSelector(btn)
+          });
+        });
+      } catch { /* best effort */ }
+      state.forms.push({
+        formIndex: i,
+        action: form.action || '',
+        method: form.method || 'get',
+        selector: buildSelector(form),
+        name: form.name || form.id || '',
+        inputCount: fields.length,
+        fields,
+        buttons
+      });
     });
 
     // Images (top 20)
@@ -762,6 +829,135 @@
       pageHeight: document.body.scrollHeight,
       viewportHeight: window.innerHeight,
       atBottom: (window.scrollY + window.innerHeight + amount) >= document.body.scrollHeight
+    };
+  }
+
+  // ============================================
+  // executeScrollUntil — scroll until a target is in the viewport
+  // ============================================
+  // Compresses the typical "scroll, readPage, scroll, readPage..." loop
+  // into ONE round-trip. Targets by selector OR text; bounded by max
+  // passes (default 8) so we never loop forever on infinite-scroll pages
+  // that auto-load forever.
+  //
+  // Returns the same shape as `scroll` plus { found, target, passes,
+  // scrolledTotal }. Agent should follow up with `click`/`extract` on
+  // the target if found, or pivot if not.
+  async function executeScrollUntil(params) {
+    const direction = params.direction === 'up' ? 'up' : 'down';
+    const stepAmount = Math.max(100, Math.min(parseInt(params.amount, 10) || 800, 4000));
+    const passesReq = parseInt(params.maxPasses, 10);
+    const maxPasses = Math.max(1, Math.min(Number.isFinite(passesReq) ? passesReq : 8, 20));
+    const selector = params.selector || '';
+    const text = (params.text || '').toLowerCase();
+    const requireInteractable = !!params.interactable;
+
+    if (!selector && !text) {
+      return { success: false, reason: 'invalid_params', error: 'scrollUntil requires either `selector` or `text`.' };
+    }
+
+    const vpW = innerWidth || 1, vpH = innerHeight || 1;
+    const inVP = (rect) => rect && rect.bottom > 0 && rect.right > 0 && rect.top < vpH && rect.left < vpW && rect.width > 0 && rect.height > 0;
+
+    const findTarget = () => {
+      // Selector path first.
+      if (selector) {
+        try {
+          const els = findElements(selector, text || undefined);
+          for (const el of (els || [])) {
+            const r = el.getBoundingClientRect();
+            if (inVP(r)) return el;
+          }
+        } catch { /* malformed selector — fall through */ }
+      }
+      // Text-only path: search interactive + text-ish elements.
+      if (text) {
+        const haystack = document.querySelectorAll('a, button, [role="button"], h1, h2, h3, h4, p, li, span, div');
+        for (const el of haystack) {
+          const t = (el.textContent || '').trim().toLowerCase();
+          if (!t || !t.includes(text)) continue;
+          const r = el.getBoundingClientRect();
+          if (inVP(r)) return el;
+        }
+      }
+      return null;
+    };
+
+    // Pass 0 — element already in view?
+    let target = findTarget();
+    if (target) {
+      return {
+        success: true,
+        found: true,
+        passes: 0,
+        scrolledTotal: 0,
+        target: { selector: buildSelector(target), tag: target.tagName, text: (target.textContent || '').trim().substring(0, 100) }
+      };
+    }
+
+    let scrolled = 0;
+    let lastScrollY = window.scrollY;
+    let stuckCount = 0;
+    for (let pass = 1; pass <= maxPasses; pass++) {
+      const dy = direction === 'down' ? stepAmount : -stepAmount;
+      window.scrollBy({ top: dy, behavior: 'instant' in window.scrollBy ? 'instant' : 'auto' });
+      // Allow lazy-loaded content + intersection observers to fire.
+      await new Promise(r => setTimeout(r, 350));
+      scrolled += stepAmount;
+      target = findTarget();
+      if (target) {
+        try { target.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch {}
+        await new Promise(r => setTimeout(r, 150));
+        const r2 = target.getBoundingClientRect();
+        const interactable = !target.disabled && getComputedStyle(target).pointerEvents !== 'none';
+        if (requireInteractable && !interactable) {
+          return {
+            success: false,
+            found: true,
+            interactable: false,
+            reason: 'found_but_not_interactable',
+            passes: pass,
+            scrolledTotal: scrolled,
+            target: { selector: buildSelector(target), tag: target.tagName, text: (target.textContent || '').trim().substring(0, 100) },
+            recovery: 'Element is on screen but disabled / pointer-events:none. A prerequisite is probably unmet.'
+          };
+        }
+        return {
+          success: true,
+          found: true,
+          interactable,
+          passes: pass,
+          scrolledTotal: scrolled,
+          target: { selector: buildSelector(target), tag: target.tagName, text: (target.textContent || '').trim().substring(0, 100), inViewport: inVP(r2) }
+        };
+      }
+      // Detect "scroll didn't move" (already at end of page).
+      if (Math.abs(window.scrollY - lastScrollY) < 5) {
+        stuckCount++;
+        if (stuckCount >= 2) {
+          return {
+            success: false,
+            found: false,
+            reason: 'reached_page_end',
+            passes: pass,
+            scrolledTotal: scrolled,
+            atEnd: true,
+            recovery: 'Reached the end of the scrollable region without finding the target. Try a different selector/text, scroll up if you went too far, or fetch the next page if this is paginated.'
+          };
+        }
+      } else {
+        stuckCount = 0;
+      }
+      lastScrollY = window.scrollY;
+    }
+
+    return {
+      success: false,
+      found: false,
+      reason: 'max_passes_reached',
+      passes: maxPasses,
+      scrolledTotal: scrolled,
+      recovery: 'Did not find the target within the pass budget. The element may not exist on this page — `readPage` to confirm, or refine the selector/text.'
     };
   }
 
@@ -1295,6 +1491,9 @@
             break;
           case 'scroll':
             result = executeScroll(params);
+            break;
+          case 'scrollUntil':
+            result = await executeScrollUntil(params);
             break;
           case 'select':
             result = executeSelect(params);
