@@ -23,25 +23,21 @@
   window.__ngoNotificationsPopupLoaded = true;
 
   // -----------------------------------------------------------------
-  // Auth helpers — keep self-contained to avoid coupling with whatever
-  // auth shape popup.js happens to have at runtime.
+  // Auth + base-URL helpers. We delegate to the shared NewOrderAPI
+  // module (loaded by popup.html immediately before this script) so
+  // that we use the correct storage keys (`noAuthToken`) and the same
+  // configured server URL the rest of the extension hits. Falling back
+  // to ad-hoc keys here was the bug that prevented notifications from
+  // appearing — every request 401'd silently.
   // -----------------------------------------------------------------
-  async function getToken() {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['authToken'], (r) => resolve(r?.authToken || ''));
-    });
-  }
-  async function getBaseUrl() {
-    return new Promise((resolve) => {
-      chrome.storage.local.get(['serverUrl'], (r) => {
-        const url = (r?.serverUrl || 'https://api.newordr.io').replace(/\/$/, '');
-        resolve(url);
-      });
-    });
+  function ngo() {
+    return (typeof globalThis !== 'undefined' && globalThis.NewOrderAPI) || null;
   }
   async function api(path, options = {}) {
-    const token = await getToken();
-    const base = await getBaseUrl();
+    const API = ngo();
+    if (!API) throw new Error('NewOrderAPI not loaded');
+    const token = await API.getToken();
+    const base = (await API.getBaseUrl()).replace(/\/$/, '');
     const res = await fetch(base + path, {
       method: options.method || 'GET',
       headers: {
@@ -50,7 +46,10 @@
       },
       body: options.body || undefined
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error('HTTP ' + res.status + (txt ? ' — ' + txt.slice(0, 200) : ''));
+    }
     return res.json().catch(() => ({}));
   }
 
@@ -59,53 +58,122 @@
   // -----------------------------------------------------------------
   function injectStyles() {
     if (document.getElementById('ngo-notif-styles')) return;
+    // Theme matches dashboard.css (agent + builder pages):
+    //   --background  #ecebec       --on-surface           #1b1c1d
+    //   --surface     #ecebec       --on-surface-variant   #434653
+    //   --surface-container-lowest  #ffffff
+    //   --primary     #b8341c (editorial red)
+    //   --ghost-border rgba(60,64,75,0.32)
+    // Values are hardcoded as fallbacks so the dialog renders correctly
+    // inside popup.html which does not import dashboard.css.
     const css = `
       .ngo-notif-overlay {
         position: fixed; inset: 0; z-index: 10000;
-        background: rgba(0,0,0,0.55); backdrop-filter: blur(2px);
-        display: flex; align-items: flex-end; justify-content: center;
+        background: rgba(27, 28, 29, 0.42);
+        backdrop-filter: blur(3px);
+        display: flex; align-items: center; justify-content: center;
         padding: 16px; box-sizing: border-box;
         animation: ngoFade 0.18s ease-out;
+        font-family: var(--font-body, "Inter", system-ui, -apple-system, "Segoe UI", sans-serif);
       }
       @keyframes ngoFade { from { opacity: 0 } to { opacity: 1 } }
       .ngo-notif-card {
         width: 100%; max-width: 400px;
-        background: #1c1d22; color: #f0f0f0;
-        border: 1px solid rgba(255,255,255,0.1);
+        background: var(--surface-container-lowest, #ffffff);
+        color: var(--on-surface, #1b1c1d);
+        border: 1px solid var(--ghost-border, rgba(60, 64, 75, 0.32));
         border-radius: 16px;
-        box-shadow: 0 24px 60px rgba(0,0,0,0.5);
-        padding: 18px 20px 16px; box-sizing: border-box;
-        font-family: var(--font-body, system-ui, -apple-system, sans-serif);
-        animation: ngoSlide 0.22s ease-out;
+        box-shadow: 0 18px 48px rgba(27, 28, 29, 0.22), 0 2px 6px rgba(27, 28, 29, 0.08);
+        padding: 22px 22px 18px;
+        box-sizing: border-box;
+        animation: ngoSlide 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+        position: relative;
+        overflow: hidden;
       }
-      @keyframes ngoSlide { from { transform: translateY(20px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
-      .ngo-notif-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+      /* Accent stripe along the top edge in the editorial-red primary. */
+      .ngo-notif-card::before {
+        content: "";
+        position: absolute; top: 0; left: 0; right: 0; height: 3px;
+        background: var(--primary, #b8341c);
+      }
+      .ngo-notif-card.sev-success::before  { background: var(--success, #2e7d4f); }
+      .ngo-notif-card.sev-warning::before  { background: var(--warning, #8a6d00); }
+      .ngo-notif-card.sev-critical::before { background: var(--danger, #ba1a1a); }
+
+      @keyframes ngoSlide {
+        from { transform: translateY(12px) scale(0.98); opacity: 0 }
+        to   { transform: translateY(0)    scale(1);    opacity: 1 }
+      }
+
+      .ngo-notif-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
       .ngo-notif-icon {
-        width: 32px; height: 32px; border-radius: 8px;
+        width: 36px; height: 36px;
+        border-radius: 10px;
         display: flex; align-items: center; justify-content: center;
-        flex-shrink: 0; font-size: 18px;
+        flex-shrink: 0;
+        font-size: 18px; font-weight: 700;
+        font-family: ui-serif, "Source Serif Pro", Georgia, serif;
       }
-      .ngo-notif-icon.info     { background: rgba(91, 108, 255, 0.18); color: #9aa6ff; }
-      .ngo-notif-icon.success  { background: rgba(80, 200, 120, 0.18); color: #6fd693; }
-      .ngo-notif-icon.warning  { background: rgba(255, 180, 60, 0.18); color: #ffc55a; }
-      .ngo-notif-icon.critical { background: rgba(255, 80, 80, 0.18); color: #ff7e7e; }
-      .ngo-notif-title { font-size: 15px; font-weight: 700; line-height: 1.25; }
+      .ngo-notif-icon.info     { background: rgba(184, 52, 28, 0.10); color: var(--primary, #b8341c); }
+      .ngo-notif-icon.success  { background: rgba(46, 125, 79, 0.12); color: var(--success, #2e7d4f); }
+      .ngo-notif-icon.warning  { background: rgba(138, 109, 0, 0.14); color: var(--warning, #8a6d00); }
+      .ngo-notif-icon.critical { background: rgba(186, 26, 26, 0.10); color: var(--danger, #ba1a1a); }
+
+      .ngo-notif-title {
+        font-size: 16px; font-weight: 700; line-height: 1.3;
+        letter-spacing: -0.005em;
+        color: var(--on-surface, #1b1c1d);
+      }
       .ngo-notif-body {
-        font-size: 13px; line-height: 1.5; opacity: 0.92;
-        white-space: pre-wrap; max-height: 240px; overflow-y: auto;
+        font-size: 14px; line-height: 1.55;
+        color: var(--on-surface-variant, #434653);
+        white-space: pre-wrap; word-wrap: break-word;
+        max-height: 260px; overflow-y: auto;
         margin-bottom: 14px;
+        padding-right: 4px;
       }
-      .ngo-notif-meta { font-size: 10px; opacity: 0.5; margin-bottom: 12px; }
-      .ngo-notif-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+      .ngo-notif-body::-webkit-scrollbar { width: 6px; }
+      .ngo-notif-body::-webkit-scrollbar-thumb {
+        background: var(--ghost-border, rgba(60, 64, 75, 0.32));
+        border-radius: 999px;
+      }
+      .ngo-notif-meta {
+        font-size: 11px;
+        color: var(--on-surface-muted, #737784);
+        margin-bottom: 16px;
+        letter-spacing: 0.01em;
+        text-transform: uppercase;
+        font-weight: 600;
+      }
+      .ngo-notif-actions {
+        display: flex; gap: 8px; flex-wrap: wrap;
+        justify-content: flex-end;
+        padding-top: 14px;
+        border-top: 1px solid var(--ghost-border, rgba(60, 64, 75, 0.32));
+      }
       .ngo-notif-btn {
-        padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.12);
-        background: rgba(255,255,255,0.04); color: #f0f0f0; font-family: inherit;
-        font-size: 13px; font-weight: 600; cursor: pointer;
-        transition: background 0.12s ease, transform 0.08s ease;
+        padding: 9px 18px;
+        border-radius: 8px;
+        border: 1px solid var(--ghost-border, rgba(60, 64, 75, 0.32));
+        background: transparent;
+        color: var(--on-surface, #1b1c1d);
+        font-family: inherit;
+        font-size: 13px; font-weight: 600;
+        letter-spacing: 0.005em;
+        cursor: pointer;
+        transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
       }
-      .ngo-notif-btn:hover { background: rgba(255,255,255,0.1); }
-      .ngo-notif-btn:active { transform: scale(0.97); }
-      .ngo-notif-btn.primary { background: linear-gradient(135deg, #5b6cff, #b066ff); border-color: transparent; }
+      .ngo-notif-btn:hover  { background: var(--surface-container-low, #e4e2e3); border-color: var(--ghost-border-strong, rgba(60, 64, 75, 0.5)); }
+      .ngo-notif-btn:active { transform: translateY(1px); }
+      .ngo-notif-btn.primary {
+        background: var(--primary, #b8341c);
+        border-color: var(--primary, #b8341c);
+        color: var(--on-primary, #ffffff);
+      }
+      .ngo-notif-btn.primary:hover {
+        background: var(--primary-container, #d94734);
+        border-color: var(--primary-container, #d94734);
+      }
     `;
     const tag = document.createElement('style');
     tag.id = 'ngo-notif-styles';
@@ -145,7 +213,7 @@
 
     const sev = n.severity || 'info';
     const card = document.createElement('div');
-    card.className = 'ngo-notif-card';
+    card.className = 'ngo-notif-card sev-' + sev;
     card.innerHTML = `
       <div class="ngo-notif-head">
         <div class="ngo-notif-icon ${sev}">${iconFor(sev)}</div>
@@ -214,7 +282,7 @@
       showNext();
     } catch (e) {
       // Silent: not having notifications shouldn't block the popup UX.
-      console.debug('[Notifications] poll failed:', e?.message);
+      console.warn('[Notifications] poll failed:', e?.message);
     }
   }
 

@@ -5,34 +5,255 @@
   <title>New Order Global - Setup</title>
   <link rel="stylesheet" href="dashboard.css">
   <style>
-    .integration-card { background: var(--surface-container); border: 1px solid var(--ghost-border); border-radius: 12px; padding: 24px; margin-bottom: 18px; }
-    .integration-card h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; font-size: 18px; }
-    .integration-card .status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-    .integration-card .status-pill.connected { background: var(--success-bg, #d1fadf); color: var(--success, #027a48); }
-    .integration-card .status-pill.disconnected { background: var(--surface-container-low); color: var(--on-surface-muted); }
+    /* =================================================================
+       Setup page — refreshed layout (Nov 2026)
+       Goals: bigger readable text, real toggle switches, polished
+       selects/number inputs, more breathing room. Uses existing CSS
+       variables so the theme stays identical.
+       ================================================================= */
+
+    .main-content { padding: 32px 40px 80px; max-width: 1080px; }
+    .page-header h1 { font-size: 32px; letter-spacing: -0.01em; margin: 0 0 6px; }
+    .page-header p  { font-size: 15px; color: var(--on-surface-variant); line-height: 1.55; max-width: 720px; margin: 0 0 24px; }
+
+    /* ---------- Cards ---------- */
+    .integration-card {
+      background: var(--surface-container);
+      border: 1px solid var(--ghost-border);
+      border-radius: 16px;
+      padding: 28px 30px;
+      margin-bottom: 22px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .integration-card:hover { border-color: rgba(255,255,255,0.12); }
+    .integration-card h3 {
+      display: flex; align-items: center; gap: 12px;
+      margin: 0 0 10px; font-size: 20px; font-weight: 700;
+      letter-spacing: -0.005em;
+    }
+    .integration-card h3 svg { color: var(--primary, #5b6cff); flex-shrink: 0; }
+    .integration-card > p {
+      color: var(--on-surface-variant);
+      font-size: 14.5px; line-height: 1.6;
+      margin: 4px 0 20px;
+      max-width: 760px;
+    }
+    .integration-card .status-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; border-radius: 999px;
+      font-size: 12px; font-weight: 600; letter-spacing: 0.01em;
+    }
+    .integration-card .status-pill.connected   { background: var(--success-bg, #d1fadf); color: var(--success, #027a48); }
+    .integration-card .status-pill.disconnected{ background: var(--surface-container-low); color: var(--on-surface-muted); }
     .integration-card .status-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-    .integration-card p { color: var(--on-surface-variant); font-size: 14px; margin: 6px 0 14px; line-height: 1.5; }
-    .integration-card .field { margin: 12px 0; }
-    .integration-card label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-    .integration-card .input-text { width: 100%; max-width: 480px; }
-    .integration-card .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
-    .integration-card .info-box { background: var(--surface-container-low); border-left: 3px solid var(--primary); padding: 12px 14px; border-radius: 6px; font-size: 13px; line-height: 1.5; margin: 10px 0; }
-    .integration-card .info-box code { background: var(--surface); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-    .pref-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
-    .pref-row { display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--ghost-border); }
-    .pref-row:last-child { border-bottom: none; }
-    .pref-row input[type=checkbox] { margin-top: 3px; flex-shrink: 0; }
-    .pref-row .pref-text { flex: 1; }
-    .pref-row .pref-name { font-weight: 600; font-size: 14px; }
-    .pref-row .pref-desc { font-size: 12px; color: var(--on-surface-muted); margin-top: 2px; }
-    .pref-row select { width: 200px; }
-    /* Number-input pref rows for Research Depth — keeps the number field
-       compact and right-aligned so the long descriptions stay readable. */
-    .pref-row.pref-row-input { align-items: center; gap: 16px; }
-    .pref-row.pref-row-input .pref-text { flex: 1; min-width: 0; }
-    .pref-row .input-num { width: 80px; flex-shrink: 0; text-align: center; padding: 6px 8px; }
-    .copy-code { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); padding: 6px 10px; border-radius: 6px; font-family: monospace; font-size: 14px; cursor: pointer; border: 1px solid var(--ghost-border); }
-    .copy-code:hover { background: var(--surface-container-low); }
+
+    /* ---------- Fields ---------- */
+    .integration-card .field { margin: 16px 0; }
+    .integration-card label {
+      display: block;
+      font-size: 14px; font-weight: 600; letter-spacing: 0.005em;
+      margin-bottom: 8px;
+      color: var(--on-surface);
+    }
+    .integration-card .input-text,
+    .integration-card input[type=text],
+    .integration-card input[type=password],
+    .integration-card input[type=number],
+    .integration-card textarea {
+      width: 100%; max-width: 520px;
+      font-size: 14.5px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--ghost-border);
+      background: var(--surface);
+      color: var(--on-surface);
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .integration-card input:focus,
+    .integration-card textarea:focus,
+    .integration-card select:focus {
+      outline: none;
+      border-color: var(--primary, #5b6cff);
+      box-shadow: 0 0 0 3px rgba(91,108,255,0.15);
+    }
+
+    /* ---------- Selects (replace native dropdown chrome) ---------- */
+    .integration-card select {
+      appearance: none; -webkit-appearance: none; -moz-appearance: none;
+      width: 100%; max-width: 320px;
+      padding: 10px 38px 10px 14px;
+      font-size: 14.5px; font-weight: 500;
+      border: 1px solid var(--ghost-border);
+      border-radius: 10px;
+      background-color: var(--surface);
+      color: var(--on-surface);
+      cursor: pointer;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239aa0a8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .integration-card select:hover { border-color: rgba(255,255,255,0.18); }
+
+    /* ---------- Actions row ---------- */
+    .integration-card .actions {
+      display: flex; gap: 10px; flex-wrap: wrap;
+      margin-top: 22px; padding-top: 18px;
+      border-top: 1px solid var(--ghost-border);
+    }
+    .integration-card .actions button { font-size: 14px; padding: 10px 18px; border-radius: 10px; }
+
+    /* ---------- Info / callout box ---------- */
+    .integration-card .info-box {
+      background: var(--surface-container-low);
+      border-left: 3px solid var(--primary, #5b6cff);
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 14px; line-height: 1.6;
+      margin: 14px 0;
+    }
+    .integration-card .info-box ol { margin: 10px 0 0 22px; padding: 0; }
+    .integration-card .info-box li { margin: 4px 0; }
+    .integration-card .info-box code,
+    .integration-card p code {
+      background: var(--surface);
+      padding: 2px 7px; border-radius: 5px;
+      font-size: 12.5px;
+      border: 1px solid var(--ghost-border);
+    }
+
+    /* ---------- Preference grid + rows ---------- */
+    .pref-grid { display: grid; grid-template-columns: 1fr; gap: 0; }
+    .pref-row {
+      display: flex; align-items: center; gap: 18px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--ghost-border);
+      cursor: pointer;
+    }
+    .pref-row:first-child { padding-top: 6px; }
+    .pref-row:last-child  { border-bottom: none; padding-bottom: 6px; }
+    .pref-row .pref-text { flex: 1; min-width: 0; }
+    .pref-row .pref-name {
+      display: block;
+      font-weight: 600; font-size: 15px;
+      letter-spacing: 0.002em;
+      color: var(--on-surface);
+    }
+    .pref-row .pref-desc {
+      display: block;
+      font-size: 13px;
+      color: var(--on-surface-muted, var(--on-surface-variant));
+      margin-top: 4px; line-height: 1.55;
+    }
+    .pref-row .pref-name code,
+    .pref-row .pref-desc code {
+      background: var(--surface);
+      padding: 1px 6px; border-radius: 4px;
+      font-size: 12px;
+      border: 1px solid var(--ghost-border);
+    }
+
+    /* ---------- Toggle switch (replaces every .pref-row checkbox) ---------- */
+    .pref-row input[type=checkbox] {
+      appearance: none; -webkit-appearance: none;
+      position: relative;
+      width: 44px; height: 24px;
+      flex-shrink: 0; order: 2;          /* push the switch to the right */
+      margin: 0;
+      background: var(--surface);
+      border: 1px solid var(--ghost-border);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.18s ease, border-color 0.18s ease;
+    }
+    .pref-row input[type=checkbox]::after {
+      content: "";
+      position: absolute;
+      top: 50%; left: 3px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--on-surface, #e6e6e6);
+      transform: translateY(-50%);
+      transition: left 0.18s ease, background 0.18s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .pref-row input[type=checkbox]:checked {
+      background: var(--primary, #5b6cff);
+      border-color: var(--primary, #5b6cff);
+    }
+    .pref-row input[type=checkbox]:checked::after {
+      left: 21px;
+      background: #fff;
+    }
+    .pref-row input[type=checkbox]:focus-visible {
+      box-shadow: 0 0 0 3px rgba(91,108,255,0.25);
+    }
+
+    /* ---------- Number-input pref rows (Research Depth) ---------- */
+    .pref-row.pref-row-input { align-items: center; }
+    .pref-row .input-num {
+      width: 86px; flex-shrink: 0; order: 2;
+      text-align: center;
+      padding: 9px 10px;
+      font-size: 15px; font-weight: 600;
+      border-radius: 10px;
+      border: 1px solid var(--ghost-border);
+      background: var(--surface);
+      color: var(--on-surface);
+    }
+
+    /* ---------- Inline copy-code chip ---------- */
+    .copy-code {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--surface);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-family: ui-monospace, "SF Mono", Menlo, monospace;
+      font-size: 13.5px;
+      cursor: pointer;
+      border: 1px solid var(--ghost-border);
+      transition: background 0.12s ease, border-color 0.12s ease;
+    }
+    .copy-code:hover { background: var(--surface-container-low); border-color: rgba(255,255,255,0.18); }
+
+    /* ---------- Sub-section divider used inside cards ---------- */
+    #as-superonly-block,
+    #as-council-block { padding-top: 18px; }
+    #as-superonly-block > div[style*="font-weight"],
+    #as-council-block   > div[style*="font-weight"] {
+      font-size: 15px !important;
+    }
+
+    /* ---------- Memory + domain-rule list rows ---------- */
+    #memory-list > div,
+    #domain-rules-list > div,
+    #scheduled-list > div {
+      padding: 12px 14px;
+      background: var(--surface);
+      border: 1px solid var(--ghost-border);
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ---------- Toast ---------- */
+    #setup-toast {
+      font-size: 14px !important;
+      padding: 14px 22px !important;
+      border-radius: 12px !important;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.18) !important;
+    }
+
+    /* ---------- Small screens ---------- */
+    @media (max-width: 720px) {
+      .main-content { padding: 22px 18px 60px; }
+      .integration-card { padding: 22px 20px; }
+      .integration-card h3 { font-size: 18px; }
+      .pref-row { gap: 12px; }
+      .pref-row .pref-name { font-size: 14.5px; }
+      .pref-row .pref-desc { font-size: 12.5px; }
+    }
   </style>
 </head>
 <body>
