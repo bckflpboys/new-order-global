@@ -535,6 +535,14 @@ const NewOrderAPI = (() => {
     return data.conversations || [];
   }
 
+  // ============================================
+  // Global Executive / Agent Tasks
+  // ============================================
+  async function getAgentTasks() {
+    const data = await request('/api/agent/tasks');
+    return Array.isArray(data?.tasks) ? data.tasks : [];
+  }
+
   async function getConversationById(id) {
     const data = await request(`/api/conversations/${id}`);
     return data.conversation;
@@ -592,6 +600,7 @@ const NewOrderAPI = (() => {
 
     // Conversations
     getConversations,
+    getAgentTasks,
     getConversationById,
 
     // Onboarding

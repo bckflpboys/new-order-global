@@ -318,11 +318,18 @@ chrome.runtime.onInstalled.addListener(async (details) => {
         });
     }
 
-    // Register YouTube content scripts
-    await registerContentScripts();
-
-    // Inject into any already-open YouTube tabs
-    await injectIntoExistingTabs();
+    // Respect the user's YouTube Toolkit toggle (defaults to ON).
+    const ytEnabled = await new Promise((resolve) => {
+        chrome.storage.local.get(['ytToolkitEnabled'], (r) => {
+            resolve(r.ytToolkitEnabled !== false);
+        });
+    });
+    if (ytEnabled) {
+        await registerContentScripts();
+        await injectIntoExistingTabs();
+    } else {
+        try { await chrome.scripting.unregisterContentScripts(); } catch {}
+    }
 });
 
 // ============================================
@@ -429,7 +436,44 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // ============================================
 // Message Handlers
 // ============================================
+// Helper: read the user's YouTube Toolkit on/off flag (default true).
+async function isYtToolkitEnabled() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['ytToolkitEnabled'], (r) => {
+            resolve(r.ytToolkitEnabled !== false);
+        });
+    });
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    // --- YouTube Toolkit enable/disable from popup ---
+    if (message.type === 'ytToolkitSetEnabled') {
+        (async () => {
+            try {
+                if (message.enabled) {
+                    await registerContentScripts();
+                    // Inject into any already-open YouTube tabs so the
+                    // toolkit lights up immediately without a reload.
+                    await injectIntoExistingTabs();
+                } else {
+                    // Stop future tabs from auto-injecting.
+                    try { await chrome.scripting.unregisterContentScripts(); } catch {}
+                    // Tell any open YouTube tabs to tear down their UI.
+                    try {
+                        const tabs = await chrome.tabs.query({ url: 'https://www.youtube.com/*' });
+                        for (const tab of tabs) {
+                            chrome.tabs.sendMessage(tab.id, { type: 'ytToolkitDisable' }).catch(() => {});
+                        }
+                    } catch {}
+                }
+                sendResponse({ ok: true });
+            } catch (err) {
+                sendResponse({ ok: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
     // --- YouTube Messages (preserved) ---
 
     if (message.type === 'getSettings') {

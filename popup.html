@@ -182,16 +182,22 @@
         }
 
         .logo-pill {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
-            color: var(--on-primary);
-            padding: 6px 16px;
-            border-radius: var(--radius-full);
-            font-family: var(--font-label);
-            font-weight: 700;
-            font-size: 11px;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            box-shadow: var(--shadow-xs);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 52px;
+            height: 52px;
+            padding: 0;
+            border-radius: var(--radius-md);
+            background: transparent;
+            box-shadow: none;
+            flex-shrink: 0;
+        }
+        .logo-pill img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: block;
         }
 
         /* Horizontal Carousel Container */
@@ -989,7 +995,7 @@
                         <path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z" />
                     </svg>
                 </button>
-                <div class="logo-pill">NEW ORDER</div>
+                <div class="logo-pill"><img src="icons/logo.png" alt="New Order Global"></div>
                 <div style="display: flex; gap: 4px;">
                     <button class="nav-btn" id="btn-notifications" style="position: relative;" title="Notifications">
                         <svg viewBox="0 0 24 24">

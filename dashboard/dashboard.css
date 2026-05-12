@@ -106,24 +106,25 @@ body {
 }
 
 .sidebar-header {
-  padding: 20px;
+  padding: 24px 20px;
   border-bottom: 1px solid var(--ghost-border);
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
 }
 
 .sidebar-logo {
-  width: 32px; height: 32px;
+  width: 96px;
+  height: 96px;
   border-radius: var(--radius-md);
+  object-fit: contain;
+  display: block;
+  flex-shrink: 0;
 }
 
-.sidebar-title {
-  font-family: var(--font-label);
-  font-weight: 700;
-  font-size: 14px;
-  letter-spacing: 0.04em;
-}
+/* Brand wordmark hidden in favour of the logo image. */
+.sidebar-title { display: none; }
 .sidebar-title span { color: var(--primary); }
 
 .sidebar-nav {

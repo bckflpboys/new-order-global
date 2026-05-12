@@ -92,6 +92,18 @@ if (window.__ytNewOrderLoaded) {
           applyAllFeatures();
           sendResponse({ success: true });
         }
+        // User flipped the YouTube Toolkit toggle off in the popup —
+        // remove every class + element we ever added so the page
+        // looks like vanilla YouTube without needing a reload.
+        if (message.type === 'ytToolkitDisable') {
+          try {
+            document.body.classList.forEach((cls) => {
+              if (cls.startsWith('yt-new-order')) document.body.classList.remove(cls);
+            });
+            document.querySelectorAll('[class*="yt-new-order"]').forEach((el) => el.remove());
+          } catch (e) { console.warn('YouTube New Order: teardown failed', e); }
+          sendResponse({ success: true });
+        }
         return true;
       });
     }

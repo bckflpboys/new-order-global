@@ -200,32 +200,68 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            const conversations = await NewOrderAPI.getConversations();
-            
-            if (!conversations || conversations.length === 0) {
+            // Fetch Builder conversations AND Global Executive tasks in
+            // parallel. allSettled so a transient failure on one side
+            // doesn't blank the entire panel.
+            const [convoRes, taskRes] = await Promise.allSettled([
+                NewOrderAPI.getConversations(),
+                NewOrderAPI.getAgentTasks ? NewOrderAPI.getAgentTasks() : Promise.resolve([])
+            ]);
+            const conversations = convoRes.status === 'fulfilled' ? (convoRes.value || []) : [];
+            const tasks         = taskRes.status === 'fulfilled' ? (taskRes.value  || []) : [];
+
+            // Normalise both into a single rendering shape.
+            const items = [];
+            for (const c of conversations) {
+                items.push({
+                    kind: 'convo',
+                    id: c.id,
+                    title: c.title || 'New Conversation',
+                    sortAt: c.updatedAt || c.createdAt || 0,
+                    count: c.messageCount || 0,
+                    pill: c.toolName ? c.toolName : 'General Chat',
+                    icon: c.toolName ? '🔧' : '💬'
+                });
+            }
+            for (const t of tasks) {
+                items.push({
+                    kind: 'task',
+                    id: t.id,
+                    title: t.title || 'Agent Task',
+                    sortAt: t.updatedAt || t.createdAt || 0,
+                    count: t.steps || 0,
+                    pill: 'Global Executive' + (t.status ? ' · ' + t.status : ''),
+                    icon: '🤖',
+                    status: t.status || ''
+                });
+            }
+            items.sort((a, b) => new Date(b.sortAt).getTime() - new Date(a.sortAt).getTime());
+
+            if (!items.length) {
                 cont.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No conversations yet</div>';
                 return;
             }
 
-            cont.innerHTML = conversations.map(c => {
-                const date = c.updatedAt ? new Date(c.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Recently';
-                const hasTool = c.toolName ? true : false;
-                const icon = hasTool ? '🔧' : '💬';
-                const pillText = hasTool ? c.toolName : 'General Chat';
+            const escapeHtml = (s) => String(s == null ? '' : s)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
+            cont.innerHTML = items.map(it => {
+                const date = it.sortAt ? new Date(it.sortAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Recently';
+                const unit = it.kind === 'task' ? 'steps' : 'messages';
                 return `
-                <div class="history-card" data-convo="${c.id}">
+                <div class="history-card" data-kind="${it.kind}" data-id="${escapeHtml(it.id)}">
                     <div class="history-top">
-                        <div class="history-icon-wrapper">${icon}</div>
+                        <div class="history-icon-wrapper">${it.icon}</div>
                         <div class="history-title-group">
-                            <div class="history-title">${c.title || 'New Conversation'}</div>
-                            <div class="history-date">${date} &middot; ${c.messageCount || 0} messages</div>
+                            <div class="history-title">${escapeHtml(it.title)}</div>
+                            <div class="history-date">${date} &middot; ${it.count} ${unit}</div>
                         </div>
                     </div>
                     <div class="history-bottom">
                         <div class="history-pill">
                             <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-                            ${pillText}
+                            ${escapeHtml(it.pill)}
                         </div>
                         <div style="font-size: 11px; color: var(--accent-red); font-weight: 700;">Open &rarr;</div>
                     </div>
@@ -233,11 +269,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 `;
             }).join('');
 
-            // Add click listeners to items
+            // Route each card to the right page based on its kind.
             cont.querySelectorAll('.history-card').forEach(item => {
                 item.addEventListener('click', () => {
-                    const id = item.getAttribute('data-convo');
-                    chrome.tabs.create({ url: chrome.runtime.getURL(`builder/builder.html?conversationId=${id}`) });
+                    const id = item.getAttribute('data-id');
+                    const kind = item.getAttribute('data-kind');
+                    const path = kind === 'task'
+                        ? `agent/agent.html?taskId=${encodeURIComponent(id)}`
+                        : `builder/builder.html?conversationId=${encodeURIComponent(id)}`;
+                    chrome.tabs.create({ url: chrome.runtime.getURL(path) });
                 });
             });
 
@@ -867,46 +907,50 @@ document.addEventListener('DOMContentLoaded', () => {
                 isActive: false
             };
 
-            // Check YouTube permission
-            const hasYtPerm = await chrome.permissions.contains({ origins: ['https://www.youtube.com/*'] });
-            ytTool.isActive = hasYtPerm;
+            // YouTube Toolkit on/off is tracked via a storage flag because
+            // the youtube.com origin is covered by the required <all_urls>
+            // host permission — Chrome can't revoke it via permissions.remove.
+            // Default is ON for backwards compatibility with existing users.
+            const ytEnabled = await new Promise((resolve) => {
+                chrome.storage.local.get(['ytToolkitEnabled'], (r) => {
+                    resolve(r.ytToolkitEnabled !== false); // undefined => true
+                });
+            });
+            ytTool.isActive = ytEnabled;
 
             const ytCard = createToolCard(ytTool, { isBuiltIn: true });
 
-            // YouTube toggle handler
             const ytToggle = ytCard.querySelector('[data-toggle]');
             const ytRunBtn = ytCard.querySelector('[data-run]');
-            ytToggle.checked = hasYtPerm;
-            // Set initial run button state based on toggle
+            ytToggle.checked = ytEnabled;
             if (ytRunBtn) ytRunBtn.disabled = !ytToggle.checked;
 
             ytToggle.onchange = async (e) => {
-                if (e.target.checked) {
-                    try {
-                        const granted = await chrome.permissions.request({ origins: ['https://www.youtube.com/*'] });
-                        e.target.checked = granted;
-                        if (granted) {
-                            showToast('YouTube Toolkit enabled', 'success');
-                            updateDot(ytCard, true);
-                            // Enable run button when toggle is on
-                            if (ytRunBtn) ytRunBtn.disabled = false;
-                        }
-                    } catch (err) {
-                        e.target.checked = false;
+                e.stopPropagation();
+                const enabled = !!e.target.checked;
+                try {
+                    await new Promise((resolve) => {
+                        chrome.storage.local.set({ ytToolkitEnabled: enabled }, resolve);
+                    });
+                    // Ask the background worker to register/unregister the
+                    // content scripts and (de)activate any open YT tabs.
+                    chrome.runtime.sendMessage({ type: 'ytToolkitSetEnabled', enabled }, () => {
+                        // Swallow chrome.runtime.lastError; SW may sleep.
+                        void chrome.runtime.lastError;
+                    });
+                    if (enabled) {
+                        showToast('YouTube Toolkit enabled', 'success');
+                        updateDot(ytCard, true);
+                        if (ytRunBtn) ytRunBtn.disabled = false;
+                    } else {
+                        showToast('YouTube Toolkit disabled', 'info');
+                        updateDot(ytCard, false);
+                        if (ytRunBtn) ytRunBtn.disabled = true;
                     }
-                } else {
-                    try {
-                        const removed = await chrome.permissions.remove({ origins: ['https://www.youtube.com/*'] });
-                        e.target.checked = !removed;
-                        if (removed) {
-                            showToast('YouTube Toolkit disabled', 'info');
-                            updateDot(ytCard, false);
-                            // Disable run button when toggle is off
-                            if (ytRunBtn) ytRunBtn.disabled = true;
-                        }
-                    } catch (err) {
-                        e.target.checked = true;
-                    }
+                } catch (err) {
+                    // Revert on failure so the UI stays truthful.
+                    e.target.checked = !enabled;
+                    showToast('Could not change YouTube Toolkit state', 'warning');
                 }
             };
 
@@ -941,7 +985,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Show YouTube as running if permission active
-            if (hasYtPerm) {
+            if (ytEnabled) {
                 updateDot(ytCard, true);
                 // Notify user
                 showToast('YouTube Toolkit is active', 'info', 3000);
@@ -1089,7 +1133,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } catch (e) {
             console.error('Popup: Error loading tools:', e);
-            cont.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--accent-red); font-size: 13px;">Error loading tools. <br>Check your connection.</div>';
+            const msg = (e && (e.message || String(e))) || 'unknown error';
+            const where = (e && e.stack ? String(e.stack).split('\n').slice(0, 3).join(' | ') : '');
+            cont.innerHTML = `
+                <div style="padding: 20px; text-align: center; color: var(--accent-red); font-size: 13px;">
+                    <div style="font-weight: 700; margin-bottom: 6px;">Error loading tools</div>
+                    <div style="font-size: 12px; opacity: 0.85; word-break: break-word;">${msg.replace(/[<>&"]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;' }[c]))}</div>
+                    ${where ? `<div style="font-size: 10px; opacity: 0.55; margin-top: 8px; text-align: left;">${where.replace(/[<>&"]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;' }[c]))}</div>` : ''}
+                </div>`;
         }
     };
 
@@ -1137,10 +1188,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initNotifications();
     loadChatHistory();
 
-    // --- YT Status ---
-    (async () => {
-        if (!(await chrome.permissions.contains({ origins: ['https://www.youtube.com/*'] }))) {
-            try { await chrome.permissions.request({ origins: ['https://www.youtube.com/*'] }); } catch (e) { }
-        }
-    })();
+    // NOTE: We intentionally do NOT auto-request the YouTube host
+    // permission on popup open. Doing so made the "YouTube Toolkit"
+    // toggle impossible to turn off — each subsequent popup open would
+    // silently re-grant the permission and flip the toggle back on.
+    // The user now controls this entirely via the tool card toggle.
 });
