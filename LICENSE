@@ -34,8 +34,9 @@ commercial license from the copyright holder:
   (d) use the Software's name, branding, or trademarks in any paid
       product or service.
 
-A one-time commercial license fee covers (a)-(c) above. Contact
-license@global-order.32d.one to obtain one.
+A commercial license covers (a)-(c) above. Contact
+admin@32d.one to obtain one. See the "COMMERCIAL USE FAQ"
+section at the end of this file for concrete examples.
 
 ==============================================================================
 3.  PROHIBITED USES
@@ -84,5 +85,73 @@ SUMMARY (non-binding)
 * Use it for yourself or your organisation: FREE.
 * Self-host with your own API key: FREE.
 * Modify it, fork it, share patches: FREE (under same license).
-* Sell it, resell it, embed it in a paid product: PAY ONCE — email us.
+* Sell it, resell it, embed it in a paid product: pay for a
+  commercial license — admin@32d.one.
 * Train other AIs on it: not allowed without a license.
+
+==============================================================================
+COMMERCIAL USE FAQ (non-binding, for clarity)
+==============================================================================
+The distinction below reflects how we intend to interpret Section 2
+("COMMERCIAL USE REQUIRES A PAID LICENSE") in good faith. The license
+text itself controls in the event of conflict.
+
+Q: I'm a freelancer / solo developer using it to automate MY OWN work.
+A: FREE. You are not redistributing the Software and you are not
+   offering it as a service to anyone else. Use it, modify it, keep
+   your changes private — no license needed.
+
+Q: I'm an agency / consultancy. I use it internally to build and run
+   an automation FOR a specific client, as part of the service my
+   agency sells to that client.
+A: FREE, as long as:
+     - the Software (or a derivative) is not delivered to the client
+       as a standalone product they can run without you;
+     - the client is not charged specifically for access to the
+       Software or a Software-as-a-Service tier built on it;
+     - the Software remains running on your or the client's own
+       infrastructure under a one-to-one relationship.
+   This is treated as "internal tooling of the agency serving its
+   client" under Section 1(b).
+
+Q: I re-brand it, wrap it with my own UI, and charge end-users a
+   monthly subscription to use it.
+A: NEEDS A COMMERCIAL LICENSE. This is resale / paid SaaS under
+   Section 2(a)-(c).
+
+Q: I host it on a VPS and let ONE paying customer log in and use it.
+A: NEEDS A COMMERCIAL LICENSE. "One paying customer" is still
+   "offering the Software as a hosted service for a paying user"
+   under Section 2(c). Number of users is not the test — whether
+   anyone is paying for access is.
+
+Q: My company uses it internally for our own employees to automate
+   their tasks. No external customers touch it. No one pays to use it.
+A: FREE under Section 1(b) (internal, non-revenue-generating
+   organisational use).
+
+Q: I build an internal tool that uses it behind the scenes and
+   generates revenue indirectly (e.g., a bot that helps our sales
+   team prospect).
+A: FREE, as long as the Software itself is not sold, sublicensed, or
+   exposed as a paid product or paid API to anyone outside the
+   organisation.
+
+Q: I want to fork it, add features, and share the fork publicly on
+   GitHub for free.
+A: FREE under Section 1(c), as long as (i) you release the fork under
+   this same license, (ii) you keep the copyright notice and
+   attribution, and (iii) you do not charge for access to the fork.
+
+Q: I want to train an AI / benchmark / agent-eval on data produced
+   or collected by this Software.
+A: NEEDS A SEPARATE WRITTEN LICENSE. See Section 3(e). This applies
+   even if your downstream use is non-commercial.
+
+Q: I'm unsure which category I fall into.
+A: Email admin@32d.one with a short description of your use case.
+   We answer quickly and most "unsure" cases turn out to be FREE.
+   Commercial pricing, when applicable, scales with the size of the
+   deployment (seats, end-users, or revenue of the offering), and
+   starts well below the cost of rebuilding the Software from
+   scratch.
