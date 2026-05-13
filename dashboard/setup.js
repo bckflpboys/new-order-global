@@ -323,6 +323,38 @@
     });
   }
 
+  // Auto-save the master "Enable research mode" toggle the moment the
+  // user flips it — no need to also click "Save Research Settings".
+  // Sends ONLY the `enabled` flag so we don't clobber the numeric fields
+  // the user may be in the middle of editing.
+  const _resEnabledEl = $('pref-research-enabled');
+  if (_resEnabledEl) {
+    _resEnabledEl.addEventListener('change', async () => {
+      const enabled = !!_resEnabledEl.checked;
+      try {
+        const data = await NewOrderAPI.request('/api/integrations/preferences', {
+          method: 'PUT',
+          body: JSON.stringify({ research: { enabled } })
+        });
+        // Do NOT call renderPrefs here. The PUT response can omit
+        // `research.enabled` for legacy documents that predate the field,
+        // which makes the renderer's `(typeof r.enabled === 'boolean')`
+        // guard fall back to `false` and the checkbox visibly snaps off.
+        // Optimistic UI: trust the user's intent — the server returned 2xx
+        // so the value IS persisted. We only force the checkbox to match
+        // the server when the response explicitly carries an `enabled`
+        // boolean (i.e. confirmed round-trip).
+        const serverVal = data?.preferences?.research?.enabled;
+        if (typeof serverVal === 'boolean') _resEnabledEl.checked = serverVal;
+        toast(enabled ? 'Research mode ON — saved.' : 'Research mode OFF — saved.');
+      } catch (e) {
+        // Roll back the checkbox so the UI matches the unsaved server state.
+        _resEnabledEl.checked = !enabled;
+        toast('Failed to save: ' + e.message, 'error');
+      }
+    });
+  }
+
   // ============================================
   // Agent Settings (limits + behaviour + memory toggles)
   // ============================================
