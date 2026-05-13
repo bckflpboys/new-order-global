@@ -1046,7 +1046,7 @@
       // Show plan + briefing modal; user clicks Approve or Cancel
       showPlanModal(pendingTaskContext);
     } catch (err) {
-      console.error('[Global Executive] Plan error:', err);
+      console.error('[Global Executive] Plan error:', err.code || err.status || 'unknown');
       const pb = document.getElementById('ge-planning-bubble');
       if (pb) pb.remove();
       setSendingState(false);
@@ -2471,12 +2471,9 @@
               // 429 (rate-limited): pause briefly and retry, with a friendlier label.
               // The agentLimiter window is 60s; retrying a few seconds later usually frees a slot.
               if (m.match(/\b429\b/) || /rate limit/i.test(m)) {
-                const friendly = /rate limit/i.test(m)
-                  ? m.replace(/^[^:]*:\s*/, '')
-                  : 'Too many agent steps in a short time. Pausing briefly…';
                 const errEntry = document.createElement('div');
                 errEntry.className = 'step-entry failed';
-                errEntry.innerHTML = `<div class="step-number">⏳</div><div class="step-body"><div class="step-action">Rate limit reached (attempt ${attempt}/3)</div><div class="step-error">${escapeHtml(friendly)}</div></div>`;
+                errEntry.innerHTML = `<div class="step-number">⏳</div><div class="step-body"><div class="step-action">Rate limit reached (attempt ${attempt}/3)</div><div class="step-error">Too many steps in a short time. Pausing briefly…</div></div>`;
                 stepLog.appendChild(errEntry);
                 stepLog.scrollTop = stepLog.scrollHeight;
                 // Backoff longer on 429 so we don't make it worse: 6s, 15s, 30s
@@ -2489,7 +2486,7 @@
               // 5xx / network: surface inline and retry up to 3 times
               const errEntry = document.createElement('div');
               errEntry.className = 'step-entry failed';
-              errEntry.innerHTML = `<div class="step-number">!</div><div class="step-body"><div class="step-action">Server error (attempt ${attempt}/3)</div><div class="step-error">${escapeHtml(m)}</div></div>`;
+              errEntry.innerHTML = `<div class="step-number">!</div><div class="step-body"><div class="step-action">Server error (attempt ${attempt}/3)</div><div class="step-error">A temporary error occurred. Retrying…</div></div>`;
               stepLog.appendChild(errEntry);
               await sleep(1000 * attempt); // backoff
             }
@@ -2505,7 +2502,7 @@
             try {
               await sendToBackground('ge-sync-tools', { force: true });
             } catch (syncErr) {
-              console.warn('[Global Executive] tool resync after createTool failed:', syncErr.message);
+              console.warn('[Global Executive] tool resync after createTool failed');
             }
           }
 

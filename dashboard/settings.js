@@ -111,12 +111,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (response.ok) {
         alert('Profile updated successfully');
       } else {
-        const error = await response.json();
-        alert(error.message || 'Failed to update profile');
+        alert('Failed to update profile. Please try again.');
       }
     } catch (error) {
-      console.error('Profile update error:', error);
-      alert('Failed to update profile. Please try again.');
+      console.error('[Settings] Profile update error:', error.status || 'unknown');
+      let msg = 'Failed to update profile. Please try again.';
+      if (error.status === 401) msg = 'Session expired. Please sign in again.';
+      alert(msg);
     }
   });
 
@@ -152,12 +153,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('current-password').value = '';
         document.getElementById('new-password').value = '';
       } else {
-        const error = await response.json();
-        alert(error.message || 'Failed to update password');
+        alert('Failed to update password. Please try again.');
       }
     } catch (error) {
-      console.error('Password update error:', error);
-      alert('Failed to update password. Please try again.');
+      console.error('[Settings] Password update error:', error.status || 'unknown');
+      let msg = 'Failed to update password. Please try again.';
+      if (error.status === 401) msg = 'Session expired. Please sign in again.';
+      alert(msg);
     }
   });
 
@@ -185,12 +187,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         NewOrderAuth.logout();
         window.location.href = '../builder/builder.html';
       } else {
-        const error = await response.json();
-        alert(error.message || 'Failed to delete account');
+        alert('Failed to delete account. Please try again.');
       }
     } catch (error) {
-      console.error('Account deletion error:', error);
-      alert('Failed to delete account. Please try again.');
+      console.error('[Settings] Account deletion error:', error.status || 'unknown');
+      let msg = 'Failed to delete account. Please try again.';
+      if (error.status === 401) msg = 'Session expired. Please sign in again.';
+      alert(msg);
     }
   });
 
@@ -515,7 +518,7 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('[Settings] Failed to save auto-update pref:', err);
       // Roll back the visual on error so the UI matches the server.
       toggle.checked = !toggle.checked;
-      alert('Could not save: ' + (err.message || err));
+      alert('Could not save your preference. Please try again.');
     }
   });
 
@@ -548,7 +551,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     } catch (err) {
       console.error('[Settings] check-updates failed:', err);
-      resultEl.textContent = 'Check failed: ' + (err.message || err);
+      resultEl.textContent = 'Could not check for updates. Please try again.';
     } finally {
       checkBtn.disabled = false;
     }

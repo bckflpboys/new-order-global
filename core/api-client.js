@@ -170,7 +170,9 @@ const NewOrderAPI = (() => {
           // Retry transient gateway / overload errors with exponential backoff
           if (RETRYABLE_STATUS.has(response.status) && attempt < maxAttempts) {
             const delay = Math.min(8000, 800 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 300);
-            console.warn(`[NewOrderAPI] ${endpoint} → ${response.status}, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts})`);
+            // Minimal console message — no endpoint path or status details
+            // that a user could exploit. Full context stays server-side.
+            console.warn(`[NewOrderAPI] Request failed, retrying (${attempt}/${maxAttempts})…`);
             await sleep(delay);
             continue;
           }
@@ -197,7 +199,7 @@ const NewOrderAPI = (() => {
         // Retry network errors too
         if (isNetwork && attempt < maxAttempts) {
           const delay = Math.min(8000, 800 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 300);
-          console.warn(`[NewOrderAPI] ${endpoint} network error, retrying in ${delay}ms (attempt ${attempt}/${maxAttempts}): ${error.message}`);
+          console.warn(`[NewOrderAPI] Network error, retrying (${attempt}/${maxAttempts})…`);
           await sleep(delay);
           continue;
         }

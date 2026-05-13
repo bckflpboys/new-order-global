@@ -613,13 +613,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 showToast(`"${tool.name}" is now running`, 'success');
                 return true;
             } else {
-                const errMsg = response?.error || 'Unknown error';
-                showToast(`Failed: ${errMsg}`, 'warning');
+                showToast('Failed to run tool. Please try again.', 'warning');
                 return false;
             }
         } catch (err) {
-            console.error('Run tool error:', err);
-            showToast(`Error: ${err.message}`, 'warning');
+            console.error('Run tool error:', err.status || 'unknown');
+            showToast('Failed to run tool. Please try again.', 'warning');
             return false;
         }
     }
@@ -806,7 +805,11 @@ document.addEventListener('DOMContentLoaded', () => {
                         const submitBtn = loginForm.querySelector('button[type="submit"]');
                         submitBtn.textContent = 'Sign In';
                         submitBtn.disabled = false;
-                        errorEl.textContent = err.message;
+                        console.error('Login error:', err.status || 'unknown');
+                        let msg = 'Sign in failed. Please try again.';
+                        if (err.status === 401) msg = 'Invalid email or password.';
+                        else if (err.status === 429) msg = 'Too many attempts. Please wait a moment.';
+                        errorEl.textContent = msg;
                         errorEl.style.display = 'block';
                     }
                 });
@@ -822,13 +825,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (tosCb) {
                     tosCb.addEventListener('change', () => {
                         tosChecked = tosCb.checked;
-                        console.log('TOS checkbox changed to:', tosChecked);
                     });
                 }
                 if (privacyCb) {
                     privacyCb.addEventListener('change', () => {
                         privacyChecked = privacyCb.checked;
-                        console.log('Privacy checkbox changed to:', privacyChecked);
                     });
                 }
 
@@ -875,8 +876,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         const submitBtn = registerForm.querySelector('button[type="submit"]');
                         submitBtn.textContent = 'Create Account';
                         submitBtn.disabled = false;
-                        console.error('Registration error:', err);
-                        errorEl.textContent = err.message;
+                        console.error('Registration error:', err.status || 'unknown');
+                        // Show a simple message, not the raw server error
+                        let msg = 'Registration failed. Please try again.';
+                        if (err.status === 409) msg = 'An account with this email already exists.';
+                        else if (err.status === 400) msg = 'Please check your input and try again.';
+                        errorEl.textContent = msg;
                         errorEl.style.display = 'block';
                     }
                 });
@@ -979,7 +984,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const dotEl = ytCard.querySelector('[data-dot]');
                         startTimer('youtube-toolkit', timerEl, ytCard, dotEl);
                     } catch (err) {
-                        showToast('Failed to inject: ' + err.message, 'warning');
+                        showToast('Failed to inject YouTube Toolkit. Please try again.', 'warning');
                     }
                 });
             }
@@ -1132,14 +1137,25 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         } catch (e) {
-            console.error('Popup: Error loading tools:', e);
-            const msg = (e && (e.message || String(e))) || 'unknown error';
-            const where = (e && e.stack ? String(e.stack).split('\n').slice(0, 3).join(' | ') : '');
+            console.error('Popup: Error loading tools:', e.code || e.status || 'unknown');
+            // Show a simple, non-exploitable message to users.
+            // Specific server codes get tailored text; everything else is generic.
+            let userMsg = 'Something went wrong. Please try again.';
+            if (e.code === 'no_credits' || e.purchaseRequired) {
+              userMsg = 'Out of credits. Top up at global-order.32d.one/pricing';
+            } else if (e.code === 'daily_quota_exceeded') {
+              userMsg = "You've used today's free runs. Limit resets at midnight UTC.";
+            } else if (e.code === 'account_suspended') {
+              userMsg = 'Your account is suspended. Please contact support.';
+            } else if (e.message?.includes('Failed to fetch') || e.message?.includes('NetworkError')) {
+              userMsg = 'Cannot reach server. Check your connection.';
+            } else if (e.status === 401) {
+              userMsg = 'Session expired. Please sign in again.';
+            }
             cont.innerHTML = `
                 <div style="padding: 20px; text-align: center; color: var(--accent-red); font-size: 13px;">
                     <div style="font-weight: 700; margin-bottom: 6px;">Error loading tools</div>
-                    <div style="font-size: 12px; opacity: 0.85; word-break: break-word;">${msg.replace(/[<>&"]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;' }[c]))}</div>
-                    ${where ? `<div style="font-size: 10px; opacity: 0.55; margin-top: 8px; text-align: left;">${where.replace(/[<>&"]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;' }[c]))}</div>` : ''}
+                    <div style="font-size: 12px; opacity: 0.85;">${userMsg.replace(/[<>&"]/g, c => ({ '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;' }[c]))}</div>
                 </div>`;
         }
     };

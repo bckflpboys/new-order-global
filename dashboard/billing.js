@@ -121,7 +121,11 @@ async function subscribeToPlan(planId) {
 
     if (btn) { btn.disabled = false; btn.textContent = 'Subscribe'; }
   } catch (err) {
-    alert('Error: ' + (err.message || 'Failed to subscribe'));
+    console.error('[Billing] Subscribe error:', err);
+    let msg = 'Failed to subscribe. Please try again.';
+    if (err.code === 'no_credits' || err.purchaseRequired) msg = 'Out of credits. Please top up first.';
+    else if (err.status === 401) msg = 'Session expired. Please sign in again.';
+    alert(msg);
     const btn = document.querySelector(`.sub-btn[data-plan="${planId}"]`);
     if (btn) { btn.disabled = false; btn.textContent = 'Subscribe'; }
   }
@@ -140,7 +144,8 @@ async function cancelSubscription() {
     alert(data.message || 'Subscription cancelled.');
     window.location.reload();
   } catch (err) {
-    alert('Error: ' + (err.message || 'Failed to cancel'));
+    console.error('[Billing] Cancel subscription error:', err);
+    alert('Failed to cancel subscription. Please try again.');
     btn.disabled = false;
     btn.textContent = 'Cancel Subscription';
   }
@@ -156,7 +161,11 @@ async function buyCredits(pkgId) {
       alert('Failed to start checkout process.');
     }
   } catch (err) {
-    alert('Error: ' + err.message);
+    console.error('[Billing] Buy credits error:', err);
+    let msg = 'Failed to start checkout. Please try again.';
+    if (err.code === 'no_credits' || err.purchaseRequired) msg = 'Out of credits. Please top up first.';
+    else if (err.status === 401) msg = 'Session expired. Please sign in again.';
+    alert(msg);
   }
 }
 
@@ -239,7 +248,7 @@ async function loadPurchaseHistory() {
       `;
     }).join('');
   } catch (err) {
-    console.error('Failed to load purchase history:', err);
+    console.error('Failed to load purchase history:', err.status || 'unknown');
   }
 }
 
@@ -322,5 +331,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadCreditCosts();
   } catch (err) {
     console.error('Failed to load billing info:', err);
+    // Show a simple inline message instead of alert
+    const balanceEl = document.getElementById('credit-balance');
+    if (balanceEl) balanceEl.textContent = '—';
   }
 });

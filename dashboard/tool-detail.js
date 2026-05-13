@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         await ToolManager.installTool({ ...tool, dashboardHTML: cloudTool.dashboardHTML });
       }
     } catch (e) {
-      console.log('Could not fetch dashboard from cloud:', e);
+      // Non-critical — dashboard may just not exist on cloud yet
     }
   }
 
@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
           await window.NewOrderAPI.saveToolToCloud(tool);
         } catch (e) {
-          console.log('Failed to sync to cloud:', e);
+          // Non-critical — local save succeeded, cloud sync can retry later
         }
       }
 
@@ -110,7 +110,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       loadDashboardIframe();
 
     } catch (err) {
-      alert('Error saving: ' + err.message);
+      console.error('[Tool Detail] Save error:', err.status || 'unknown');
+      alert('Failed to save changes. Please try again.');
       btnSave.textContent = '💾 Save Changes';
       btnSave.disabled = false;
     }

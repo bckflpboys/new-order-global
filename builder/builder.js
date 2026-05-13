@@ -2,7 +2,7 @@
 // Handles chat interactions, AI generation, tool preview, and management
 
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('New Order Builder: Loaded');
+  // Builder initialized
 
   // State
   let currentTool = null;
@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       await loadConversations();
     }
   } catch (err) {
-    console.error('Initialization error:', err);
+    console.error('Initialization error:', err.status || err.code || 'unknown');
   } finally {
     // Small delay for smooth transition
     setTimeout(() => {
@@ -288,7 +288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           try {
             await NewOrderAPI.updateModelPreferences(selectedModelId, null);
           } catch (e) {
-            console.log('Failed to save model preference:', e);
+            // Non-critical — preference not saved, will use default next time
           }
         }
       });
@@ -447,7 +447,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           tools = await ToolManager.getInstalledTools();
         }
       } catch (err) {
-        console.log('Failed to sync cloud tools:', err);
+        // Non-critical — local tools still work
       }
     }
 
@@ -499,7 +499,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       conversations = await NewOrderAPI.getConversations();
       renderConversations();
     } catch (err) {
-      console.error('Failed to load conversations:', err);
+      // Non-critical — conversations will load on next attempt
     }
   }
 
@@ -700,7 +700,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Check credits
     const user = NewOrderAuth.getCurrentUser();
     if (!user || (user.credits || 0) <= 0) {
-      addMessage('ai', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> You have no credits remaining. Visit global-order.32d.one/dashboard/billing to buy more.');
+      addMessage('ai', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> You have no credits remaining. <a href="https://global-order.32d.one/pricing" target="_blank" style="color:var(--accent-primary)">Top up here</a>.');
       return;
     }
 
@@ -831,7 +831,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     } catch (err) {
       typingEl.remove();
       if (streamMsg) streamMsg.remove();
-      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Error: ${err.message}`);
+      // Show a simple, user-friendly message — never leak internals.
+      console.error('[Builder] Generate error:', err);
+      let userMsg = 'Something went wrong. Please try again.';
+      if (err.code === 'no_credits' || err.purchaseRequired) {
+        userMsg = 'Out of credits. <a href="https://global-order.32d.one/pricing" target="_blank" style="color:var(--accent-primary)">Top up here</a>.';
+      } else if (err.code === 'daily_quota_exceeded') {
+        userMsg = "You've used today's free runs. The limit resets at midnight UTC. <a href=\"https://global-order.32d.one/pricing\" target=\"blank\" style=\"color:var(--accent-primary)\">Upgrade for more</a>.";
+      } else if (err.code === 'account_suspended') {
+        userMsg = 'Your account is suspended. Please contact support.';
+      } else if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        userMsg = 'Cannot reach server. Check your connection.';
+      } else if (err.status === 401) {
+        userMsg = 'Session expired. Please sign in again.';
+      }
+      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> ${userMsg}`);
     } finally {
       isGenerating = false;
       updateSendButton();
