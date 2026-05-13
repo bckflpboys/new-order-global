@@ -151,6 +151,22 @@ const NewOrderAPI = (() => {
             throw new Error('Session expired. Please sign in again.');
           }
 
+          // Server-declared non-retryable errors (daily quota, no credits,
+          // account suspended, etc.) — the server adds `retryable: false`
+          // to the body. Honour it so we don't burn 3 retries on something
+          // that won't recover until midnight, then surface a misleading
+          // "gateway timeout" when the wrapper finally gives up.
+          if (json && json.retryable === false) {
+            const err = new Error(json.error || json.message || shortStatusMessage(response.status, text));
+            err.status = response.status;
+            err.code = json.code || null;
+            err.retryable = false;
+            err.upgradeUrl = json.upgradeUrl || null;
+            err.purchaseRequired = !!json.purchaseRequired;
+            err.serverBody = json;
+            throw err;
+          }
+
           // Retry transient gateway / overload errors with exponential backoff
           if (RETRYABLE_STATUS.has(response.status) && attempt < maxAttempts) {
             const delay = Math.min(8000, 800 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 300);
@@ -162,7 +178,11 @@ const NewOrderAPI = (() => {
           const msg = (json && (json.error || json.message)) || shortStatusMessage(response.status, text);
           const err = new Error(msg);
           err.status = response.status;
+          err.code = (json && json.code) || null;
           err.retryable = RETRYABLE_STATUS.has(response.status);
+          err.upgradeUrl = (json && json.upgradeUrl) || null;
+          err.purchaseRequired = !!(json && json.purchaseRequired);
+          err.serverBody = json || null;
           throw err;
         }
 

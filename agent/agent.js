@@ -1050,7 +1050,31 @@
       const pb = document.getElementById('ge-planning-bubble');
       if (pb) pb.remove();
       setSendingState(false);
-      if (err.message?.includes('already have') && err.message?.includes('running')) {
+      // Server-typed, non-retryable errors. Branch on `err.code` BEFORE the
+      // generic 502/503/504/retryable bucket — otherwise a 429 daily-quota
+      // response gets misclassified as "planner overloaded", which is the
+      // wrong message AND hides the upgrade CTA from the user.
+      if (err.code === 'daily_quota_exceeded') {
+        const upgrade = err.upgradeUrl || 'https://global-order.32d.one/pricing';
+        showInlineNotice(
+          `You've used today's free agent runs. The limit resets at midnight (UTC). Upgrade for more: ${upgrade}`,
+          'warning'
+        );
+      } else if (err.code === 'no_credits' || err.purchaseRequired) {
+        const upgrade = err.upgradeUrl || 'https://global-order.32d.one/pricing';
+        showInlineNotice(
+          `Out of credits. Top up to keep running agent tasks: ${upgrade}`,
+          'warning'
+        );
+      } else if (err.code === 'account_suspended') {
+        showInlineNotice('Your account is suspended. Please contact support.', 'error');
+      } else if (err.code === 'agent_rate_limit') {
+        const perMin = (err.serverBody && err.serverBody.limitPerMinute) || 60;
+        showInlineNotice(
+          `You're going too fast — hit the per-minute rate limit (${perMin}/min). Wait about a minute, then try again.`,
+          'warning'
+        );
+      } else if (err.message?.includes('already have') && err.message?.includes('running')) {
         await loadTaskHistory();
         historySidebar.classList.add('open');
         showInlineNotice('You have running tasks. Stop one in the sidebar (×) before starting another.', 'warning');
@@ -2430,6 +2454,14 @@
             } catch (stepErr) {
               lastErr = stepErr;
               const m = stepErr.message || '';
+              // Server-typed, non-retryable mid-task errors (daily quota,
+              // no credits, account suspended). Re-throw immediately so
+              // the outer task loop terminates the run with a clear
+              // message instead of burning 3 useless retries here.
+              if (stepErr.retryable === false || stepErr.code === 'daily_quota_exceeded'
+                  || stepErr.code === 'no_credits' || stepErr.code === 'account_suspended') {
+                throw stepErr;
+              }
               // Body too large: aggressively truncate and retry once
               if (m.includes('too large') || m.includes('413')) {
                 pageState = truncatePageState(pageState, 30000);
