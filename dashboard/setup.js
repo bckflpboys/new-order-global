@@ -268,8 +268,11 @@
   // ============================================
   // Preferences
   // ============================================
-  $('btn-save-prefs').addEventListener('click', async () => {
-    const body = {
+  // Manual "Save Preferences" button — kept for users who prefer batched
+  // saves, but every individual control below is also auto-saved on
+  // change so refreshing the page no longer reverts un-saved toggles.
+  function _allPrefsBody() {
+    return {
       notifyChannel: $('pref-notify-channel').value,
       notifyOnComplete: $('pref-notify-complete').checked,
       notifyOnAwaitingUser: $('pref-notify-awaiting').checked,
@@ -280,14 +283,50 @@
       autoConfirmLowRisk: $('pref-auto-confirm-low').checked,
       verboseLogging: $('pref-verbose').checked
     };
+  }
+  async function _putPrefsPatch(patch, successMsg) {
     try {
       await NewOrderAPI.request('/api/integrations/preferences', {
         method: 'PUT',
-        body: JSON.stringify(body)
+        body: JSON.stringify(patch)
       });
-      toast('Preferences saved.');
-    } catch (e) { toast('Failed to save: ' + e.message, 'error'); }
+      if (successMsg) toast(successMsg);
+    } catch (e) {
+      toast('Failed to save: ' + e.message, 'error');
+      throw e;
+    }
+  }
+  $('btn-save-prefs').addEventListener('click', async () => {
+    try { await _putPrefsPatch(_allPrefsBody(), 'Preferences saved.'); }
+    catch { /* already toasted */ }
   });
+
+  // Auto-save individual preference controls on change. Sends ONLY the
+  // changed field so concurrent edits to other controls aren't clobbered.
+  // The whole control set is also covered by the Save button above.
+  const _autosaveMap = {
+    'pref-notify-channel':       { key: 'notifyChannel',           type: 'value' },
+    'pref-notify-complete':      { key: 'notifyOnComplete',        type: 'checked' },
+    'pref-notify-awaiting':      { key: 'notifyOnAwaitingUser',    type: 'checked' },
+    'pref-notify-failure':       { key: 'notifyOnFailure',         type: 'checked' },
+    'pref-can-close-tabs':       { key: 'canCloseTabs',            type: 'checked' },
+    'pref-auto-close-limit':     { key: 'autoCloseExceedingLimit', type: 'checked' },
+    'pref-prefer-current':       { key: 'preferCurrentTab',        type: 'checked' },
+    'pref-auto-confirm-low':     { key: 'autoConfirmLowRisk',      type: 'checked' },
+    'pref-verbose':              { key: 'verboseLogging',          type: 'checked' }
+  };
+  for (const [elId, { key, type }] of Object.entries(_autosaveMap)) {
+    const el = $(elId);
+    if (!el) continue;
+    el.addEventListener('change', async () => {
+      const value = type === 'checked' ? !!el.checked : el.value;
+      try { await _putPrefsPatch({ [key]: value }, 'Saved.'); }
+      catch {
+        // Roll back the visual toggle so the UI matches server state.
+        if (type === 'checked') el.checked = !el.checked;
+      }
+    });
+  }
 
   // ============================================
   // Research depth — saved through the same /preferences endpoint but
