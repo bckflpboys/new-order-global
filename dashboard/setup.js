@@ -158,7 +158,9 @@
     setNum('pref-research-max-paginated', r.maxPaginatedPages,  1);
     setNum('pref-research-scroll',        r.scrollPasses,       1);
     const verifyEl = $('pref-research-verify');
-    if (verifyEl) verifyEl.checked = (typeof r.verifySources === 'boolean') ? r.verifySources : true;
+    if (verifyEl) verifyEl.checked = (typeof r.verifySources === 'boolean') ? r.verifySources : false;
+    const enabledEl = $('pref-research-enabled');
+    if (enabledEl) enabledEl.checked = (typeof r.enabled === 'boolean') ? r.enabled : false;
   }
 
   // ============================================
@@ -300,6 +302,7 @@
       };
       const body = {
         research: {
+          enabled:            !!$('pref-research-enabled')?.checked,
           minDistinctDomains: num('pref-research-min-domains', 2),
           maxSearchPages:     num('pref-research-max-pages', 1),
           minWebsitesToVisit: num('pref-research-min-sites', 2),

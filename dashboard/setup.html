@@ -406,6 +406,14 @@
       <p>How thorough should the agent be when you ask it to research, look up, verify, or compare something? Higher values cost more steps but give better-corroborated answers. These only apply to <strong>research</strong> and <strong>mixed</strong> tasks (the planner classifies each task automatically).</p>
 
       <div class="pref-grid">
+        <label class="pref-row">
+          <input type="checkbox" id="pref-research-enabled">
+          <span class="pref-text">
+            <span class="pref-name">Enable research mode</span>
+            <span class="pref-desc"><strong>Off by default.</strong> When off, the agent treats every task as a regular action task — no multi-source corroboration, no <code>done</code>-gate, no source verification. Turn this on only if you want the agent to spend extra steps cross-referencing claims across multiple websites. The settings below have NO effect while this is off.</span>
+          </span>
+        </label>
+
         <label class="pref-row pref-row-input">
           <span class="pref-text">
             <span class="pref-name">Minimum distinct source domains before <code>done</code></span>
