@@ -69,8 +69,8 @@ if (window.__ytNewOrderLoaded) {
     // Load settings from Chrome storage
     async function loadSettings() {
       return new Promise((resolve) => {
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
-          chrome.storage.sync.get(['settings'], function (result) {
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+          chrome.storage.local.get(['settings'], function (result) {
             if (result.settings) {
               settings = { ...settings, ...result.settings };
               console.log('YouTube New Order: Settings loaded', settings);
@@ -111,7 +111,7 @@ if (window.__ytNewOrderLoaded) {
     // Listen for storage changes
     if (typeof chrome !== 'undefined' && chrome.storage) {
       chrome.storage.onChanged.addListener((changes, namespace) => {
-        if (namespace === 'sync' && changes.settings) {
+        if (namespace === 'local' && changes.settings) {
           settings = { ...settings, ...changes.settings.newValue };
           console.log('YouTube New Order: Settings changed via storage', settings);
           applyAllFeatures();

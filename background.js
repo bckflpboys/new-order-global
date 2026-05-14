@@ -313,7 +313,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
             historySearch: false
         };
 
-        chrome.storage.sync.set({ settings: defaultSettings }, () => {
+        chrome.storage.local.set({ settings: defaultSettings }, () => {
             console.log('New Order Global: Default settings initialized');
         });
     }
@@ -477,9 +477,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // --- YouTube Messages (preserved) ---
 
     if (message.type === 'getSettings') {
-        chrome.storage.sync.get(['settings'], (result) => {
+        chrome.storage.local.get(['settings'], (result) => {
             sendResponse({ settings: result.settings || {} });
         });
+        return true;
+    }
+
+    // Pull cloud-synced YT Toolkit settings from the server.
+    // Responds with { success, settings } on success, or
+    // { success: false, error: 'not_signed_in' | <msg> } on failure.
+    if (message.type === 'ytLoadCloudSettings') {
+        (async () => {
+            try {
+                const { noAuthToken } = await chrome.storage.local.get(['noAuthToken']);
+                if (!noAuthToken) {
+                    sendResponse({ success: false, error: 'not_signed_in' });
+                    return;
+                }
+                const data = await fetchWithAuth('/api/user/yt-settings', noAuthToken, { method: 'GET' });
+                sendResponse({ success: true, settings: (data && data.settings) || {} });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message || 'cloud_load_failed' });
+            }
+        })();
+        return true;
+    }
+
+    // Push local YT Toolkit settings to the server.
+    if (message.type === 'ytSyncCloudSettings') {
+        (async () => {
+            try {
+                const { noAuthToken } = await chrome.storage.local.get(['noAuthToken']);
+                if (!noAuthToken) {
+                    sendResponse({ success: false, error: 'not_signed_in' });
+                    return;
+                }
+                const data = await fetchWithAuth('/api/user/yt-settings', noAuthToken, {
+                    method: 'PUT',
+                    body: JSON.stringify({ settings: message.settings || {} })
+                });
+                sendResponse({ success: true, settings: (data && data.settings) || {} });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message || 'cloud_sync_failed' });
+            }
+        })();
         return true;
     }
 
@@ -531,7 +572,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
 
     if (message.type === 'updateSettings') {
-        chrome.storage.sync.set({ settings: message.settings }, () => {
+        chrome.storage.local.set({ settings: message.settings }, () => {
             chrome.tabs.query({ url: 'https://www.youtube.com/*' }, (tabs) => {
                 tabs.forEach(tab => {
                     chrome.tabs.sendMessage(tab.id, {

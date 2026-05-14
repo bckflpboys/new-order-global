@@ -68,25 +68,41 @@ const defaultSettings = {
     customFonts: []
 };
 
-// Load settings from Chrome storage
+// Load settings from Chrome storage (local) and try to merge from cloud
 function loadSettings() {
     console.log('Loading settings...');
 
-    chrome.storage.sync.get(['settings'], function (result) {
+    chrome.storage.local.get(['settings'], function (result) {
         if (chrome.runtime.lastError) {
             console.error('Error loading settings:', chrome.runtime.lastError);
             showNotification('Error loading settings', 'error');
             return;
         }
 
-        const settings = { ...defaultSettings, ...result.settings };
+        let settings = { ...defaultSettings, ...result.settings };
         currentSettings = settings;
         applySettingsToForm(settings);
-        console.log('Settings loaded:', settings);
+        console.log('Settings loaded (local):', settings);
 
-        // Reset unsaved flag after loading
         hasUnsavedChanges = false;
         updateSaveButton();
+
+        // Try to pull cloud-synced settings — if the user is logged in,
+        // server is the source of truth. Falls back silently if offline
+        // or not signed in.
+        chrome.runtime.sendMessage({ type: 'ytLoadCloudSettings' }, (resp) => {
+            if (chrome.runtime.lastError) return; // background not ready
+            if (resp && resp.success && resp.settings && Object.keys(resp.settings).length > 0) {
+                const merged = { ...defaultSettings, ...resp.settings };
+                currentSettings = merged;
+                applySettingsToForm(merged);
+                // Persist cloud snapshot locally so content scripts see it
+                chrome.storage.local.set({ settings: merged });
+                hasUnsavedChanges = false;
+                updateSaveButton();
+                console.log('Settings loaded (cloud):', merged);
+            }
+        });
     });
 }
 
@@ -184,20 +200,20 @@ function saveSettings() {
 
     const settings = gatherSettings();
 
-    chrome.storage.sync.set({ settings: settings }, function () {
+    chrome.storage.local.set({ settings: settings }, function () {
         if (chrome.runtime.lastError) {
             console.error('Error saving settings:', chrome.runtime.lastError);
             showNotification('Error saving settings: ' + chrome.runtime.lastError.message, 'error');
             return;
         }
 
-        console.log('Settings saved successfully:', settings);
+        console.log('Settings saved successfully (local):', settings);
 
         // IMPORTANT: Reset unsaved changes flag
         hasUnsavedChanges = false;
         updateSaveButton();
 
-        showNotification('Settings saved successfully! Refresh YouTube to see changes.', 'success');
+        showNotification('Settings saved! Refresh YouTube to see changes.', 'success');
 
         // Notify content scripts about the change
         chrome.tabs.query({ url: 'https://www.youtube.com/*' }, function (tabs) {
@@ -206,6 +222,18 @@ function saveSettings() {
                     // Tab might not have content script loaded yet
                 });
             });
+        });
+
+        // Push to server (best-effort). Background handles auth — if the
+        // user is not signed in, this is a no-op.
+        chrome.runtime.sendMessage({ type: 'ytSyncCloudSettings', settings: settings }, (resp) => {
+            if (chrome.runtime.lastError) return;
+            if (resp && resp.success) {
+                console.log('Settings synced to cloud');
+            } else if (resp && resp.error && resp.error !== 'not_signed_in') {
+                console.warn('Cloud sync failed:', resp.error);
+                showNotification('Saved locally — cloud sync failed: ' + resp.error, 'info');
+            }
         });
     });
 }
@@ -304,13 +332,14 @@ function resetSettings() {
     if (confirm('Are you sure you want to reset all settings to default?')) {
         console.log('Resetting settings to default...');
 
-        chrome.storage.sync.set({ settings: defaultSettings }, function () {
+        chrome.storage.local.set({ settings: defaultSettings }, function () {
             if (chrome.runtime.lastError) {
                 console.error('Error resetting settings:', chrome.runtime.lastError);
                 showNotification('Error resetting settings', 'error');
                 return;
             }
 
+            currentSettings = { ...defaultSettings };
             applySettingsToForm(defaultSettings);
             hasUnsavedChanges = false;
             updateSaveButton();
@@ -321,6 +350,11 @@ function resetSettings() {
                 tabs.forEach(tab => {
                     chrome.tabs.sendMessage(tab.id, { type: 'settingsUpdated', settings: defaultSettings }).catch(() => { });
                 });
+            });
+
+            // Push to server
+            chrome.runtime.sendMessage({ type: 'ytSyncCloudSettings', settings: defaultSettings }, () => {
+                if (chrome.runtime.lastError) { /* ignore */ }
             });
         });
     }
@@ -379,7 +413,7 @@ function importSettings() {
                 // Merge with defaults to ensure all fields exist
                 const mergedSettings = { ...defaultSettings, ...importedSettings };
 
-                chrome.storage.sync.set({ settings: mergedSettings }, function () {
+                chrome.storage.local.set({ settings: mergedSettings }, function () {
                     if (chrome.runtime.lastError) {
                         console.error('Error importing settings:', chrome.runtime.lastError);
                         showNotification('Error importing settings', 'error');
