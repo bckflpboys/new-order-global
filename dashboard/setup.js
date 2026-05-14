@@ -448,15 +448,35 @@
       $('as-max-sub-agents').value = s.maxSubAgents || 3;
       $('as-session-persistence').checked = !!s.sessionPersistenceEnabled;
 
-      // Council role dropdowns — only meaningful for tiers with the
-      // council prompt. Otherwise hide the whole block.
+      // Multi-Agent Council — only meaningful for tiers with the council
+      // prompt (Super Agent). Otherwise hide the whole block.
       const councilBlock = document.getElementById('as-council-block');
       if (councilBlock) {
         if (!_ceilings.useCouncilPrompt) {
           councilBlock.style.display = 'none';
         } else {
           councilBlock.style.display = '';
-          await populateCouncilRoles(s.councilRoles || {});
+          // The server returns the resolved roster (built-ins + customs)
+          // on every GET. If it's missing or empty (e.g. the server
+          // hasn't been redeployed with the new endpoint yet, or this
+          // is a brand-new account), fall back to the four default
+          // built-in members so the user ALWAYS sees Strategist /
+          // Executor / Critic / Optimizer.
+          const fromServer = Array.isArray(data.councilMembers) ? data.councilMembers : [];
+          _councilMembers = fromServer.length > 0
+            ? fromServer.map(m => ({ ...m }))
+            : COUNCIL_DEFAULTS.map(m => ({ ...m }));
+
+          // Belt-and-braces: ensure all four built-ins are always
+          // present, even if the server returned a partial roster.
+          for (const def of COUNCIL_DEFAULTS) {
+            if (!_councilMembers.some(m => m.id === def.id)) {
+              _councilMembers.unshift({ ...def });
+            }
+          }
+
+          $('as-council-enabled').checked = data.councilEnabled !== false;
+          await renderCouncilMembers();
         }
       }
     } catch (e) {
@@ -464,30 +484,140 @@
     }
   }
 
-  // Populate the 4 role dropdowns with the user's available agent-capable
-  // AI models. Selection value = openRouterId so the server can identify
-  // the model regardless of display-name changes.
+  // ============================================
+  // Multi-Agent Council UI state + helpers.
+  //
+  // The roster is held client-side in `_councilMembers` (mutated by the
+  // add/remove/edit handlers below) and serialised into the next
+  // PUT /api/agent-settings call. The server normalises + persists; on
+  // reload the GET response replaces this array wholesale.
+  // ============================================
   let _availableModels = null;
-  async function populateCouncilRoles(currentRoles) {
-    if (!_availableModels) {
-      try {
-        const data = await NewOrderAPI.request('/api/models');
-        _availableModels = (data.models || []).filter(m => m.isAgentModel !== false);
-      } catch { _availableModels = []; }
-    }
-    for (const role of ['strategist', 'executor', 'critic', 'optimizer']) {
-      const sel = $('as-role-' + role);
-      if (!sel) continue;
-      sel.innerHTML = '<option value="">Default (use task model)</option>';
-      for (const m of _availableModels) {
-        const opt = document.createElement('option');
-        opt.value = m.openRouterId || m.id || m.name;
-        opt.textContent = m.name + (m.tier ? ` — ${m.tier}` : '');
-        sel.appendChild(opt);
-      }
-      sel.value = currentRoles[role] || '';
-    }
+  let _councilMembers = [];
+  const COUNCIL_BUILT_IN_IDS = new Set(['strategist', 'executor', 'critic', 'optimizer']);
+  const COUNCIL_DEFAULTS = [
+    { id: 'strategist', name: 'Strategist', description: 'Sees the big picture. Considers the overall task goal, evaluates how far along we are, and whether the current approach is the most efficient path. Suggests course corrections.', model: '', enabled: true, isBuiltIn: true },
+    { id: 'executor',   name: 'Executor',   description: 'The hands-on expert. Determines the exact action, selector, and parameters needed. Considers fallback selectors, timing, and edge cases. Focuses on precision.',                          model: '', enabled: true, isBuiltIn: true },
+    { id: 'critic',     name: 'Critic',     description: 'The skeptic. Questions assumptions: Is this selector reliable? Could the page have changed? Are we about to overwrite stored data? Identifies risks before they happen.',                model: '', enabled: true, isBuiltIn: true },
+    { id: 'optimizer',  name: 'Optimizer',  description: 'The efficiency expert. Looks for shortcuts: Can we combine steps? Is there a faster CSS selector? Can we extract more data in one pass? Minimizes wasted steps.',                         model: '', enabled: true, isBuiltIn: true }
+  ];
+
+  async function _ensureModelsLoaded() {
+    if (_availableModels) return;
+    try {
+      const data = await NewOrderAPI.request('/api/models');
+      _availableModels = (data.models || []).filter(m => m.isAgentModel !== false);
+    } catch { _availableModels = []; }
   }
+
+  function _modelOptionsHtml(selectedId) {
+    let html = '<option value="">Default (use task model)</option>';
+    for (const m of (_availableModels || [])) {
+      const id = m.openRouterId || m.id || m.name;
+      const label = (m.name || id) + (m.tier ? ` — ${m.tier}` : '');
+      const sel = (id === selectedId) ? ' selected' : '';
+      html += `<option value="${escapeHtml(id)}"${sel}>${escapeHtml(label)}</option>`;
+    }
+    return html;
+  }
+
+  async function renderCouncilMembers() {
+    await _ensureModelsLoaded();
+    const host = $('as-council-members');
+    if (!host) return;
+    host.innerHTML = '';
+
+    const max = (_ceilings && _ceilings.maxCouncilMembers) || 12;
+    $('as-council-count').textContent = `${_councilMembers.length} / ${max} members`;
+    $('btn-add-council-member').disabled = _councilMembers.length >= max;
+
+    _councilMembers.forEach((m, idx) => {
+      const card = document.createElement('div');
+      card.className = 'council-card' + (m.enabled === false ? ' is-disabled' : '');
+      card.dataset.idx = String(idx);
+
+      const nameAttrs = m.isBuiltIn
+        ? 'disabled title="Built-in role names cannot be changed"'
+        : 'placeholder="Member name"';
+      const trailing = m.isBuiltIn
+        ? `<span class="council-builtin-badge">Built-in</span>`
+        : `<button type="button" class="council-remove" title="Remove this member">Remove</button>`;
+
+      card.innerHTML = `
+        <div class="council-head">
+          <input type="checkbox" class="council-toggle council-enabled" ${m.enabled !== false ? 'checked' : ''} aria-label="Enable member">
+          <input type="text" class="council-name" value="${escapeHtml(m.name || '')}" maxlength="40" ${nameAttrs}>
+          ${trailing}
+        </div>
+        <textarea class="council-description" maxlength="300" rows="2" placeholder="One or two sentences describing this member's perspective.">${escapeHtml(m.description || '')}</textarea>
+        <div class="council-model-row">
+          <span class="council-model-label">Model</span>
+          <select class="council-model">${_modelOptionsHtml(m.model || '')}</select>
+        </div>
+      `;
+      host.appendChild(card);
+    });
+
+    // Wire row-level handlers (delegated would be fine too, but per-row
+    // is cleaner since the list is small and re-rendered after each edit).
+    host.querySelectorAll('.council-card').forEach(card => {
+      const idx = Number(card.dataset.idx);
+      const m = _councilMembers[idx];
+      card.querySelector('.council-enabled').addEventListener('change', e => {
+        m.enabled = !!e.target.checked;
+        // Live visual feedback: fade the card when its member is off.
+        card.classList.toggle('is-disabled', !m.enabled);
+      });
+      const nameEl = card.querySelector('.council-name');
+      if (!m.isBuiltIn) {
+        nameEl.addEventListener('input', e => { m.name = e.target.value; });
+      }
+      card.querySelector('.council-description').addEventListener('input', e => {
+        m.description = e.target.value;
+      });
+      card.querySelector('.council-model').addEventListener('change', e => {
+        m.model = e.target.value;
+      });
+      const removeBtn = card.querySelector('.council-remove');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+          _councilMembers.splice(idx, 1);
+          renderCouncilMembers();
+        });
+      }
+    });
+  }
+
+  // Add-member / reset / master-toggle wiring (one-time, on script load).
+  $('btn-add-council-member')?.addEventListener('click', () => {
+    const max = (_ceilings && _ceilings.maxCouncilMembers) || 12;
+    if (_councilMembers.length >= max) {
+      toast(`Maximum ${max} council members.`, 'error');
+      return;
+    }
+    _councilMembers.push({
+      id: 'custom_' + Math.random().toString(36).slice(2, 10),
+      name: 'New Member',
+      description: '',
+      model: '',
+      enabled: true,
+      isBuiltIn: false
+    });
+    renderCouncilMembers();
+  });
+
+  $('btn-reset-council-members')?.addEventListener('click', () => {
+    if (!confirm('Reset the council to the four default members? Custom members will be removed.')) return;
+    _councilMembers = COUNCIL_DEFAULTS.map(m => ({ ...m }));
+    $('as-council-enabled').checked = true;
+    renderCouncilMembers();
+  });
+
+  $('as-council-enabled')?.addEventListener('change', () => {
+    // Master switch state is read directly from the checkbox at save
+    // time; nothing else to do here. (We avoid auto-saving so the user
+    // can still hit Cancel by refreshing the page before clicking Save.)
+  });
 
   $('btn-save-agent-settings').addEventListener('click', async () => {
     const num = (id) => {
@@ -507,12 +637,19 @@
       autoExtractMemories: $('as-auto-extract').checked,
       maxSubAgents: num('as-max-sub-agents') || 3,
       sessionPersistenceEnabled: $('as-session-persistence').checked,
-      councilRoles: {
-        strategist: $('as-role-strategist')?.value || '',
-        executor:   $('as-role-executor')?.value   || '',
-        critic:     $('as-role-critic')?.value     || '',
-        optimizer:  $('as-role-optimizer')?.value  || ''
-      }
+      // New-style council payload. The four built-in members are always
+      // included (server enforces this anyway). Custom members appended
+      // by the user travel along with their generated `id` so the server
+      // can de-dupe across saves.
+      councilEnabled: $('as-council-enabled') ? !!$('as-council-enabled').checked : true,
+      councilMembers: _councilMembers.map(m => ({
+        id: m.id,
+        name: m.name,
+        description: m.description,
+        model: m.model || '',
+        enabled: m.enabled !== false,
+        isBuiltIn: !!m.isBuiltIn
+      }))
     };
     try {
       await NewOrderAPI.request('/api/agent-settings', { method: 'PUT', body: JSON.stringify(body) });

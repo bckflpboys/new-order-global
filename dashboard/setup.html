@@ -237,6 +237,167 @@
       line-height: 1.5;
     }
 
+    /* ---------- Multi-Agent Council member cards ---------- */
+    .council-card {
+      border: 1px solid var(--ghost-border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      background: var(--surface);
+      display: flex; flex-direction: column; gap: 12px;
+      transition: border-color 0.15s ease, opacity 0.15s ease;
+    }
+    .council-card:hover { border-color: rgba(255,255,255,0.14); }
+    .council-card.is-disabled { opacity: 0.55; }
+    .council-card .council-head {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .council-card .council-name {
+      flex: 1; min-width: 0;
+      font-size: 15px; font-weight: 600;
+      padding: 9px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--ghost-border);
+      background: var(--surface-container-low, var(--surface));
+      color: var(--on-surface);
+    }
+    .council-card .council-name:disabled {
+      cursor: default;
+      background: transparent;
+      border-color: transparent;
+      padding-left: 0;
+    }
+    .council-card .council-name:focus { outline: none; border-color: var(--primary, #5b6cff); }
+    .council-card .council-builtin-badge {
+      font-size: 11px; font-weight: 600;
+      letter-spacing: 0.04em; text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(91,108,255,0.15);
+      color: var(--primary, #5b6cff);
+      flex-shrink: 0;
+    }
+    .council-card .council-remove {
+      background: transparent;
+      border: 1px solid var(--ghost-border);
+      color: var(--danger, #f87171);
+      padding: 7px 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease;
+    }
+    .council-card .council-remove:hover {
+      background: rgba(248,113,113,0.08);
+      border-color: rgba(248,113,113,0.45);
+    }
+    .council-card .council-description {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--ghost-border);
+      background: var(--surface-container-low, var(--surface));
+      color: var(--on-surface);
+      font-family: inherit;
+      font-size: 13.5px;
+      line-height: 1.5;
+      resize: vertical;
+      min-height: 56px;
+    }
+    .council-card .council-description:focus { outline: none; border-color: var(--primary, #5b6cff); }
+    .council-card .council-model-row {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .council-card .council-model-label {
+      font-size: 12px;
+      color: var(--on-surface-muted);
+      flex-shrink: 0;
+    }
+    .council-card .council-model {
+      flex: 1;
+      padding: 9px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--ghost-border);
+      background: var(--surface-container-low, var(--surface));
+      color: var(--on-surface);
+      font-size: 13.5px;
+    }
+    .council-card .council-model:focus { outline: none; border-color: var(--primary, #5b6cff); }
+
+    /* The per-member toggle reuses the .pref-row switch styles via the
+       .council-toggle class so it looks identical to the page's other
+       on/off switches. */
+    .council-toggle {
+      appearance: none; -webkit-appearance: none;
+      position: relative;
+      width: 44px; height: 24px;
+      flex-shrink: 0;
+      margin: 0;
+      background: var(--surface-container-low, var(--surface));
+      border: 1px solid var(--ghost-border);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.18s ease, border-color 0.18s ease;
+    }
+    .council-toggle::after {
+      content: "";
+      position: absolute;
+      top: 50%; left: 3px;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--on-surface, #e6e6e6);
+      transform: translateY(-50%);
+      transition: left 0.18s ease, background 0.18s ease;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+    }
+    .council-toggle:checked {
+      background: var(--primary, #5b6cff);
+      border-color: var(--primary, #5b6cff);
+    }
+    .council-toggle:checked::after { left: 21px; background: #fff; }
+    .council-toggle:focus-visible { box-shadow: 0 0 0 3px rgba(91,108,255,0.25); outline: none; }
+
+    .council-actions {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      margin-top: 14px;
+    }
+    .council-actions .btn-add-member {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 14px;
+      border-radius: 10px;
+      border: 1px dashed var(--ghost-border);
+      background: transparent;
+      color: var(--on-surface);
+      font-size: 13.5px; font-weight: 500;
+      cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+    }
+    .council-actions .btn-add-member:hover:not(:disabled) {
+      background: rgba(91,108,255,0.08);
+      border-color: var(--primary, #5b6cff);
+      border-style: solid;
+      color: var(--primary, #5b6cff);
+    }
+    .council-actions .btn-add-member:disabled { opacity: 0.5; cursor: not-allowed; }
+    .council-actions .btn-reset-council {
+      padding: 9px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--ghost-border);
+      background: transparent;
+      color: var(--on-surface-muted);
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+    }
+    .council-actions .btn-reset-council:hover {
+      color: var(--on-surface);
+      border-color: rgba(255,255,255,0.2);
+    }
+    .council-count {
+      font-size: 12.5px;
+      color: var(--on-surface-muted);
+      margin-left: auto;
+    }
+
     /* ---------- Toast ---------- */
     #setup-toast {
       font-size: 14px !important;
@@ -520,27 +681,31 @@
         </div>
         <label class="pref-row"><input type="checkbox" id="as-session-persistence"><span class="pref-text"><span class="pref-name">Session persistence</span><span class="pref-desc">Keep state of completed tasks so you can ask "resume yesterday's task".</span></span></label>
 
-        <!-- ===== Council role assignment ===== -->
+        <!-- ===== Council members ===== -->
         <div id="as-council-block" style="margin-top: 14px;">
-          <div style="font-weight: 600; font-size: 13px; margin-bottom: 4px;">Multi-Agent Council Roles</div>
-          <div style="font-size: 12px; color: var(--on-surface-muted); margin-bottom: 10px;">Choose which AI model handles each role on every step. Leave any role on "Default" to use the task's main model.</div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
-            <div class="field">
-              <label for="as-role-strategist" style="font-size: 12px;">Strategist <span style="color: var(--on-surface-muted); font-weight: 400;">(big picture)</span></label>
-              <select id="as-role-strategist"><option value="">Default</option></select>
-            </div>
-            <div class="field">
-              <label for="as-role-executor" style="font-size: 12px;">Executor <span style="color: var(--on-surface-muted); font-weight: 400;">(action precision)</span></label>
-              <select id="as-role-executor"><option value="">Default</option></select>
-            </div>
-            <div class="field">
-              <label for="as-role-critic" style="font-size: 12px;">Critic <span style="color: var(--on-surface-muted); font-weight: 400;">(risk &amp; sanity)</span></label>
-              <select id="as-role-critic"><option value="">Default</option></select>
-            </div>
-            <div class="field">
-              <label for="as-role-optimizer" style="font-size: 12px;">Optimizer <span style="color: var(--on-surface-muted); font-weight: 400;">(efficiency)</span></label>
-              <select id="as-role-optimizer"><option value="">Default</option></select>
-            </div>
+          <div style="font-weight: 600; font-size: 15px; margin-bottom: 10px;">Multi-Agent Council</div>
+
+          <!-- Master enable toggle styled like every other pref-row on the page -->
+          <div class="pref-grid" style="margin-bottom: 14px;">
+            <label class="pref-row">
+              <span class="pref-text">
+                <span class="pref-name">Enable council</span>
+                <span class="pref-desc">When off, the multi-agent council prompt is not sent to the agent at all. Members below are ignored.</span>
+              </span>
+              <input type="checkbox" id="as-council-enabled">
+            </label>
+          </div>
+
+          <div style="font-size: 13px; color: var(--on-surface-muted); margin-bottom: 12px; line-height: 1.55;">
+            Each enabled member contributes a perspective to every agent step. Disable individual members, edit their description / model, or add new specialists. The four built-in members can be disabled but not removed.
+          </div>
+
+          <div id="as-council-members" style="display:flex; flex-direction:column; gap:12px;"></div>
+
+          <div class="council-actions">
+            <button type="button" class="btn-add-member" id="btn-add-council-member">+ Add member</button>
+            <button type="button" class="btn-reset-council" id="btn-reset-council-members">Reset to defaults</button>
+            <span id="as-council-count" class="council-count"></span>
           </div>
         </div>
       </div>
