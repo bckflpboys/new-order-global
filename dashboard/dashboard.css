@@ -719,3 +719,210 @@ body {
 .sub-feature strong {
   color: var(--on-surface);
 }
+
+/* ============================================================
+   Skill Compounding card components
+   Matches the existing .integration-card / .btn-* design system.
+   ============================================================ */
+
+/* Small variant of btn-secondary for inline header actions like
+   "Refresh". Uses the same colours and radius as btn-secondary so it
+   reads as part of the same family — just compact. */
+.btn-secondary.btn-sm {
+  padding: 6px 14px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+/* Section header inside a card, used for "Your mined skills" with the
+   refresh button on the right. Lines up flush with the card's textarea
+   and pref-rows. */
+.skill-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 22px 0 10px 0;
+}
+.skill-section-header > .title {
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--on-surface);
+}
+
+/* Domain blocklist — wraps the textarea + chips preview in a single
+   visual block so the user sees their parsed domains rendered as chips
+   underneath as they type. */
+.domain-blocklist .blocklist-textarea {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 13px;
+  line-height: 1.5;
+  min-height: 70px;
+  resize: vertical;
+}
+.domain-blocklist .blocklist-help {
+  font-size: 12px;
+  color: var(--on-surface-muted, var(--on-surface-variant));
+  margin-top: 8px;
+  line-height: 1.5;
+}
+.domain-blocklist .blocklist-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  min-height: 26px;
+}
+.domain-blocklist .chip-empty {
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  font-style: italic;
+  padding: 4px 0;
+}
+.domain-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 12px;
+  background: var(--surface-container-high);
+  border: 1px solid var(--ghost-border);
+  border-radius: var(--radius-full);
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  color: var(--on-surface);
+}
+.domain-chip .chip-remove {
+  background: none;
+  border: 0;
+  color: var(--on-surface-variant);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 2px;
+  border-radius: 2px;
+  transition: color 0.15s ease;
+}
+.domain-chip .chip-remove:hover {
+  color: var(--danger);
+}
+
+/* Mined skills list — proper card-style rows that pick up the design
+   system's surface colours and radii instead of inline styles. */
+.skills-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.skills-empty {
+  font-size: 13px;
+  color: var(--on-surface-variant);
+  padding: 24px 16px;
+  border: 1px dashed var(--ghost-border);
+  border-radius: var(--radius-md, 10px);
+  text-align: center;
+  background: var(--surface-container);
+}
+.skill-row {
+  display: flex;
+  gap: 12px;
+  align-items: stretch;
+  background: var(--surface-container);
+  border: 1px solid var(--ghost-border);
+  border-radius: var(--radius-md, 10px);
+  padding: 14px 16px;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.skill-row:hover {
+  border-color: var(--primary);
+  background: var(--surface-container-high);
+}
+.skill-row.is-disabled {
+  opacity: 0.55;
+}
+.skill-row .skill-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.skill-row .skill-title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.skill-row .skill-name {
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--on-surface);
+}
+.skill-row .skill-summary {
+  font-size: 13px;
+  color: var(--on-surface-variant);
+  line-height: 1.45;
+}
+.skill-row .skill-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  font-size: 11px;
+  color: var(--on-surface-variant);
+  align-items: center;
+}
+.skill-row .skill-domains {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.skill-row .skill-domains code {
+  font-size: 11px;
+  padding: 1px 7px;
+  background: var(--surface-container-high);
+  border: 1px solid var(--ghost-border);
+  border-radius: var(--radius-full);
+  color: var(--on-surface);
+}
+.skill-row .skill-reason {
+  font-size: 11px;
+  color: var(--on-surface-variant);
+  font-style: italic;
+}
+.skill-row .skill-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+  justify-content: flex-start;
+}
+.skill-row .skill-actions .btn-secondary,
+.skill-row .skill-actions .btn-danger {
+  padding: 6px 12px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Safety + status badges — small pills that read at a glance. */
+.skill-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-label);
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+}
+.skill-badge.safety-benign    { background: rgba(74,222,128,0.12);  color: #4ade80; border-color: rgba(74,222,128,0.30); }
+.skill-badge.safety-grey      { background: rgba(250,204,21,0.12);  color: #facc15; border-color: rgba(250,204,21,0.30); }
+.skill-badge.safety-malicious { background: rgba(248,113,113,0.16); color: #f87171; border-color: rgba(248,113,113,0.35); }
+.skill-badge.status-published { background: rgba(96,165,250,0.14);  color: #60a5fa; border-color: rgba(96,165,250,0.32); }
+.skill-badge.status-disabled  { background: var(--surface-container-high); color: var(--on-surface-variant); border-color: var(--ghost-border); }

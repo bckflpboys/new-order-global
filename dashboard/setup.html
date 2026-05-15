@@ -757,6 +757,112 @@
       </div>
     </div>
 
+    <!-- ===== Skill Compounding (Phase 3) — its own card, all tiers ===== -->
+    <!--
+      The agent learns from every successful task: it mines the steps
+      into a parameterised "skill" recipe so future similar requests
+      can be replayed in seconds. Three layers of opt-in:
+        1. Mining        — defaults ON, fully private to this account.
+        2. Publish       — push my mined skills to the global pool.
+        3. Learn         — pull other users' skills when I plan a task.
+      Plus two greylist toggles for borderline / scraping recipes,
+      and a domain blocklist that keeps sensitive sites out of every
+      part of the pipeline. Saved INDEPENDENTLY of agent settings — its
+      own dedicated save button hits the same /api/agent-settings PUT
+      endpoint but only sends the skillSharing + stepPatternHintsEnabled
+      fields, so it can't clobber unrelated agent settings the user
+      hasn't touched in this session.
+    -->
+    <div class="integration-card" id="card-skill-compounding">
+      <h3>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>
+        Skill Compounding
+      </h3>
+      <p>The agent gets faster the more you use it: every successful task is mined into a reusable recipe that future similar prompts can replay. Step-pattern hints add a one-liner of advice ("don't scroll-loop on google.com") to the agent's prompt automatically. All settings here are private by default — you opt in to anything that leaves your account.</p>
+
+      <div id="as-skill-block">
+        <label class="pref-row">
+          <input type="checkbox" id="as-step-pattern-hints">
+          <span class="pref-text">
+            <span class="pref-name">Step-pattern hints</span>
+            <span class="pref-desc">Inject learned per-domain "don't repeat this mistake / use this proven faster path" hints into the agent's system prompt. Local-only, zero LLM cost.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="as-skill-mining">
+          <span class="pref-text">
+            <span class="pref-name">Mine skills from completed tasks</span>
+            <span class="pref-desc">After every successful task, distill the step sequence into a parameterised recipe stored privately in your account. Costs ~1 cheap LLM call per task.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="as-skill-publish">
+          <span class="pref-text">
+            <span class="pref-name">Share my skills to the global pool</span>
+            <span class="pref-desc">Anonymously contribute your benign mined skills so other users benefit. Source task IDs are stripped; URLs and parameters are templated. You can unpublish any skill at any time.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="as-skill-learn">
+          <span class="pref-text">
+            <span class="pref-name">Learn from the global pool</span>
+            <span class="pref-desc">When you start a new task, the planner can match it against skills published by other users (filtered by your blocklist + safety preferences below).</span>
+          </span>
+        </label>
+
+        <div style="margin: 14px 0 8px 0; font-size: 13px; color: var(--on-surface-muted);">Borderline / scraping skills (optional)</div>
+
+        <label class="pref-row">
+          <input type="checkbox" id="as-skill-grey-download">
+          <span class="pref-text">
+            <span class="pref-name">Allow grey-classified skills FROM the pool</span>
+            <span class="pref-desc">Surfaces skills marked grey by the safety classifier (mass scraping, repeat form-fill, ToS-edge automation). Malicious skills are NEVER surfaced regardless.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="as-skill-grey-upload">
+          <span class="pref-text">
+            <span class="pref-name">Allow grey-classified skills TO the pool</span>
+            <span class="pref-desc">Lets your own grey-classified skills auto-publish (still gated by "Share my skills" above). Malicious skills NEVER upload regardless.</span>
+          </span>
+        </label>
+
+        <div class="field domain-blocklist" style="margin-top: 16px;">
+          <label for="as-skill-blocklist">Domain blocklist</label>
+          <textarea id="as-skill-blocklist" class="input-text blocklist-textarea" rows="3" placeholder="chase.com&#10;internal.acme.corp&#10;intranet.example"></textarea>
+          <!-- Live-parsed chips so the user can see exactly which domains
+               will be saved. Each chip has an inline remove (×) that
+               deletes from the textarea and re-renders. Populated/refreshed
+               by setup.js on input + after load. -->
+          <div id="as-skill-blocklist-chips" class="blocklist-chips" aria-label="Parsed blocked domains">
+            <span class="chip-empty">No domains blocked.</span>
+          </div>
+          <div class="blocklist-help">
+            Tasks that touched any of these domains will not be mined into skills. Skills (yours or pooled) whose recipes target these domains are also hidden from the planner. Suffix-matched: <code>chase.com</code> blocks <code>www.chase.com</code> and <code>secure.chase.com</code>.
+          </div>
+        </div>
+
+        <!-- ===== Mined skills list ===== -->
+        <div class="skill-section-header">
+          <div class="title">Your Mined Skills</div>
+          <button type="button" id="btn-refresh-skills" class="btn-secondary btn-sm">Refresh</button>
+        </div>
+        <div id="as-skills-list" class="skills-list">
+          <div class="skills-empty">
+            Skills you've mined will appear here after a few successful tasks.
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn-primary" id="btn-save-skill-settings">Save Skill Settings</button>
+      </div>
+    </div>
+
     <!-- ===== Per-Domain Rules ===== -->
     <div class="integration-card" id="card-domain-rules">
       <h3>

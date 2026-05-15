@@ -481,6 +481,30 @@
       $('as-max-sub-agents').value = s.maxSubAgents || 3;
       $('as-session-persistence').checked = !!s.sessionPersistenceEnabled;
 
+      // ---- Phase 2 + 3 skill compounding fields ----
+      // Step-pattern hints default ON, so missing field = true.
+      const sphEl = $('as-step-pattern-hints');
+      if (sphEl) sphEl.checked = s.stepPatternHintsEnabled !== false;
+      const share = s.skillSharing || {};
+      const setIf = (id, val) => { const el = $(id); if (el) el.checked = !!val; };
+      // Defaults ON — undefined / missing field reads as enabled. Mirrors
+      // the server-side defaults in models/AgentSettings.js so a brand-new
+      // account or a legacy doc missing these fields renders correctly.
+      setIf('as-skill-mining',        share.miningEnabled !== false);
+      setIf('as-skill-publish',       share.publishToGlobalPool !== false);
+      setIf('as-skill-learn',         share.learnFromGlobalPool !== false);
+      // Grey toggles stay OFF by default — users must explicitly opt in.
+      setIf('as-skill-grey-download', share.allowGreyDownload);
+      setIf('as-skill-grey-upload',   share.allowGreyUpload);
+      const blockEl = $('as-skill-blocklist');
+      if (blockEl) blockEl.value = Array.isArray(share.blockedDomains) ? share.blockedDomains.join('\n') : '';
+      // Refresh the live chip preview now that the textarea has its
+      // saved value. The function is hoisted within this IIFE.
+      try { renderBlocklistChips(); } catch { /* defined later in same scope */ }
+      // Kick off a non-blocking load of mined skills so the user sees the
+      // list populate while the rest of the page finishes loading.
+      try { loadMinedSkills(); } catch { /* no-op if function not ready yet */ }
+
       // Multi-Agent Council — only meaningful for tiers with the council
       // prompt (Super Agent). Otherwise hide the whole block.
       const councilBlock = document.getElementById('as-council-block');
@@ -673,6 +697,10 @@
       autoExtractMemories: $('as-auto-extract').checked,
       maxSubAgents: num('as-max-sub-agents') || 3,
       sessionPersistenceEnabled: $('as-session-persistence').checked,
+      // Skill compounding settings (stepPatternHintsEnabled +
+      // skillSharing.*) are saved by their own dedicated card / button —
+      // see #btn-save-skill-settings — so they're intentionally NOT in
+      // this body. Keeps the two cards independently saveable.
       // New-style council payload. The four built-in members are always
       // included (server enforces this anyway). Custom members appended
       // by the user travel along with their generated `id` so the server
@@ -693,6 +721,198 @@
       loadAgentSettings();
     } catch (e) { toast('Save failed: ' + e.message, 'error'); }
   });
+
+  // ============================================
+  // Skill compounding card — dedicated save button
+  // Hits the same /api/agent-settings PUT endpoint but sends ONLY the
+  // skill-related fields. The server merges these into the settings doc
+  // alongside whatever the agent-settings card last persisted, so the
+  // two cards never clobber each other.
+  // ============================================
+  const btnSaveSkill = $('btn-save-skill-settings');
+  if (btnSaveSkill) {
+    btnSaveSkill.addEventListener('click', async () => {
+      const body = {
+        stepPatternHintsEnabled: $('as-step-pattern-hints') ? !!$('as-step-pattern-hints').checked : true,
+        skillSharing: {
+          miningEnabled:       $('as-skill-mining')        ? !!$('as-skill-mining').checked        : true,
+          publishToGlobalPool: $('as-skill-publish')       ? !!$('as-skill-publish').checked       : false,
+          learnFromGlobalPool: $('as-skill-learn')         ? !!$('as-skill-learn').checked         : false,
+          allowGreyDownload:   $('as-skill-grey-download') ? !!$('as-skill-grey-download').checked : false,
+          allowGreyUpload:     $('as-skill-grey-upload')   ? !!$('as-skill-grey-upload').checked   : false,
+          blockedDomains: (($('as-skill-blocklist') && $('as-skill-blocklist').value) || '')
+            .split(/[\r\n,]+/).map(s => s.trim()).filter(Boolean).slice(0, 100)
+        }
+      };
+      try {
+        await NewOrderAPI.request('/api/agent-settings', { method: 'PUT', body: JSON.stringify(body) });
+        toast('Skill settings saved.');
+        loadAgentSettings();
+      } catch (e) {
+        toast('Save failed: ' + e.message, 'error');
+      }
+    });
+  }
+
+  // ============================================
+  // Mined skills list (Phase 3)
+  // Renders the user's private skills with quick actions: enable/disable,
+  // publish/unpublish, delete. The list endpoint already strips the
+  // 1536-dim embedding vector so payloads stay small.
+  // ============================================
+  async function loadMinedSkills() {
+    const container = $('as-skills-list');
+    if (!container) return;
+    try {
+      const data = await NewOrderAPI.request('/api/agent/skills');
+      const skills = Array.isArray(data && data.skills) ? data.skills : [];
+      if (!skills.length) {
+        container.innerHTML = '<div class="skills-empty">No skills mined yet. Complete a few tasks (4+ steps each) to build up your library.</div>';
+        return;
+      }
+      container.innerHTML = skills.map(renderSkillRow).join('');
+      // Wire action buttons (delegation would be cleaner but the list is
+      // small and we re-render after every action anyway).
+      container.querySelectorAll('[data-skill-action]').forEach(btn => {
+        btn.addEventListener('click', () => handleSkillAction(btn));
+      });
+    } catch (e) {
+      container.innerHTML = `<div style="font-size: 13px; color: var(--error, #f88); padding: 12px;">Failed to load skills: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  // Render one skill row using the design-system CSS classes (.skill-row,
+  // .skill-badge, .btn-secondary, .btn-danger). Inline styles are kept
+  // OUT — see dashboard.css "Skill Compounding card components" block.
+  function renderSkillRow(skill) {
+    const sTag = skill.safetyTag || 'benign';
+    const safetyBadge = sTag === 'malicious'
+      ? `<span class="skill-badge safety-malicious" title="${escapeHtml(skill.safetyReason || '')}">⚠ malicious</span>`
+      : `<span class="skill-badge safety-${sTag}">${escapeHtml(sTag)}</span>`;
+    const pubBadge = skill.publishedToGlobal
+      ? '<span class="skill-badge status-published">published</span>'
+      : '';
+    const disabledBadge = skill.disabled
+      ? '<span class="skill-badge status-disabled">disabled</span>'
+      : '';
+    const domains = (skill.domains || []).slice(0, 4).map(d =>
+      `<code>${escapeHtml(d)}</code>`
+    ).join('');
+    const domainsBlock = domains
+      ? `<span class="skill-domains">${domains}</span>`
+      : '';
+    const stats = `${skill.successCount || 0}× success · ~${skill.avgSteps || '?'} steps · ${(skill.steps || []).length}-step recipe`;
+    const reason = (sTag !== 'benign' && skill.safetyReason)
+      ? `<div class="skill-reason">${escapeHtml(skill.safetyReason)}</div>`
+      : '';
+    const toggleBtn = `<button type="button" class="btn-secondary btn-sm" data-skill-action="${skill.disabled ? 'enable' : 'disable'}">${skill.disabled ? 'Enable' : 'Disable'}</button>`;
+    const publishBtn = sTag !== 'malicious'
+      ? `<button type="button" class="btn-secondary btn-sm" data-skill-action="${skill.publishedToGlobal ? 'unpublish' : 'publish'}">${skill.publishedToGlobal ? 'Unpublish' : 'Publish'}</button>`
+      : '';
+    const deleteBtn = `<button type="button" class="btn-danger btn-sm" data-skill-action="delete">Delete</button>`;
+    return `
+      <div class="skill-row${skill.disabled ? ' is-disabled' : ''}" data-skill-id="${escapeHtml(skill._id)}">
+        <div class="skill-main">
+          <div class="skill-title">
+            <span class="skill-name">${escapeHtml(skill.name)}</span>
+            ${safetyBadge}${pubBadge}${disabledBadge}
+          </div>
+          <div class="skill-summary">${escapeHtml(skill.summary || '(no summary)')}</div>
+          <div class="skill-meta">
+            <span>${escapeHtml(stats)}</span>
+            ${domainsBlock}
+          </div>
+          ${reason}
+        </div>
+        <div class="skill-actions">
+          ${toggleBtn}${publishBtn}${deleteBtn}
+        </div>
+      </div>`;
+  }
+
+  // ============================================
+  // Domain blocklist — live chip preview
+  // Parses the textarea on every input and renders one .domain-chip per
+  // unique domain. Each chip has an × button that removes the line from
+  // the textarea and re-renders. Purely cosmetic; the actual save still
+  // sends the textarea contents (so users can also edit text directly).
+  // ============================================
+  function parseBlocklist(rawText) {
+    if (!rawText) return [];
+    const seen = new Set();
+    const out = [];
+    for (const raw of String(rawText).split(/[\r\n,]+/)) {
+      const d = raw.trim().toLowerCase()
+        .replace(/^https?:\/\//, '')
+        .replace(/\/.*$/, '');
+      if (!d || seen.has(d)) continue;
+      if (!/^[a-z0-9.-]{1,253}$/i.test(d)) continue;
+      seen.add(d);
+      out.push(d);
+      if (out.length >= 100) break;
+    }
+    return out;
+  }
+  function renderBlocklistChips() {
+    const ta = $('as-skill-blocklist');
+    const chipsEl = $('as-skill-blocklist-chips');
+    if (!ta || !chipsEl) return;
+    const domains = parseBlocklist(ta.value);
+    if (!domains.length) {
+      chipsEl.innerHTML = '<span class="chip-empty">No domains blocked.</span>';
+      return;
+    }
+    chipsEl.innerHTML = domains.map(d => `
+      <span class="domain-chip">
+        ${escapeHtml(d)}
+        <button type="button" class="chip-remove" data-remove-domain="${escapeHtml(d)}" title="Remove ${escapeHtml(d)}" aria-label="Remove ${escapeHtml(d)}">×</button>
+      </span>
+    `).join('');
+    chipsEl.querySelectorAll('[data-remove-domain]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.getAttribute('data-remove-domain');
+        const remaining = parseBlocklist(ta.value).filter(d => d !== target);
+        ta.value = remaining.join('\n');
+        renderBlocklistChips();
+      });
+    });
+  }
+  // Wire input handler (live render) — gated on element existence so this
+  // code stays harmless on pages that don't include the skill card.
+  const _blocklistTa = $('as-skill-blocklist');
+  if (_blocklistTa) {
+    _blocklistTa.addEventListener('input', renderBlocklistChips);
+  }
+
+  async function handleSkillAction(btn) {
+    const action = btn.getAttribute('data-skill-action');
+    const row = btn.closest('[data-skill-id]');
+    const id = row && row.getAttribute('data-skill-id');
+    if (!id || !action) return;
+    try {
+      if (action === 'delete') {
+        if (!confirm('Delete this skill? Any global-pool copy will also be removed. This cannot be undone.')) return;
+        await NewOrderAPI.request(`/api/agent/skills/${id}`, { method: 'DELETE' });
+      } else {
+        const patch =
+          action === 'enable'    ? { disabled: false } :
+          action === 'disable'   ? { disabled: true } :
+          action === 'publish'   ? { publishedToGlobal: true } :
+          action === 'unpublish' ? { publishedToGlobal: false } : null;
+        if (!patch) return;
+        await NewOrderAPI.request(`/api/agent/skills/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+      }
+      toast('Skill updated.');
+      loadMinedSkills();
+    } catch (e) {
+      toast('Action failed: ' + e.message, 'error');
+    }
+  }
+
+  // Manual refresh button + initial load gated on Settings tab visibility
+  // already triggered above via loadAgentSettings.
+  const refreshBtn = $('btn-refresh-skills');
+  if (refreshBtn) refreshBtn.addEventListener('click', () => loadMinedSkills());
 
   // ============================================
   // Per-Domain Rules

@@ -1033,6 +1033,14 @@
         taskType: planData.taskType || 'action',
         requiredInputs: planData.requiredInputs || [],
         permissionsRequested: planData.permissionsRequested || {},
+        // Phase 3 — skill compounding match (null if no match).
+        // mode === 'fast_path': UI shows "Replay this recipe?" banner +
+        //   pre-fills briefing fields from paramsHint. The PRIOR ART block
+        //   was also injected into the planner so the plan already
+        //   reflects the recipe.
+        // mode === 'suggest':   UI shows a small "Library match" badge.
+        //   The planner already incorporated the recipe as PRIOR ART.
+        skillMatch: planData.skillMatch || null,
         mode: selectedMode,
         prompt: trimmed,
         activeTab,
@@ -1168,6 +1176,17 @@
       ? '<h3>Risks</h3>' + ctx.plan.risks.map(r => `<div>⚠ ${escapeHtml(r)}</div>`).join('')
       : '';
 
+    // ---- Phase 3 — Skill match banner ----
+    // Render a banner above the briefing section if the planner found a
+    // match in this user's skill library. Two flavours:
+    //   - fast_path: green "Replay" banner with skill name + success stats
+    //                + an Auto-fill button that pre-populates briefing
+    //                fields from `paramsHint`.
+    //   - suggest:   subtle blue "Library match" badge — informational
+    //                only; the recipe was injected as PRIOR ART so the
+    //                plan above already reflects it.
+    renderSkillMatchBanner(ctx);
+
     // Briefing form
     const briefingSection = document.getElementById('briefing-section');
     const briefingForm = document.getElementById('briefing-form');
@@ -1177,6 +1196,18 @@
       ctx.requiredInputs.forEach(inp => {
         briefingForm.appendChild(buildBriefingField(inp));
       });
+      // Pre-fill any field whose name matches a paramsHint key. Done
+      // AFTER the inputs are in the DOM so we can target by id.
+      if (ctx.skillMatch && ctx.skillMatch.mode === 'fast_path' && ctx.skillMatch.paramsHint) {
+        const hints = ctx.skillMatch.paramsHint || {};
+        for (const [name, value] of Object.entries(hints)) {
+          const el = briefingForm.querySelector(`[data-input="${CSS.escape(name)}"]`);
+          if (el && (el.value === '' || el.value == null)) {
+            if (el.type === 'checkbox') el.checked = !!value;
+            else el.value = String(value);
+          }
+        }
+      }
     } else {
       briefingSection.style.display = 'none';
     }
@@ -1225,6 +1256,61 @@
       // Has required inputs — the user must come back to the page. Notify them.
       window.__geNextTaskIsRemote = false;
       showInlineNotice('This task needs briefing inputs. Please fill them in to continue.', 'warning');
+    }
+  }
+
+  // ============================================
+  // Phase 3 — Skill-match banner renderer
+  // Inserts (or removes) a banner inside the plan modal showing whether
+  // the new prompt matched a previously mined skill. Idempotent:
+  // re-renders cleanly when the modal is opened a second time.
+  // ============================================
+  function renderSkillMatchBanner(ctx) {
+    // Anchor: insert ABOVE the briefing section so the user sees the
+    // match before being asked for inputs.
+    const briefingSection = document.getElementById('briefing-section');
+    if (!briefingSection || !briefingSection.parentNode) return;
+
+    // Remove any prior banner so a re-render doesn't stack them.
+    const old = document.getElementById('ge-skill-banner');
+    if (old) old.remove();
+
+    const m = ctx && ctx.skillMatch;
+    if (!m || m.mode === 'none' || !m.skill) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'ge-skill-banner';
+    const fast = m.mode === 'fast_path';
+    const accent = fast ? '#22c55e' : '#60a5fa';
+    const bg = fast ? 'rgba(34,197,94,0.10)' : 'rgba(96,165,250,0.10)';
+    const label = fast ? '⚡ Replay this recipe' : '📚 Library match';
+    const sk = m.skill;
+    const stats = `${sk.successCount || 0}× success · ~${sk.avgSteps || '?'} steps avg`;
+    const score = (m.score || 0).toFixed(2);
+
+    // Fast-path banner is interactive; suggest banner is purely informational.
+    banner.style.cssText = `margin: 0 0 14px 0; padding: 12px 14px; border-left: 3px solid ${accent}; background: ${bg}; border-radius: 6px;`;
+    banner.innerHTML = `
+      <div style="display:flex; gap:10px; align-items:flex-start; justify-content:space-between;">
+        <div style="flex:1; min-width:0;">
+          <div style="font-weight: 600; font-size: 13px; color: ${accent}; margin-bottom: 4px;">${label}</div>
+          <div style="font-size: 13px; color: var(--ge-on-surface, #e6e7ea); margin-bottom: 4px;"><strong>${escapeHtml(sk.name)}</strong> &middot; <span style="opacity:0.75;">${escapeHtml(sk.summary || '(no summary)')}</span></div>
+          <div style="font-size: 11px; opacity: 0.65;">${escapeHtml(stats)} &middot; match ${score} &middot; ${escapeHtml(sk.origin || 'private')}</div>
+        </div>
+        ${fast ? `<button type="button" id="ge-skill-dismiss" style="background:none; border:1px solid ${accent}40; color:${accent}; padding:4px 10px; border-radius:4px; font-size:11px; cursor:pointer; flex-shrink:0;">Dismiss</button>` : ''}
+      </div>`;
+
+    briefingSection.parentNode.insertBefore(banner, briefingSection);
+
+    // Wire the dismiss button (fast-path only). Removes the banner and
+    // also clears `skillMatch` from the pending context so a subsequent
+    // re-open of the modal doesn't re-show it.
+    const dismissBtn = document.getElementById('ge-skill-dismiss');
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', () => {
+        banner.remove();
+        if (pendingTaskContext) pendingTaskContext.skillMatch = null;
+      });
     }
   }
 
@@ -2873,12 +2959,61 @@
   // ============================================
   async function stopTask() {
     if (!currentTaskId) return;
-    isRunning = false;
+    const taskId = currentTaskId;
 
+    // ============================================
+    // "Cancelled but actually done" detector.
+    // Before we cancel the task, ask the server whether the agent's last
+    // thoughts indicate it was about to call `done` but never quite got
+    // there (a common failure mode that otherwise loses the task to the
+    // skill-mining pipeline). If the heuristic fires, we offer the user
+    // a one-click "save as completed" instead of cancelling.
+    // ============================================
+    let detection = null;
+    try {
+      detection = await NewOrderAPI.request(`/api/agent/tasks/${taskId}/finalize-if-done`, {
+        method: 'POST',
+        body: JSON.stringify({ dryRun: true })
+      });
+    } catch (err) {
+      // Non-fatal — fall through to a normal cancel.
+      console.warn('[Global Executive] finalize-if-done check failed:', err.message);
+    }
+
+    if (detection && detection.detected && !detection.alreadyFinal) {
+      const confirmFinalize = window.confirm(
+        'It looks like the agent finished this task but didn\'t mark it complete.\n\n' +
+        'Inferred summary:\n' +
+        (detection.inferredSummary || '(none)') +
+        '\n\nClick OK to save as ✅ Completed, or Cancel to cancel the task as usual.'
+      );
+      if (confirmFinalize) {
+        try {
+          isRunning = false;
+          await NewOrderAPI.request(`/api/agent/tasks/${taskId}/finalize-if-done`, {
+            method: 'POST',
+            body: JSON.stringify({ confirm: true })
+          });
+          removeExecutingIndicator();
+          updateTaskStatus('completed');
+          renderDoneStep('Task marked as completed (auto-finalized).');
+          setSendingState(false);
+          await loadTaskHistory();
+          stopKeepAlive();
+          sendToBackground('ge-clear-staged-files').catch(() => {});
+          return;
+        } catch (err) {
+          console.error('[Global Executive] auto-finalize failed:', err);
+          // Fall through to plain cancel below.
+        }
+      }
+    }
+
+    isRunning = false;
     try {
       await NewOrderAPI.request('/api/agent/stop', {
         method: 'POST',
-        body: JSON.stringify({ taskId: currentTaskId })
+        body: JSON.stringify({ taskId })
       });
     } catch (err) {
       console.error('[Global Executive] Stop error:', err);
