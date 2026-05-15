@@ -24,6 +24,36 @@
   }
 
   const $ = (id) => document.getElementById(id);
+
+  // ============================================
+  // Gated-section helper.
+  //
+  // Any element marked `data-gated-by="<checkboxId>"` is dimmed (via the
+  // `.is-gated` CSS class) and made non-interactive whenever the named
+  // checkbox is unchecked. This lets the page declare "this whole block
+  // depends on that toggle" purely in HTML — no per-section JS needed.
+  //
+  // Wired once on script load; we additionally call applyGatedSections()
+  // again after each settings load (since renderPrefs / loadAgentSettings
+  // mutate checkbox state directly via `.checked = ...`, which does NOT
+  // fire a `change` event).
+  // ============================================
+  function applyGatedSections(root) {
+    const scope = root || document;
+    scope.querySelectorAll('[data-gated-by]').forEach(wrap => {
+      const trigger = document.getElementById(wrap.dataset.gatedBy);
+      if (!trigger) return;
+      wrap.classList.toggle('is-gated', !trigger.checked);
+    });
+  }
+  document.addEventListener('change', (e) => {
+    const t = e.target;
+    if (!t || t.type !== 'checkbox' || !t.id) return;
+    document.querySelectorAll(`[data-gated-by="${t.id}"]`).forEach(wrap => {
+      wrap.classList.toggle('is-gated', !t.checked);
+    });
+  });
+
   const toast = (msg, level) => {
     const el = $('setup-toast');
     el.textContent = msg;
@@ -40,6 +70,9 @@
       renderTelegram(data.telegram);
       renderWhatsApp(data.whatsapp);
       renderPrefs(data.preferences);
+      // After programmatic .checked = ... assignments, re-apply the
+      // gated-section dim states (change events don't fire from JS sets).
+      applyGatedSections();
       hideLoading();
     } catch (e) {
       hideLoading();
@@ -479,6 +512,9 @@
           await renderCouncilMembers();
         }
       }
+      // Re-sync the dim state of all [data-gated-by] wrappers, since we
+      // just programmatically toggled checkboxes without firing events.
+      applyGatedSections();
     } catch (e) {
       toast('Failed to load agent settings: ' + e.message, 'error');
     }

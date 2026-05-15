@@ -398,6 +398,39 @@
       margin-left: auto;
     }
 
+    /* ---------- Per-row dim when a single toggle is off ----------
+       Any .pref-row whose checkbox is unchecked has its label text fade
+       to the same muted state used by full gated sections. The switch
+       itself stays at full vibrance so it remains obviously interactive
+       — only the descriptive text dims, signalling "this feature is
+       off". Powered by CSS :has(); supported in Chrome 105+. */
+    .pref-row .pref-text {
+      transition: opacity 0.22s ease, filter 0.22s ease;
+    }
+    .pref-row:has(input[type=checkbox]:not(:checked)) .pref-text {
+      opacity: 0.55;
+      filter: saturate(0.7);
+    }
+
+    /* ---------- Gated section (subtle dim when a master toggle is off) ----------
+       Any wrapper with `data-gated-by="<checkboxId>"` is dimmed when that
+       checkbox is unchecked. We deliberately keep the fade subtle so the
+       user can still read what's there without straining; the contrast
+       drop + interaction lock makes it clear the controls are inert. */
+    .is-gated {
+      opacity: 0.55;
+      filter: saturate(0.7);
+      pointer-events: none;
+      user-select: none;
+      transition: opacity 0.22s ease, filter 0.22s ease;
+    }
+    /* When a whole card is gated, also soften its border so it visually
+       recedes from the active cards above/below it. */
+    .integration-card.is-gated { border-color: rgba(255,255,255,0.05); }
+    /* The master toggle that controls a gated wrapper stays fully
+       interactive even when its descendants don't — see JS below, which
+       only toggles the wrapper, not the trigger. */
+
     /* ---------- Toast ---------- */
     #setup-toast {
       font-size: 14px !important;
@@ -574,7 +607,12 @@
             <span class="pref-desc"><strong>Off by default.</strong> When off, the agent treats every task as a regular action task — no multi-source corroboration, no <code>done</code>-gate, no source verification. Turn this on only if you want the agent to spend extra steps cross-referencing claims across multiple websites. The settings below have NO effect while this is off.</span>
           </span>
         </label>
+      </div>
 
+      <!-- Everything below is gated by the master "Enable research mode"
+           toggle above. The .is-gated class is applied/removed by the
+           initGatedSection() helper in setup.js on load + on every change. -->
+      <div class="pref-grid" data-gated-by="pref-research-enabled">
         <label class="pref-row pref-row-input">
           <span class="pref-text">
             <span class="pref-name">Minimum distinct source domains before <code>done</code></span>
@@ -696,16 +734,20 @@
             </label>
           </div>
 
-          <div style="font-size: 13px; color: var(--on-surface-muted); margin-bottom: 12px; line-height: 1.55;">
-            Each enabled member contributes a perspective to every agent step. Disable individual members, edit their description / model, or add new specialists. The four built-in members can be disabled but not removed.
-          </div>
+          <!-- Member list + actions are gated by the "Enable council"
+               master toggle above. -->
+          <div data-gated-by="as-council-enabled">
+            <div style="font-size: 13px; color: var(--on-surface-muted); margin-bottom: 12px; line-height: 1.55;">
+              Each enabled member contributes a perspective to every agent step. Disable individual members, edit their description / model, or add new specialists. The four built-in members can be disabled but not removed.
+            </div>
 
-          <div id="as-council-members" style="display:flex; flex-direction:column; gap:12px;"></div>
+            <div id="as-council-members" style="display:flex; flex-direction:column; gap:12px;"></div>
 
-          <div class="council-actions">
-            <button type="button" class="btn-add-member" id="btn-add-council-member">+ Add member</button>
-            <button type="button" class="btn-reset-council" id="btn-reset-council-members">Reset to defaults</button>
-            <span id="as-council-count" class="council-count"></span>
+            <div class="council-actions">
+              <button type="button" class="btn-add-member" id="btn-add-council-member">+ Add member</button>
+              <button type="button" class="btn-reset-council" id="btn-reset-council-members">Reset to defaults</button>
+              <span id="as-council-count" class="council-count"></span>
+            </div>
           </div>
         </div>
       </div>
