@@ -153,6 +153,15 @@
           <p style="font-family: var(--font-body); font-size: 14px; color: var(--on-surface-variant); margin: 0 0 12px;">${escapeHtml(t.originalPrompt || '')}</p>
           ${t.summary ? `<p style="font-family: var(--font-body); font-size: 13px; color: var(--on-surface-muted); margin: 0; padding: 10px 12px; background: var(--surface-container-low); border-left: 3px solid var(--primary); border-radius: 4px;"><strong>Summary:</strong> ${escapeHtml(t.summary)}</p>` : ''}
           ${t.errorMessage ? `<p style="color: var(--error); font-size: 13px; margin-top: 8px;"><strong>Error:</strong> ${escapeHtml(t.errorMessage)}</p>` : ''}
+          ${steps.length ? `
+            <div style="margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap;">
+              <button id="btn-browser-replay" class="btn-primary" style="display: inline-flex; align-items: center; gap: 8px; font-size: 13px; padding: 8px 14px;" title="Re-run the browser steps in a new window so you can watch the actions happen again. No LLM calls, no credits.">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/><polygon points="10 8 16 11 10 14 10 8" fill="currentColor"/></svg>
+                Browser Replay
+              </button>
+              <span style="font-size: 11px; color: var(--on-surface-muted); align-self: center;">Re-executes the recorded steps in a fresh window. Pages may have changed since the original run.</span>
+            </div>
+          ` : ''}
         </div>
         <div class="replay-meta-grid">
           <div><div class="label">Mode</div><div class="value">${escapeHtml(t.mode || '—')}</div></div>
@@ -298,6 +307,14 @@
   }
 
   function attachControls() {
+    document.getElementById('btn-browser-replay')?.addEventListener('click', () => {
+      if (!_task || !_task.steps || !_task.steps.length) return;
+      if (window.BrowserReplay && typeof window.BrowserReplay.start === 'function') {
+        window.BrowserReplay.start(_task);
+      } else {
+        alert('Browser Replay module failed to load.');
+      }
+    });
     document.getElementById('btn-prev')?.addEventListener('click', () => { pause(); setActive(_activeIdx - 1, true); });
     document.getElementById('btn-next')?.addEventListener('click', () => { pause(); setActive(_activeIdx + 1, true); });
     document.getElementById('btn-restart')?.addEventListener('click', () => { pause(); setActive(-1, false); });
