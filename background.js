@@ -881,6 +881,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // Open a brand-new browser WINDOW with a fresh tab. Used when the
+    // user has the "open new window for research" setting enabled and
+    // the planner classified the task as research/mixed — keeps the
+    // agent from hijacking the user's currently-pointed tab.
+    if (message.type === 'ge-open-window') {
+        (async () => {
+            try {
+                const url = message.url || 'about:blank';
+                const win = await chrome.windows.create({
+                    url,
+                    focused: true,
+                    type: 'normal'
+                });
+                const tab = (win.tabs && win.tabs[0]) || null;
+                if (tab && tab.id) {
+                    // Wait for the tab to finish loading so the agent's
+                    // first action (readPage / goto) lands on a settled page.
+                    try { await waitForTabLoad(tab.id, 15000); } catch { /* best effort */ }
+                    // Re-fetch to get the final url/title.
+                    let updated = tab;
+                    try { updated = await chrome.tabs.get(tab.id); } catch { /* keep tab */ }
+                    sendResponse({
+                        success: true,
+                        windowId: win.id,
+                        tabId: updated.id,
+                        url: updated.url || url,
+                        title: updated.title || ''
+                    });
+                } else {
+                    sendResponse({ success: false, error: 'Window created but no tab returned' });
+                }
+            } catch (err) {
+                console.error('[Global Executive] Open window error:', err);
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
     // Open a new tab
     if (message.type === 'ge-open-tab') {
         (async () => {

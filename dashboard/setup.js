@@ -478,6 +478,9 @@
       $('as-custom-rules').value = s.customRules || '';
       $('as-memory-enabled').checked = s.memoryEnabled !== false;
       $('as-auto-extract').checked = s.autoExtractMemories !== false;
+      // New-window-for-research — defaults OFF (opt-in).
+      const nwr = $('as-new-window-research');
+      if (nwr) nwr.checked = !!s.newWindowForResearch;
       $('as-max-sub-agents').value = s.maxSubAgents || 3;
       $('as-session-persistence').checked = !!s.sessionPersistenceEnabled;
 
@@ -695,6 +698,7 @@
       customRules: $('as-custom-rules').value,
       memoryEnabled: $('as-memory-enabled').checked,
       autoExtractMemories: $('as-auto-extract').checked,
+      newWindowForResearch: $('as-new-window-research') ? $('as-new-window-research').checked : false,
       maxSubAgents: num('as-max-sub-agents') || 3,
       sessionPersistenceEnabled: $('as-session-persistence').checked,
       // Skill compounding settings (stepPatternHintsEnabled +

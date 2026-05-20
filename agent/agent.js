@@ -1425,6 +1425,21 @@
     });
   }
 
+  // Best-effort fetch of the user's agent settings. Cached for the
+  // lifetime of the panel so we don't re-hit the server on every task.
+  // Returns {} on any error so callers can read flags with `?.` safely.
+  let _agentSettingsCache = null;
+  async function getAgentSettingsCached() {
+    if (_agentSettingsCache) return _agentSettingsCache;
+    try {
+      const data = await NewOrderAPI.request('/api/agent-settings');
+      _agentSettingsCache = data?.settings || {};
+    } catch {
+      _agentSettingsCache = {};
+    }
+    return _agentSettingsCache;
+  }
+
   async function startTaskExecution(ctx, briefing, permissions) {
     isRunning = true;
     setSendingState(true);
@@ -1440,6 +1455,32 @@
     }
     updateTaskStatus('running');
     startKeepAlive();
+
+    // === Optional: open a fresh browser WINDOW for research/mixed tasks ===
+    // Honours the user's "Open a new window for research tasks" setting in
+    // Setup. Pure `action` tasks keep running in whatever tab the user had
+    // pointed (so "fill this form" still targets the right page). On any
+    // failure we silently fall back to the current tab — better to run in
+    // the user's tab than not at all.
+    let initialTabIdOverride = null;
+    try {
+      const settings = await getAgentSettingsCached();
+      const tt = String(ctx.taskType || 'action').toLowerCase();
+      const wantsNewWindow = !!settings.newWindowForResearch && (tt === 'research' || tt === 'mixed');
+      if (wantsNewWindow) {
+        const win = await sendToBackground('ge-open-window', { url: 'about:blank' });
+        if (win?.success && typeof win.tabId === 'number') {
+          initialTabIdOverride = win.tabId;
+          // Patch ctx so the new tab becomes the agent's starting context.
+          ctx.activeTab = { id: win.tabId, url: win.url || '', title: win.title || '' };
+          showInlineNotice('Opened a new browser window for this research task.', 'info');
+        } else if (win?.error) {
+          console.warn('[Global Executive] ge-open-window failed:', win.error);
+        }
+      }
+    } catch (e) {
+      console.warn('[Global Executive] new-window-for-research check failed:', e.message);
+    }
 
     try {
       const data = await NewOrderAPI.request('/api/agent/brief', {
