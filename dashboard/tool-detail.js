@@ -388,15 +388,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Dashboard Iframe — Load & Bridge
   // ============================================
   let dashboardIframe = null;
+  let dashboardBlobUrl = null;
 
   function loadDashboardIframe() {
     const container = document.getElementById('view-dashboard');
     const noMsg = document.getElementById('no-dashboard-msg');
     
-    // Remove existing iframe
+    // Remove existing iframe and clean up blob URL
     if (dashboardIframe) {
       dashboardIframe.remove();
       dashboardIframe = null;
+    }
+    if (dashboardBlobUrl) {
+      URL.revokeObjectURL(dashboardBlobUrl);
+      dashboardBlobUrl = null;
     }
 
     const dashHTML = tool.dashboardHTML || codeDashboard.value;
@@ -409,27 +414,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (noMsg) noMsg.style.display = 'none';
 
-    // Inject initial data directly into the dashboard HTML so it's available immediately
-    // This avoids the postMessage race condition where iframe JS isn't ready yet
+    // Inject initial data directly into the dashboard HTML so it's available immediately.
+    // This avoids the postMessage race condition where iframe JS isn't ready yet.
+    //
+    // We use a Blob URL instead of srcdoc because Chrome extension pages
+    // enforce a strict Content Security Policy that silently blocks inline
+    // <script> tags in srcdoc iframes. Blob URLs are treated as same-origin
+    // with the extension, so inline scripts execute normally.
     const dataPayload = JSON.stringify({
       type: 'toolData',
       data: toolData,
       toolName: tool.name,
       toolId: tool.id
     });
+
+    // Safely escape closing script tags inside JSON payload
+    const safePayload = dataPayload.replace(/<\/script/gi, '<\\/script');
+
     const dataInjectionScript = `<script>
-      window.__noInitialData = ${dataPayload.replace(/<\/script>/gi, '<\\/script>')};
+      window.__noInitialData = ${safePayload};
       window.__noDataReceived = false;
       window.addEventListener('message', function(e) {
         if (e.data && e.data.type === 'toolData') {
           window.__noDataReceived = true;
         }
       });
-      // Dispatch the data as a message event so existing listeners pick it up
+      // Dispatch the injected data so existing listeners pick it up
       function __noDispatchData() {
         if (window.__noDataReceived || !window.__noInitialData) return;
         try {
-          window.dispatchEvent(new MessageEvent('message', { data: window.__noInitialData }));
+          window.postMessage(window.__noInitialData, '*');
         } catch(e) {}
       }
       // Fire at multiple points to catch listeners registered at different times
@@ -444,7 +458,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         setTimeout(__noDispatchData, 500);
         setTimeout(__noDispatchData, 1000);
       });
-    </script>`;
+    <\/script>`;
 
     // Insert the data injection script right before </head> or at the start
     let modifiedHTML = dashHTML;
@@ -456,12 +470,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       modifiedHTML = dataInjectionScript + modifiedHTML;
     }
 
-    // Create iframe — no sandbox to allow proper postMessage communication
+    // Create a Blob URL from the dashboard HTML.
+    // Unlike srcdoc, Blob URLs bypass the Chrome extension CSP restriction
+    // that blocks inline scripts, allowing all dashboard JS to execute.
+    dashboardBlobUrl = URL.createObjectURL(new Blob([modifiedHTML], { type: 'text/html' }));
+
     dashboardIframe = document.createElement('iframe');
     dashboardIframe.style.cssText = 'width:100%;min-height:520px;border:none;display:block;border-radius:0 0 10px 10px;';
-    
-    // Write the dashboard HTML into the iframe via srcdoc
-    dashboardIframe.srcdoc = modifiedHTML;
+    dashboardIframe.src = dashboardBlobUrl;
 
     container.appendChild(dashboardIframe);
 
@@ -471,6 +487,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       sendDataToIframe();
       setTimeout(() => sendDataToIframe(), 200);
       setTimeout(() => sendDataToIframe(), 600);
+      setTimeout(() => sendDataToIframe(), 1200);
     });
   }
 
@@ -478,6 +495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!dashboardIframe || !dashboardIframe.contentWindow) return;
     
     try {
+      // Use '*' for targetOrigin since blob: URLs have opaque origins
       dashboardIframe.contentWindow.postMessage({
         type: 'toolData',
         data: toolData,
@@ -497,11 +515,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Use relaxed check: if we have a dashboardIframe, accept messages that look like dashboard commands
     if (!dashboardIframe) return;
     
-    // Try to match event.source, but also accept if source is null (srcdoc iframes)
+    // Try to match event.source, but also accept blob: origins and null origins
+    // (blob: URLs from our dashboard, or srcdoc fallback)
     const isFromIframe = (event.source === dashboardIframe.contentWindow) || 
                          (event.source === null) ||
                          (event.origin === 'null') ||
-                         (event.origin === '');
+                         (event.origin === '') ||
+                         (event.origin && event.origin.startsWith('blob:'));
     if (!isFromIframe) return;
 
     const msg = event.data;
