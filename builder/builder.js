@@ -271,7 +271,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="model-card-info">
             <div class="model-card-name">${m.name}</div>
             <div class="model-card-tags">${tags.join('')}</div>
-            <div class="model-card-pricing"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> ${m.estimatedToolCost.toFixed(2)} In / ${(m.estimatedToolCost * 2).toFixed(2)} Out / 1K</div>
+            <div class="model-card-pricing"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> ${(m.creditsPerInputToken || 0).toFixed(2)} In / ${(m.creditsPerOutputToken || 0).toFixed(2)} Out / 1K</div>
           </div>
         </div>
       `;
