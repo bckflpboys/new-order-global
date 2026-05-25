@@ -1452,8 +1452,13 @@ body.autopilot-mode .agent-app {
 }
 
 .model-card.selected {
-  border: 1.5px solid var(--primary);
-  background: var(--primary-fixed);
+  border: 2px solid var(--primary);
+  background: rgba(184, 52, 28, 0.15);
+  box-shadow: 0 0 0 1px var(--primary), 0 0 12px rgba(184, 52, 28, 0.2);
+}
+.model-card.selected .model-card-name {
+  color: var(--primary);
+  font-weight: 700;
 }
 
 .model-card-icon {
@@ -1499,6 +1504,23 @@ body.autopilot-mode .agent-app {
 .model-tag.vision { background: rgba(46, 125, 79, 0.15); color: var(--success); }
 .model-tag.fast { background: rgba(46, 125, 79, 0.15); color: var(--success); }
 .model-tag.full { background: rgba(138, 109, 0, 0.15); color: var(--tertiary); }
+.model-tag.free { background: rgba(46, 125, 79, 0.18); color: var(--success); border: 1px solid rgba(46, 125, 79, 0.35); }
+
+.model-card.free-model {
+  border: 1.5px solid var(--success);
+  background: rgba(46, 125, 79, 0.06);
+  box-shadow: 0 0 8px rgba(46, 125, 79, 0.35), 0 0 20px rgba(46, 125, 79, 0.15);
+}
+.model-card.free-model:hover {
+  border-color: var(--success);
+  background: rgba(46, 125, 79, 0.12);
+  box-shadow: 0 0 12px rgba(46, 125, 79, 0.45), 0 0 28px rgba(46, 125, 79, 0.2);
+}
+.model-card.free-model.selected {
+  border-color: var(--success);
+  background: rgba(46, 125, 79, 0.15);
+  box-shadow: 0 0 14px rgba(46, 125, 79, 0.5), 0 0 32px rgba(46, 125, 79, 0.25);
+}
 
 .model-card-check {
   position: absolute;

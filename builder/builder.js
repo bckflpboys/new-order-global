@@ -252,6 +252,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     list.innerHTML = filteredModels.map(m => {
       const isSelected = m.id === selectedModelId;
       const tags = [];
+      const isFreeModel = !m.creditsPerInputToken && !m.creditsPerOutputToken;
+      if (isFreeModel) tags.push('<span class="model-tag free">Free</span>');
       if (m.isAgentModel || m.name.toLowerCase().includes('reasoning') || m.name.toLowerCase().includes('sonnet')) tags.push('<span class="model-tag reasoning">Agent</span>');
       if (m.isVisionModel || m.name.toLowerCase().includes('vision')) tags.push('<span class="model-tag vision">Vision</span>');
       if (m.tier === 'free') tags.push('<span class="model-tag fast">Fast</span>');
@@ -261,7 +263,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       tags.push(`<span class="model-tag provider">${provider}</span>`);
 
       return `
-        <div class="model-card ${isSelected ? 'selected' : ''}" data-id="${m.id}">
+        <div class="model-card ${isSelected ? 'selected' : ''} ${isFreeModel ? 'free-model' : ''}" data-id="${m.id}">
           <div class="model-card-icon">
             <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
               <path d="M12,2A10,10,0,0,0,2,12a9.89,9.89,0,0,0,2.26,6.33l-2,2a1,1,0,0,0,1.42,1.42l2-2A9.94,9.94,0,0,0,12,22a10,10,0,0,0,0-20Zm0,18a8,8,1,1,1,8-8A8,8,0,0,1,12,20Z"/>
