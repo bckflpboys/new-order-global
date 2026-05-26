@@ -44,6 +44,12 @@ body.yt-comments-swapped-left #primary {
   max-width: calc(100% - 426px) !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
+  overflow: hidden !important;
+}
+
+body.yt-triple-column-left #primary,
+body.yt-triple-column-right #primary {
+  overflow: hidden !important;
 }
 
 /* Secondary (Related Videos) - Bottom Layout Common Styles */
@@ -53,6 +59,15 @@ body.yt-comments-swapped-left #secondary {
   max-width: 100% !important;
   margin-top: 24px !important;
   padding: 0 !important;
+}
+
+/* Explicit visibility for #secondary when moved to #below by JS.
+   YouTube's own styles may set display:none; we must override. */
+body.yt-comments-swapped #below > #secondary,
+body.yt-comments-swapped-left #below > #secondary {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 /* Horizontal Grid for Bottom Related Videos */
@@ -189,44 +204,109 @@ body.yt-triple-column-right #secondary ytd-compact-video-renderer {
   margin-bottom: 8px !important;
 }
 
-/* Responsive adjustments */
+/* ============================================
+   Responsive adjustments — ALL layout modes
+   ============================================ */
 @media (max-width: 1600px) {
-
   body.yt-comments-swapped #secondary ytd-compact-video-renderer,
   body.yt-comments-swapped-left #secondary ytd-compact-video-renderer {
     width: calc(33.33% - 16px) !important;
   }
 }
 
-@media (max-width: 1200px) {
-
-  body.yt-comments-swapped #secondary ytd-compact-video-renderer,
-  body.yt-comments-swapped #secondary ytd-compact-radio-renderer {
-    width: calc(50% - 16px) !important;
-  }
-
-  body.yt-comments-swapped #comments {
+@media (max-width: 1400px) {
+  /* Reduce comments column for all layouts on medium-large screens */
+  body.yt-comments-swapped #comments,
+  body.yt-comments-swapped-left #comments,
+  body.yt-triple-column-left #comments,
+  body.yt-triple-column-right #comments {
     flex: 0 0 350px !important;
     width: 350px !important;
     max-width: 350px !important;
     min-width: 350px !important;
   }
 
-  body.yt-comments-swapped #primary {
+  body.yt-comments-swapped #primary,
+  body.yt-comments-swapped-left #primary {
     max-width: calc(100% - 374px) !important;
+  }
+
+  /* Reduce secondary column in triple layouts */
+  body.yt-triple-column-left #secondary,
+  body.yt-triple-column-right #secondary {
+    flex: 0 0 320px !important;
+    width: 320px !important;
+    max-width: 320px !important;
+    min-width: 320px !important;
+  }
+}
+
+@media (max-width: 1200px) {
+  body.yt-comments-swapped #secondary ytd-compact-video-renderer,
+  body.yt-comments-swapped-left #secondary ytd-compact-video-renderer,
+  body.yt-comments-swapped #secondary ytd-compact-radio-renderer,
+  body.yt-comments-swapped-left #secondary ytd-compact-radio-renderer {
+    width: calc(50% - 16px) !important;
+  }
+
+  /* Further reduce comments for all layouts */
+  body.yt-comments-swapped #comments,
+  body.yt-comments-swapped-left #comments,
+  body.yt-triple-column-left #comments,
+  body.yt-triple-column-right #comments {
+    flex: 0 0 320px !important;
+    width: 320px !important;
+    max-width: 320px !important;
+    min-width: 320px !important;
+  }
+
+  body.yt-comments-swapped #primary,
+  body.yt-comments-swapped-left #primary {
+    max-width: calc(100% - 344px) !important;
+  }
+
+  /* Collapse triple columns to two-column (hide secondary in column, show below) */
+  body.yt-triple-column-left #columns,
+  body.yt-triple-column-right #columns {
+    flex-wrap: wrap !important;
+  }
+
+  body.yt-triple-column-left #secondary,
+  body.yt-triple-column-right #secondary {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    position: relative !important;
+    top: auto !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+    margin-top: 24px !important;
+    order: 4 !important;
   }
 }
 
 @media (max-width: 1000px) {
-  body.yt-comments-swapped #columns {
+  /* Stack ALL custom layouts to single column */
+  body.yt-comments-swapped #columns,
+  body.yt-comments-swapped-left #columns,
+  body.yt-triple-column-left #columns,
+  body.yt-triple-column-right #columns {
     flex-direction: column !important;
   }
 
-  body.yt-comments-swapped #primary {
+  body.yt-comments-swapped #primary,
+  body.yt-comments-swapped-left #primary,
+  body.yt-triple-column-left #primary,
+  body.yt-triple-column-right #primary {
     max-width: 100% !important;
+    order: 1 !important;
   }
 
-  body.yt-comments-swapped #comments {
+  body.yt-comments-swapped #comments,
+  body.yt-comments-swapped-left #comments,
+  body.yt-triple-column-left #comments,
+  body.yt-triple-column-right #comments {
     flex: 0 0 auto !important;
     width: 100% !important;
     max-width: 100% !important;
@@ -234,7 +314,22 @@ body.yt-triple-column-right #secondary ytd-compact-video-renderer {
     position: relative !important;
     top: auto !important;
     max-height: none !important;
+    overflow-y: visible !important;
     margin-top: 24px !important;
+    order: 2 !important;
+  }
+
+  body.yt-triple-column-left #secondary,
+  body.yt-triple-column-right #secondary {
+    flex: 0 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    position: relative !important;
+    top: auto !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+    order: 3 !important;
   }
 }
 
@@ -770,32 +865,74 @@ ytd-search #comments {
    Grid View for Related Videos
    ============================================ */
 
+/* Target all known YouTube containers for related video items */
 body.yt-grid-related #secondary #related #items,
-body.yt-grid-related #secondary #related ytd-item-section-renderer #contents {
+body.yt-grid-related #secondary #related ytd-item-section-renderer #contents,
+body.yt-grid-related #secondary ytd-watch-next-secondary-results-renderer #items,
+body.yt-grid-related #secondary ytd-watch-next-secondary-results-renderer > .style-scope {
   display: grid !important;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)) !important;
   gap: 16px !important;
 }
 
-body.yt-grid-related #secondary #related ytd-compact-video-renderer,
-body.yt-grid-related #secondary #related ytd-compact-radio-renderer,
-body.yt-grid-related #secondary #related ytd-compact-playlist-renderer {
+/* Override swapped layout's inline-flex + 25% width when grid view is active */
+body.yt-grid-related #secondary ytd-compact-video-renderer,
+body.yt-grid-related #secondary ytd-compact-radio-renderer,
+body.yt-grid-related #secondary ytd-compact-playlist-renderer {
   display: flex !important;
   flex-direction: column !important;
   width: 100% !important;
   margin: 0 !important;
+  vertical-align: top !important;
 }
 
-body.yt-grid-related #secondary #related ytd-compact-video-renderer ytd-thumbnail,
-body.yt-grid-related #secondary #related ytd-compact-radio-renderer ytd-thumbnail {
+/* Make thumbnails fill their grid cell */
+body.yt-grid-related #secondary ytd-compact-video-renderer ytd-thumbnail,
+body.yt-grid-related #secondary ytd-compact-radio-renderer ytd-thumbnail {
   width: 100% !important;
+  max-width: 100% !important;
   margin-right: 0 !important;
 }
 
-body.yt-grid-related #secondary #related ytd-compact-video-renderer .details,
-body.yt-grid-related #secondary #related ytd-compact-radio-renderer .details {
+body.yt-grid-related #secondary ytd-compact-video-renderer ytd-thumbnail #thumbnail,
+body.yt-grid-related #secondary ytd-compact-video-renderer ytd-thumbnail img {
+  width: 100% !important;
+  height: auto !important;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+/* Fix details/title section — YouTube uses both .details and #details */
+body.yt-grid-related #secondary ytd-compact-video-renderer .details,
+body.yt-grid-related #secondary ytd-compact-video-renderer #details,
+body.yt-grid-related #secondary ytd-compact-radio-renderer .details,
+body.yt-grid-related #secondary ytd-compact-radio-renderer #details {
   padding: 8px 0 0 0 !important;
   width: 100% !important;
+  display: block !important;
+}
+
+/* Ensure video title is visible */
+body.yt-grid-related #secondary ytd-compact-video-renderer #video-title,
+body.yt-grid-related #secondary ytd-compact-video-renderer .title,
+body.yt-grid-related #secondary ytd-compact-video-renderer h3 {
+  display: block !important;
+  visibility: visible !important;
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+  max-height: none !important;
+  -webkit-line-clamp: 2 !important;
+  font-size: 13px !important;
+  line-height: 1.3 !important;
+}
+
+/* Ensure channel name / metadata is visible */
+body.yt-grid-related #secondary ytd-compact-video-renderer #metadata,
+body.yt-grid-related #secondary ytd-compact-video-renderer #metadata-line,
+body.yt-grid-related #secondary ytd-compact-video-renderer .metadata {
+  display: block !important;
+  visibility: visible !important;
 }
 
 /* ============================================

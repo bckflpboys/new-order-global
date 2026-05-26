@@ -188,6 +188,11 @@ if (window.__ytNewOrderLoaded) {
           currentBelow.appendChild(currentSecondary);
           // console.log('YouTube New Order: Enforced secondary to below');
         }
+        // Force visibility — YouTube's own styles may hide #secondary
+        // and our CSS rule may not have taken effect yet
+        currentSecondary.style.setProperty('display', 'block', 'important');
+        currentSecondary.style.setProperty('visibility', 'visible', 'important');
+        currentSecondary.style.setProperty('opacity', '1', 'important');
       }
 
       // 2. Handle Comments
@@ -349,6 +354,11 @@ if (window.__ytNewOrderLoaded) {
           el.style.removeProperty('position');
           el.style.removeProperty('top');
           el.style.removeProperty('z-index');
+          el.style.removeProperty('display');
+          el.style.removeProperty('visibility');
+          el.style.removeProperty('opacity');
+          el.style.removeProperty('overflow');
+          el.style.removeProperty('overflow-y');
         }
       });
 
@@ -1911,8 +1921,10 @@ if (window.__ytNewOrderLoaded) {
         }
 
         // Wait a bit for YouTube to render new content, then apply features
-        // Increased delay to ensure YouTube has finished its own DOM manipulation
-        setTimeout(applyAllFeatures, 500);
+        // Use multiple passes to catch the video player sizing race condition
+        setTimeout(applyAllFeatures, 300);
+        setTimeout(() => enforceLayout(), 800);
+        setTimeout(() => enforceLayout(), 1500);
 
         // Also set up a watcher to keep applying until stable
         let attempts = 0;
@@ -2015,6 +2027,18 @@ if (window.__ytNewOrderLoaded) {
 
       window.addEventListener('popstate', () => {
         setTimeout(onNavigate, 100);
+      });
+
+      // Re-apply layout when window resizes (e.g. moving between monitors)
+      let resizeTimer = null;
+      window.addEventListener('resize', () => {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (settings.toggleReorder && isWatchPage()) {
+            console.log('YouTube New Order: Window resized, re-enforcing layout');
+            enforceLayout();
+          }
+        }, 250);
       });
 
       // Periodic check for content changes

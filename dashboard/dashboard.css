@@ -114,6 +114,11 @@ body {
   gap: 12px;
 }
 
+.sidebar-logo-wrap {
+  position: relative;
+  display: inline-block;
+}
+
 .sidebar-logo {
   width: 96px;
   height: 96px;
@@ -121,6 +126,24 @@ body {
   object-fit: contain;
   display: block;
   flex-shrink: 0;
+}
+
+.beta-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-family: var(--font-label);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  line-height: 1.2;
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* Brand wordmark hidden in favour of the logo image. */
