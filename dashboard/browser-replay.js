@@ -208,6 +208,183 @@
   }
 
   // ============================================
+  // In-page Highlighter — injected into the replay tab to show the user
+  // what the agent is doing at each step. Two modes:
+  //   1. Element-targeted (selector present): red outline + ripple + label.
+  //   2. Non-element / global (switchTab, goto, openTab, wait, scroll w/o
+  //      selector, etc.): centered toast banner.
+  // The injected function is fully self-contained — no closures from this
+  // file, since chrome.scripting.executeScript serialises it across realms.
+  // ============================================
+  function injectedHighlighter(action, params, label) {
+    try {
+      const HOST_ID = '__noglobal_replay_overlay__';
+      // Wipe previous overlay so successive steps don't stack.
+      const old = document.getElementById(HOST_ID);
+      if (old) old.remove();
+
+      const host = document.createElement('div');
+      host.id = HOST_ID;
+      host.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647;';
+      (document.body || document.documentElement).appendChild(host);
+
+      // Inject one-shot keyframes (scoped to host via style tag).
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes __nogr_pulse { 0% { box-shadow: 0 0 0 0 rgba(184,52,28,0.55), 0 0 0 0 rgba(184,52,28,0.35); } 70% { box-shadow: 0 0 0 14px rgba(184,52,28,0), 0 0 0 28px rgba(184,52,28,0); } 100% { box-shadow: 0 0 0 0 rgba(184,52,28,0), 0 0 0 0 rgba(184,52,28,0); } }
+        @keyframes __nogr_fadein { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes __nogr_fadeout { to { opacity: 0; transform: translateY(-6px); } }
+        @keyframes __nogr_toastin { from { opacity: 0; transform: translate(-50%, -16px) scale(0.96); } to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+      `;
+      host.appendChild(style);
+
+      // ---------- helpers ----------
+      const FONT = "'Public Sans', 'Inter', system-ui, -apple-system, sans-serif";
+      const RED = '#b8341c';
+
+      function showToast(text, sub) {
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+          position: fixed; top: 24px; left: 50%; transform: translateX(-50%);
+          background: rgba(20,20,22,0.94); color: #fff;
+          font-family: ${FONT}; font-size: 14px; font-weight: 600;
+          padding: 12px 22px 12px 18px; border-radius: 12px;
+          border: 1px solid rgba(184,52,28,0.45);
+          box-shadow: 0 16px 48px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.04) inset;
+          backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+          display: flex; align-items: center; gap: 12px;
+          animation: __nogr_toastin 0.22s ease-out;
+          max-width: 70vw;
+        `;
+        toast.innerHTML = `
+          <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${RED};flex-shrink:0;">
+            <span style="width:8px;height:8px;border-radius:50%;background:#fff;animation:__nogr_pulse 1.2s infinite;"></span>
+          </span>
+          <span style="display:flex;flex-direction:column;gap:2px;min-width:0;">
+            <span style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:${RED};">${text}</span>
+            ${sub ? `<span style="font-size:13px;font-weight:500;color:#e8e8e8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw;">${sub}</span>` : ''}
+          </span>
+        `;
+        host.appendChild(toast);
+      }
+
+      function highlightElement(el, badgeText) {
+        if (!el) return false;
+        try {
+          el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
+        } catch (_) {}
+        const rect = el.getBoundingClientRect();
+        if (!rect || (rect.width === 0 && rect.height === 0)) return false;
+
+        const pad = 4;
+        const box = document.createElement('div');
+        box.style.cssText = `
+          position: fixed;
+          left: ${rect.left - pad}px; top: ${rect.top - pad}px;
+          width: ${rect.width + pad * 2}px; height: ${rect.height + pad * 2}px;
+          border: 2px solid ${RED}; border-radius: 6px;
+          background: rgba(184,52,28,0.10);
+          box-shadow: 0 0 0 0 rgba(184,52,28,0.55);
+          animation: __nogr_pulse 1.2s ease-out infinite, __nogr_fadein 0.2s ease-out;
+          pointer-events: none;
+        `;
+        host.appendChild(box);
+
+        // Floating badge — placed above the element if room, else below.
+        const badge = document.createElement('div');
+        const placeBelow = rect.top < 36;
+        badge.style.cssText = `
+          position: fixed;
+          left: ${Math.max(8, rect.left - pad)}px;
+          ${placeBelow
+            ? `top: ${rect.bottom + pad + 6}px;`
+            : `top: ${rect.top - pad - 28}px;`}
+          background: ${RED}; color: #fff;
+          font-family: ${FONT}; font-size: 11px; font-weight: 700;
+          letter-spacing: 0.06em; text-transform: uppercase;
+          padding: 4px 10px; border-radius: 6px;
+          box-shadow: 0 4px 14px rgba(184,52,28,0.45);
+          animation: __nogr_fadein 0.22s ease-out;
+          white-space: nowrap; max-width: 60vw;
+          overflow: hidden; text-overflow: ellipsis;
+        `;
+        badge.textContent = badgeText;
+        host.appendChild(badge);
+        return true;
+      }
+
+      function findEl(selector) {
+        if (!selector) return null;
+        try {
+          // Try CSS first.
+          const el = document.querySelector(selector);
+          if (el) return el;
+        } catch (_) {}
+        // Fallback: XPath (the agent sometimes records xpath-style selectors).
+        if (selector.startsWith('/') || selector.startsWith('(/')) {
+          try {
+            const r = document.evaluate(selector, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+            return r && r.singleNodeValue;
+          } catch (_) {}
+        }
+        return null;
+      }
+
+      // ---------- dispatch ----------
+      const sel = params && params.selector;
+      const ELEMENT_ACTIONS = new Set(['click', 'type', 'select', 'clear', 'hover', 'waitForElement', 'pressKey', 'extract', 'readElement']);
+
+      let labelText = '';
+      switch (action) {
+        case 'click': labelText = 'CLICK'; break;
+        case 'type': labelText = `TYPE${params.text ? ': ' + String(params.text).slice(0, 40) : ''}`; break;
+        case 'select': labelText = `SELECT: ${String(params.value || '').slice(0, 40)}`; break;
+        case 'clear': labelText = 'CLEAR'; break;
+        case 'hover': labelText = 'HOVER'; break;
+        case 'waitForElement': labelText = 'WAIT FOR'; break;
+        case 'pressKey': labelText = `KEY: ${params.key || ''}`; break;
+        case 'extract': labelText = 'EXTRACT'; break;
+        case 'readElement': labelText = 'READ'; break;
+        default: labelText = String(action || '').toUpperCase();
+      }
+
+      let highlighted = false;
+      if (ELEMENT_ACTIONS.has(action) && sel) {
+        const el = findEl(sel);
+        highlighted = highlightElement(el, labelText);
+      }
+
+      // If we couldn't locate the element OR the action has no selector,
+      // fall back to a toast so the user still sees what just happened.
+      if (!highlighted) {
+        showToast(labelText, label || '');
+      }
+
+      // Auto-cleanup after 1.6s — short enough to keep up with replay pace,
+      // long enough to read. The next step's inject() will also wipe it.
+      setTimeout(() => { try { host.remove(); } catch (_) {} }, 1600);
+    } catch (e) {
+      // Never let the highlighter break a replay.
+      console.warn('[ReplayHighlighter]', e);
+    }
+  }
+
+  async function highlightStep(tabId, step) {
+    if (!tabId) return;
+    try {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        func: injectedHighlighter,
+        args: [step.action || '', step.params || {}, describeStep(step) || '']
+      });
+    } catch (e) {
+      // Page may not be ready (e.g. about:blank, chrome:// pages, or still
+      // loading after a goto). Silently ignore — the action itself will run
+      // normally; only the visual cue is missed.
+    }
+  }
+
+  // ============================================
   // Core replay loop
   // ============================================
   let _state = null;
@@ -281,6 +458,10 @@
     while (s.running && !s.stopped && !s.paused && s.idx < s.steps.length) {
       const step = s.steps[s.idx];
       s.hud.update(s.idx + 1, s.steps.length, step);
+      // Show the visual cue on the active replay tab BEFORE the action fires
+      // so the user can see what's about to happen. Delay scales with speed.
+      await highlightStep(s.activeTab, step);
+      await sleep(450 / s.speed);
       await runStep(step);
       s.idx++;
       // Inter-step pacing, scaled by speed. We keep it generous so users can
