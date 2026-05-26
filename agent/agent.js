@@ -1506,6 +1506,9 @@
       // Reflect the initial milestone state if the agent set milestones in step 1.
       if (data.goalLedger) renderGoalLedger(data.goalLedger);
       renderStep(data.step);
+      // Premium in-page overlay so the user can watch the agent live on
+      // whatever tab it's about to act on. No-op for restricted URLs.
+      try { window.AgentOverlay?.highlightStep(ctx.activeTab?.id, data.step, data.step.stepNumber, currentTierMaxSteps, 'live'); } catch {}
       await executeLoop(data.step, ctx.activeTab?.id);
     } catch (err) {
       console.error('[Global Executive] Brief error:', err);
@@ -2661,6 +2664,7 @@
           step = nextData.step;
           taskStepCounter.textContent = `Step ${step.stepNumber}/${currentTierMaxSteps}`;
           renderStep(step);
+          try { window.AgentOverlay?.highlightStep(currentTabId, step, step.stepNumber, currentTierMaxSteps, 'live'); } catch {}
 
           // Update tab tracker
           updateTabTracker(

@@ -208,15 +208,12 @@
   }
 
   // ============================================
-  // In-page Highlighter — injected into the replay tab to show the user
-  // what the agent is doing at each step. Two modes:
-  //   1. Element-targeted (selector present): red outline + ripple + label.
-  //   2. Non-element / global (switchTab, goto, openTab, wait, scroll w/o
-  //      selector, etc.): centered toast banner.
-  // The injected function is fully self-contained — no closures from this
-  // file, since chrome.scripting.executeScript serialises it across realms.
+  // In-page Highlighter — delegated to the shared AgentOverlay module
+  // (../core/agent-overlay.js) so the live agent and the replay share
+  // identical visuals. The local copy below is the legacy fallback used
+  // only if AgentOverlay failed to load.
   // ============================================
-  function injectedHighlighter(action, params, label, thought, stepNum, totalSteps) {
+  function injectedHighlighter_LEGACY(action, params, label, thought, stepNum, totalSteps) {
     try {
       const HOST_ID = '__noglobal_replay_overlay__';
       const old = document.getElementById(HOST_ID);
@@ -580,22 +577,18 @@
 
   async function highlightStep(tabId, step, stepNum, totalSteps) {
     if (!tabId) return;
+    // Prefer the shared module so live agent + replay visuals stay in sync.
+    if (window.AgentOverlay && typeof window.AgentOverlay.highlightStep === 'function') {
+      return window.AgentOverlay.highlightStep(tabId, step, stepNum, totalSteps, 'replay');
+    }
+    // Legacy fallback (only fires if the shared module failed to load).
     try {
       await chrome.scripting.executeScript({
         target: { tabId },
-        func: injectedHighlighter,
-        args: [
-          step.action || '',
-          step.params || {},
-          describeStep(step) || '',
-          step.thought || '',
-          stepNum || 0,
-          totalSteps || 0
-        ]
+        func: injectedHighlighter_LEGACY,
+        args: [step.action || '', step.params || {}, describeStep(step) || '', step.thought || '', stepNum || 0, totalSteps || 0]
       });
-    } catch (e) {
-      // Page not ready / restricted — silently skip the visual cue.
-    }
+    } catch (e) { /* ignore */ }
   }
 
   // ============================================
