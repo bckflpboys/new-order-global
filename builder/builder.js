@@ -15,6 +15,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   let conversationId = null;
   let conversations = [];
 
+  // ============================================
+  // Delegate-to-Executive feature
+  // When the user types something that looks like an actual task ("collect
+  // emails", "find me 50 plumbers", "go to X and do Y") rather than a pure
+  // tool-creation request, we surface a premium modal letting them choose
+  // between building only the tool, or building it AND handing the work
+  // off to the Global Executive agent.
+  //
+  // pendingDelegate is set when the user picks "Build & delegate". It
+  // holds the original user message so that, once the tool finishes
+  // generating + saving, we can redirect to agent.html with the prompt
+  // + toolId pre-filled and the agent task auto-starts.
+  // ============================================
+  let pendingDelegate = null; // { originalPrompt: string, modalShownAt: number } | null
+
   // DOM References
   const welcomeScreen = document.getElementById('welcome-screen');
   const chatMessages = document.getElementById('chat-messages');
@@ -724,7 +739,201 @@ document.addEventListener('DOMContentLoaded', async () => {
     addMessage('user', text);
     chatHistory.push({ role: 'user', content: text });
 
+    // ============================================
+    // Delegate-to-Executive intent gate
+    // ============================================
+    // Only fire on a fresh tool-creation conversation. When the user is
+    // iterating on an existing tool (`currentTool` set) the message is
+    // almost certainly a refinement, not a task to delegate. Same for
+    // ongoing chats where chatHistory has multiple prior turns.
+    const isFirstUserMsg = chatHistory.filter(h => h.role === 'user').length <= 1;
+    const intent = (isFirstUserMsg && !currentTool) ? classifyTaskIntent(text) : { kind: 'tool', confidence: 1, reasons: [] };
+
+    if (intent.kind === 'task' || intent.kind === 'ambiguous') {
+      showDelegateModal(text, intent).then((choice) => {
+        if (choice === 'cancel') {
+          // Drop the just-added user bubble if they backed out, so the
+          // chat doesn't end up with an orphaned message that never got
+          // an AI reply. Also pop chatHistory so re-classification works.
+          const lastUserMsg = chatMessages.querySelector('.message.user:last-of-type');
+          if (lastUserMsg) lastUserMsg.remove();
+          chatHistory.pop();
+          chatInput.value = text; // give the user back what they typed
+          chatInput.focus();
+          return;
+        }
+        if (choice === 'delegate') {
+          pendingDelegate = { originalPrompt: text, modalShownAt: Date.now() };
+        }
+        doGenerate(text);
+      });
+      return;
+    }
+
     doGenerate(text);
+  }
+
+  // ============================================
+  // classifyTaskIntent — heuristic classifier that decides whether the
+  // user's first message is asking us to BUILD a reusable tool, or asking
+  // us to actually GO AND DO something. Returns:
+  //   { kind: 'tool' | 'task' | 'ambiguous', confidence: 0..1, reasons: [] }
+  //
+  // Pure heuristics — fast, free, no LLM round-trip. The signal split:
+  //   • Tool signals: "build/make/create a tool", "extension that...", "I want a tool that..."
+  //   • Task signals: imperative verbs (collect/find/get/scrape/send) AT THE
+  //     ROOT of the request, numerical targets ("50 emails"), specific
+  //     time-now framing ("for me", "now", "go to X and..."), and lack of
+  //     tool-creation language.
+  // When both are present we lean ambiguous (we'd rather over-show the
+  // modal than miss a delegation opportunity — the user can always cancel).
+  // ============================================
+  function classifyTaskIntent(text) {
+    const reasons = [];
+    const t = String(text || '').toLowerCase().trim();
+    if (t.length < 6) return { kind: 'tool', confidence: 1, reasons: ['too-short'] };
+
+    // --- Tool-creation signals ---
+    const toolPatterns = [
+      /\b(build|create|make|design)\s+(me\s+)?(a|an)\s+(tool|extension|widget|button|panel|plugin|script|automation|bot|helper|assistant|chrome\s+extension)/,
+      /\b(i\s+want|i\s+need|can\s+you\s+(build|create|make))\s+(a|an)\s+(tool|extension|widget|button|panel|plugin|script)/,
+      /\b(tool|extension|widget|button|plugin|script)\s+(that|which|to)\s+(adds?|shows?|displays?|highlights?|removes?|inserts?|adds|injects?)/,
+      /\b(add|inject)\s+(a|an)\s+(button|panel|widget|sidebar|overlay)\s+(to|on|that)/,
+      /\bsave\s+(a|this)\s+(tool|extension)\b/
+    ];
+    let toolScore = 0;
+    for (const p of toolPatterns) if (p.test(t)) { toolScore++; reasons.push('tool-pattern:' + p.source.slice(0, 30)); }
+
+    // --- Task / action signals ---
+    const taskVerbs = /\b(collect|gather|harvest|scrape|extract|find|search|locate|fetch|get(?:\s+me)?|grab|pull|download|email|send|message|post|tweet|book|order|buy|purchase|reserve|schedule|fill|submit|apply|register|signup|monitor|watch|track|notify|alert|summari[sz]e|compile|list|enumerate|crawl|visit|open|navigate|sign\s+in|log\s+in|check)\b/;
+    const targetCount = /\b\d{1,4}\s+(emails?|leads?|results?|items?|pages?|records?|companies|businesses|contacts?|listings?|posts?|articles?|videos?|messages?|reviews?|products?|jobs?|plumbers?|restaurants?|hotels?|stores?|profiles?)\b/;
+    const specificity = /\b(for\s+me|right\s+now|now\b|today|asap|immediately|just|please go|go ahead and|do this|complete this|finish this|run this)\b/;
+    const goAndDo = /\b(go\s+to|navigate\s+to|open|visit)\s+\S+\s+(and|then)\s+\w+/;
+    const askToDo = /^(can\s+you|could\s+you|please|i\s+need\s+you\s+to|i\s+want\s+you\s+to|help\s+me)\s+/;
+
+    let taskScore = 0;
+    if (taskVerbs.test(t)) { taskScore += 2; reasons.push('task-verb'); }
+    if (targetCount.test(t)) { taskScore += 2; reasons.push('numeric-target'); }
+    if (specificity.test(t)) { taskScore += 1; reasons.push('immediacy'); }
+    if (goAndDo.test(t)) { taskScore += 2; reasons.push('go-and-do'); }
+    if (askToDo.test(t) && taskVerbs.test(t)) { taskScore += 1; reasons.push('please-do'); }
+
+    // Tool-creation phrasing strongly suppresses task intent — user is
+    // explicitly framing it as a builder request even if the verb sounds
+    // task-y ("build me a tool that collects emails").
+    if (toolScore >= 1) {
+      taskScore = Math.max(0, taskScore - 2);
+      reasons.push('tool-suppression');
+    }
+
+    // Decide.
+    let kind, confidence;
+    if (taskScore >= 3 && toolScore === 0) { kind = 'task'; confidence = Math.min(1, 0.6 + taskScore * 0.08); }
+    else if (taskScore >= 2 && toolScore === 0) { kind = 'ambiguous'; confidence = 0.55; }
+    else if (taskScore >= 1 && toolScore >= 1) { kind = 'ambiguous'; confidence = 0.5; }
+    else { kind = 'tool'; confidence = 0.85; }
+
+    return { kind, confidence, reasons, toolScore, taskScore };
+  }
+
+  // ============================================
+  // showDelegateModal — premium two-card modal asking the user whether
+  // they want to just save the tool, or have Global Executive run the
+  // task using it. Returns Promise<'tool-only' | 'delegate' | 'cancel'>.
+  // ============================================
+  function showDelegateModal(originalPrompt, intent) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('delegate-modal');
+      const quoteSpan = document.querySelector('#delegate-quote span');
+      if (!modal) { resolve('tool-only'); return; }
+
+      // Show the user's exact words back to them so the framing is honest.
+      if (quoteSpan) quoteSpan.textContent = originalPrompt.length > 220
+        ? originalPrompt.slice(0, 217) + '…'
+        : originalPrompt;
+
+      modal.style.display = 'flex';
+
+      const buildOnly = document.getElementById('delegate-build-only');
+      const delegate = document.getElementById('delegate-and-run');
+      const closeBtn = document.getElementById('delegate-modal-close');
+
+      let resolved = false;
+      const cleanup = (choice) => {
+        if (resolved) return;
+        resolved = true;
+        modal.style.display = 'none';
+        buildOnly.removeEventListener('click', onBuildOnly);
+        delegate.removeEventListener('click', onDelegate);
+        closeBtn.removeEventListener('click', onCancel);
+        modal.removeEventListener('click', onBackdrop);
+        document.removeEventListener('keydown', onKey);
+        resolve(choice);
+      };
+      const onBuildOnly = () => cleanup('tool-only');
+      const onDelegate = () => cleanup('delegate');
+      const onCancel = () => cleanup('cancel');
+      const onBackdrop = (e) => { if (e.target === modal) cleanup('cancel'); };
+      const onKey = (e) => { if (e.key === 'Escape') cleanup('cancel'); };
+
+      buildOnly.addEventListener('click', onBuildOnly);
+      delegate.addEventListener('click', onDelegate);
+      closeBtn.addEventListener('click', onCancel);
+      modal.addEventListener('click', onBackdrop);
+      document.addEventListener('keydown', onKey);
+
+      // Focus the primary action for keyboard users (Tab to alternate).
+      setTimeout(() => { try { delegate.focus(); } catch (_) {} }, 80);
+    });
+  }
+
+  // ============================================
+  // handoffToExecutive — open the Global Executive agent with the user's
+  // original task prompt + a strong instruction to use the just-built
+  // tool. The agent reads these URL params on init and auto-starts the
+  // task, just like a normal user-initiated run.
+  // ============================================
+  async function handoffToExecutive(originalPrompt, tool) {
+    const toolId = String(tool?.id || tool?._id || '');
+    const toolName = String(tool?.name || '');
+    const toolDesc = String(tool?.description || '').slice(0, 240);
+    const targetSites = Array.isArray(tool?.targetSites) ? tool.targetSites.join(', ') : '';
+
+    // Augmented prompt the agent sees as the user's task. The bracketed
+    // section is structured so the agent's planner picks up the tool
+    // dependency reliably without us touching the server.
+    const augmentedPrompt = [
+      originalPrompt.trim(),
+      '',
+      '[Delegated from Builder]',
+      `A custom tool was just built specifically for this task: "${toolName}"${toolId ? ` (id: ${toolId})` : ''}.`,
+      toolDesc ? `Tool description: ${toolDesc}` : '',
+      targetSites ? `Tool target sites: ${targetSites}` : '',
+      'Use the `useTool` action to invoke it as part of your plan whenever it fits the goal. After each useTool call, verify the tool returned the expected shape and a non-empty result; if it didn\'t, surface the issue (notifyUser / askUser) before continuing.'
+    ].filter(Boolean).join('\n');
+
+    // Surface a transition message so the chat doesn't feel like a hard cut.
+    addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Handing off to <strong>Global Executive</strong> with your tool. The agent will plan, ask any clarifying questions, and start working on:<br><em style="opacity:0.85;">"${escapeHtml(originalPrompt.length > 180 ? originalPrompt.slice(0, 177) + '…' : originalPrompt)}"</em>`);
+
+    // Brief pause so the user reads the message before the new tab opens.
+    await new Promise(r => setTimeout(r, 700));
+
+    const params = new URLSearchParams();
+    params.set('prompt', augmentedPrompt);
+    params.set('autostart', '1');
+    params.set('fromBuilder', '1');
+    if (toolId) params.set('toolId', toolId);
+    if (toolName) params.set('toolName', toolName);
+
+    const url = chrome.runtime.getURL('agent/agent.html') + '?' + params.toString();
+    try { await chrome.tabs.create({ url, active: true }); }
+    catch (_) { window.open(url, '_blank'); }
+  }
+
+  // Tiny HTML-escape used by handoffToExecutive — addMessage's existing
+  // formatter passes content through but inline messages need this.
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
   async function doGenerate(text) {
@@ -1113,6 +1322,20 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       toolPreview.style.display = 'none'; // Collapse the code preview UI, but keep editing context active
       loadInstalledTools();
+
+      // ============================================
+      // Delegate handoff to Global Executive
+      // If the user picked "Build & delegate" before generation, the tool
+      // is now persisted — hand off to the Executive agent with the
+      // original prompt + a reference to this tool. Cleared after handoff
+      // so a follow-up Accept doesn't re-route.
+      // ============================================
+      if (pendingDelegate && pendingDelegate.originalPrompt) {
+        const handoff = pendingDelegate;
+        pendingDelegate = null;
+        try { await handoffToExecutive(handoff.originalPrompt, currentTool); }
+        catch (e) { console.error('[Builder] Delegate handoff failed:', e); }
+      }
     } catch (err) {
       addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Error saving tool: ${err.message}`);
     }
@@ -1122,6 +1345,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('btn-reject-tool').addEventListener('click', () => {
     toolPreview.style.display = 'none';
     currentTool = null;
+    // Reject implies the user no longer wants the delegated run either.
+    pendingDelegate = null;
     addMessage('ai', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Tool discarded. Tell me what to build next!');
   });
 
@@ -1384,6 +1609,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       toolPreview.style.display = 'none';
       document.getElementById('test-panel-overlay').style.display = 'none';
       loadInstalledTools();
+
+      // Same delegate handoff as the regular Accept path. See above.
+      if (pendingDelegate && pendingDelegate.originalPrompt) {
+        const handoff = pendingDelegate;
+        pendingDelegate = null;
+        try { await handoffToExecutive(handoff.originalPrompt, currentTool); }
+        catch (e) { console.error('[Builder] Delegate handoff failed:', e); }
+      }
     } catch (err) {
       addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> Error saving tool: ${err.message}`);
     }

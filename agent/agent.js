@@ -63,6 +63,93 @@
     try { return new URL(window.location.href).searchParams.get('taskId') || ''; }
     catch { return ''; }
   }
+
+  // ============================================
+  // handleBuilderHandoff — pick up a delegation from the Builder via
+  // URL params (?fromBuilder=1&prompt=...&toolId=...&toolName=...&autostart=1).
+  // Pre-fills the task input, shows a delegation banner, optionally
+  // auto-starts the task, then strips the params so a refresh doesn't
+  // double-fire. No-op if no fromBuilder=1 flag.
+  // ============================================
+  function handleBuilderHandoff() {
+    let url;
+    try { url = new URL(window.location.href); } catch { return; }
+    if (url.searchParams.get('fromBuilder') !== '1') return;
+
+    const prompt = url.searchParams.get('prompt') || '';
+    const toolId = url.searchParams.get('toolId') || '';
+    const toolName = url.searchParams.get('toolName') || '';
+    const autostart = url.searchParams.get('autostart') === '1';
+
+    if (!prompt) {
+      // Strip the flag and bail — nothing useful to do.
+      url.searchParams.delete('fromBuilder');
+      window.history.replaceState(null, '', url.toString());
+      return;
+    }
+
+    // Prefill the input so the user sees what the agent will run.
+    if (taskInput) {
+      taskInput.value = prompt;
+      try { taskInput.dispatchEvent(new Event('input', { bubbles: true })); } catch {}
+    }
+
+    // Render the delegation banner above the input. Persists until the
+    // task starts (or the user clears the input).
+    renderDelegateBanner(toolName, toolId);
+
+    // Strip the params now so a refresh doesn't trigger another autostart.
+    ['fromBuilder', 'prompt', 'toolId', 'toolName', 'autostart'].forEach(k => url.searchParams.delete(k));
+    window.history.replaceState(null, '', url.toString());
+
+    if (autostart) {
+      // Small delay so the user sees the banner + prompt populate before
+      // the task UI replaces the welcome screen — keeps the handoff from
+      // feeling abrupt.
+      setTimeout(() => { try { handleUserSubmit(prompt); } catch (e) { console.error('[Global Executive] autostart failed', e); } }, 600);
+    }
+  }
+
+  // ============================================
+  // renderDelegateBanner — premium ribbon showing "Delegated from Builder"
+  // and the tool the agent is expected to use. Inserted into the welcome
+  // screen and stays in the task header after start.
+  // ============================================
+  function renderDelegateBanner(toolName, toolId) {
+    const old = document.getElementById('delegate-banner');
+    if (old) old.remove();
+
+    const banner = document.createElement('div');
+    banner.id = 'delegate-banner';
+    banner.className = 'delegate-banner';
+    banner.innerHTML = `
+      <div class="delegate-banner-icon" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+        </svg>
+      </div>
+      <div class="delegate-banner-body">
+        <div class="delegate-banner-eyebrow">Delegated from Builder</div>
+        <div class="delegate-banner-title">${toolName ? `Using your new tool · <strong>${escapeHtml(toolName)}</strong>` : 'Using your newly-built tool'}</div>
+      </div>
+      <button type="button" class="delegate-banner-close" aria-label="Dismiss">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    `;
+    banner.querySelector('.delegate-banner-close').addEventListener('click', () => banner.remove());
+
+    // Try welcome screen first, then fall back to inserting above the
+    // input bar in the task view.
+    const welcome = document.getElementById('welcome-screen');
+    const inputBar = document.querySelector('.task-input-area, .input-area, .task-input-wrap');
+    if (welcome && welcome.style.display !== 'none') {
+      welcome.insertBefore(banner, welcome.firstChild);
+    } else if (inputBar && inputBar.parentNode) {
+      inputBar.parentNode.insertBefore(banner, inputBar);
+    } else {
+      document.body.appendChild(banner);
+    }
+  }
   function updateTaskIdChip(taskId) {
     if (!taskIdChip) return;
     if (!taskId) { taskIdChip.style.display = 'none'; taskIdChip.textContent = ''; return; }
@@ -116,6 +203,17 @@
       }
 
       hideLoading();
+
+      // ============================================
+      // Builder → Executive delegate handoff
+      // When the Builder finishes generating a tool and the user picked
+      // "Build & delegate", it opens us with these URL params:
+      //   ?fromBuilder=1&autostart=1&prompt=<augmented>&toolId=<id>&toolName=<name>
+      // We render a delegation banner above the input, prefill the task,
+      // and (if autostart=1) kick off startTask() immediately. Params are
+      // stripped from the URL on success so a refresh doesn't double-fire.
+      // ============================================
+      try { handleBuilderHandoff(); } catch (e) { console.warn('[Global Executive] Builder handoff failed:', e?.message); }
     } catch (err) {
       console.error('[Global Executive] Init error:', err);
       hideLoading();
