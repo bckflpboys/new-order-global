@@ -704,7 +704,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ============================================
   // Send Message (with queue support)
   // ============================================
-  function sendMessage() {
+  async function sendMessage() {
     const text = chatInput.value.trim();
     if (!text) return;
 
@@ -738,6 +738,44 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     addMessage('user', text);
     chatHistory.push({ role: 'user', content: text });
+
+    // ============================================
+    // Similar-tool gate (only on first user message of a fresh chat)
+    // Before we spend credits generating a brand-new tool, check whether
+    // the user already has one in their library that closely matches the
+    // ask. If so, offer to iterate on it instead — much better UX than
+    // ending up with two near-duplicate tools cluttering the dashboard.
+    // ============================================
+    const isFirstMsg = chatHistory.filter(h => h.role === 'user').length <= 1;
+    if (isFirstMsg && !currentTool) {
+      try {
+        const match = await findSimilarTool(text);
+        if (match) {
+          const choice = await showSimilarToolModal(text, match);
+          if (choice === 'cancel') {
+            const lastUserMsg = chatMessages.querySelector('.message.user:last-of-type');
+            if (lastUserMsg) lastUserMsg.remove();
+            chatHistory.pop();
+            chatInput.value = text;
+            chatInput.focus();
+            return;
+          }
+          if (choice === 'iterate') {
+            // Load the existing tool into the editor as the active tool
+            // and route the message through the normal iteration flow.
+            // doGenerate() picks up `currentTool` and calls iterateToolStream.
+            currentTool = match.tool;
+            try { showToolPreview(currentTool); } catch (_) { /* preview is optional */ }
+            addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><polyline points="23 4 23 10 17 10"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/></svg> Loaded **"${escapeHtml(match.tool.name)}"** for iteration. Updating it with your new request...`);
+            doGenerate(text);
+            return;
+          }
+          // 'new' falls through to the delegate gate / normal generate.
+        }
+      } catch (e) {
+        console.warn('[Builder] Similar-tool check failed:', e?.message);
+      }
+    }
 
     // ============================================
     // Delegate-to-Executive intent gate
@@ -928,6 +966,160 @@ document.addEventListener('DOMContentLoaded', async () => {
     const url = chrome.runtime.getURL('agent/agent.html') + '?' + params.toString();
     try { await chrome.tabs.create({ url, active: true }); }
     catch (_) { window.open(url, '_blank'); }
+  }
+
+  // ============================================
+  // findSimilarTool — scan the user's installed tools for one that
+  // overlaps with the new request. Returns the best match if its score
+  // is over the threshold, else null. Pure heuristic, runs in-process.
+  //
+  // Scoring:
+  //   • Token overlap between prompt and (name + description) tokens
+  //     (Jaccard-style: shared / unique-prompt-tokens, weighted)
+  //   • +0.30 if a hostname mentioned in the prompt matches a targetSite
+  //   • +0.20 if the tool's name appears verbatim in the prompt
+  //   • +0.10 if multiple distinctive nouns overlap (>=3 shared content tokens)
+  //
+  // Threshold: 0.55 — tuned to be conservative. Better to miss a borderline
+  // duplicate than to nag the user every time they type.
+  // ============================================
+  const _STOPWORDS = new Set([
+    'the','a','an','and','or','but','for','to','of','on','in','at','by','with','that','this','these','those',
+    'is','are','was','were','be','been','being','have','has','had','do','does','did','will','would','could',
+    'should','can','i','you','we','they','it','my','your','our','their','me','us','them','him','her','from',
+    'as','if','then','than','so','just','also','too','please','need','want','make','create','build','help','tool','extension'
+  ]);
+  function _tokenize(s) {
+    return String(s || '').toLowerCase()
+      .replace(/[^a-z0-9\s.-]/g, ' ')
+      .split(/\s+/)
+      .filter(t => t.length >= 3 && !_STOPWORDS.has(t));
+  }
+  function _extractHostnames(s) {
+    const out = new Set();
+    const re = /\b([a-z0-9-]+(?:\.[a-z0-9-]+)+)\b/gi;
+    let m;
+    while ((m = re.exec(String(s || ''))) !== null) {
+      out.add(m[1].toLowerCase().replace(/^www\./, ''));
+    }
+    return out;
+  }
+
+  async function findSimilarTool(prompt) {
+    let tools = [];
+    try { tools = await ToolManager.getInstalledTools(); } catch (_) { return null; }
+    if (!Array.isArray(tools) || tools.length === 0) return null;
+    // Only consider non-archived tools.
+    tools = tools.filter(t => (t.status || 'active') !== 'archived');
+
+    const promptTokens = new Set(_tokenize(prompt));
+    if (promptTokens.size < 2) return null; // not enough signal
+    const promptHosts = _extractHostnames(prompt);
+    const promptLower = String(prompt || '').toLowerCase();
+
+    let best = null;
+    for (const tool of tools) {
+      const toolText = [tool.name, tool.description].filter(Boolean).join(' ');
+      const toolTokens = new Set(_tokenize(toolText));
+      if (toolTokens.size === 0) continue;
+
+      // Jaccard-style on prompt's content tokens.
+      let shared = 0;
+      for (const t of promptTokens) if (toolTokens.has(t)) shared++;
+      const overlap = shared / Math.max(promptTokens.size, 1);
+
+      let score = overlap;
+
+      // Bonus: hostname match against targetSites.
+      const targets = (Array.isArray(tool.targetSites) ? tool.targetSites : [])
+        .map(s => String(s || '').toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*/, ''))
+        .filter(Boolean);
+      const hostHit = targets.some(ts => {
+        for (const ph of promptHosts) {
+          if (ph === ts || ph.endsWith('.' + ts) || ts.endsWith('.' + ph)) return true;
+        }
+        return false;
+      });
+      if (hostHit) score += 0.30;
+
+      // Bonus: tool name appears verbatim in prompt.
+      const nameLower = String(tool.name || '').toLowerCase().trim();
+      if (nameLower.length >= 4 && promptLower.includes(nameLower)) score += 0.20;
+
+      // Bonus: many shared distinctive tokens.
+      if (shared >= 3) score += 0.10;
+
+      if (!best || score > best.score) best = { tool, score, shared, hostHit };
+    }
+
+    if (!best || best.score < 0.55) return null;
+    return best;
+  }
+
+  // ============================================
+  // showSimilarToolModal — premium modal asking whether to iterate on
+  // the matched tool or build a new one. Returns Promise<'iterate' | 'new' | 'cancel'>.
+  // ============================================
+  function showSimilarToolModal(originalPrompt, match) {
+    return new Promise((resolve) => {
+      const modal = document.getElementById('similar-tool-modal');
+      if (!modal) { resolve('new'); return; }
+
+      const tool = match.tool;
+      const pct = Math.round(Math.min(1, match.score) * 100);
+
+      // Populate
+      const nameEl = document.getElementById('similar-tool-name');
+      const titleEl = document.getElementById('similar-existing-title');
+      const descEl = document.getElementById('similar-existing-desc');
+      const sitesEl = document.getElementById('similar-existing-sites');
+      const matchEl = document.getElementById('similar-existing-match');
+      const iconEl = document.getElementById('similar-existing-icon');
+
+      if (nameEl) nameEl.textContent = `"${tool.name || 'an existing tool'}"`;
+      if (titleEl) titleEl.textContent = tool.name || 'Existing tool';
+      if (descEl) descEl.textContent = tool.description || '(no description)';
+      if (iconEl) iconEl.textContent = tool.icon || '🔧';
+      if (sitesEl) {
+        const sites = Array.isArray(tool.targetSites) && tool.targetSites.length
+          ? tool.targetSites.slice(0, 4).join(' · ')
+          : 'works on any site';
+        sitesEl.textContent = sites;
+      }
+      if (matchEl) matchEl.textContent = `${pct}% match`;
+
+      modal.style.display = 'flex';
+
+      const iterate = document.getElementById('similar-iterate');
+      const buildNew = document.getElementById('similar-build-new');
+      const closeBtn = document.getElementById('similar-tool-modal-close');
+
+      let resolved = false;
+      const cleanup = (choice) => {
+        if (resolved) return;
+        resolved = true;
+        modal.style.display = 'none';
+        iterate.removeEventListener('click', onIterate);
+        buildNew.removeEventListener('click', onNew);
+        closeBtn.removeEventListener('click', onCancel);
+        modal.removeEventListener('click', onBackdrop);
+        document.removeEventListener('keydown', onKey);
+        resolve(choice);
+      };
+      const onIterate = () => cleanup('iterate');
+      const onNew = () => cleanup('new');
+      const onCancel = () => cleanup('cancel');
+      const onBackdrop = (e) => { if (e.target === modal) cleanup('cancel'); };
+      const onKey = (e) => { if (e.key === 'Escape') cleanup('cancel'); };
+
+      iterate.addEventListener('click', onIterate);
+      buildNew.addEventListener('click', onNew);
+      closeBtn.addEventListener('click', onCancel);
+      modal.addEventListener('click', onBackdrop);
+      document.addEventListener('keydown', onKey);
+
+      setTimeout(() => { try { iterate.focus(); } catch (_) {} }, 80);
+    });
   }
 
   // Tiny HTML-escape used by handoffToExecutive — addMessage's existing

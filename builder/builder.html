@@ -405,6 +405,75 @@
     </div>
   </div>
 
+  <!-- ============================================
+       Similar-Tool detected modal
+       Shown when the Builder finds a tool already in the user's library
+       that closely matches what they're asking to build. Lets them choose
+       between iterating on the existing tool (recommended) or creating
+       a brand-new one alongside it.
+       ============================================ -->
+  <div class="modal-overlay" id="similar-tool-modal" style="display:none;">
+    <div class="delegate-modal similar-tool-modal">
+      <button class="delegate-close" id="similar-tool-modal-close" title="Cancel">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+
+      <div class="delegate-head">
+        <div class="delegate-eyebrow similar-eyebrow">
+          <span class="delegate-pulse"></span>
+          You already have a similar tool
+        </div>
+        <h2 class="delegate-title">Iterate on it, or build a new one?</h2>
+        <p class="delegate-subtitle">We found <strong id="similar-tool-name">an existing tool</strong> in your library that looks like it covers the same ground. You can extend that one with the new features, or create a brand-new tool alongside it.</p>
+      </div>
+
+      <div class="similar-existing-card" id="similar-existing-card">
+        <div class="similar-existing-icon" id="similar-existing-icon">🔧</div>
+        <div class="similar-existing-body">
+          <div class="similar-existing-title" id="similar-existing-title">Existing tool</div>
+          <div class="similar-existing-desc" id="similar-existing-desc"></div>
+          <div class="similar-existing-sites" id="similar-existing-sites"></div>
+        </div>
+        <div class="similar-existing-match" id="similar-existing-match" title="Match score">— match</div>
+      </div>
+
+      <div class="delegate-options">
+        <button type="button" class="delegate-card" id="similar-build-new" data-choice="new">
+          <div class="delegate-card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </div>
+          <div class="delegate-card-tag">Fresh start</div>
+          <div class="delegate-card-title">Create a new tool</div>
+          <div class="delegate-card-body">Keep the existing tool as-is and build a brand-new one alongside it. Best when the new ask is genuinely different.</div>
+          <div class="delegate-card-cta">
+            <span>Build new</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+        </button>
+
+        <button type="button" class="delegate-card delegate-card-primary" id="similar-iterate" data-choice="iterate">
+          <div class="delegate-card-shine"></div>
+          <div class="delegate-card-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"/>
+              <polyline points="1 20 1 14 7 14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+          </div>
+          <div class="delegate-card-tag">Recommended</div>
+          <div class="delegate-card-title">Iterate &amp; improve existing</div>
+          <div class="delegate-card-body">Load the existing tool's code into the editor and update it with the new features you just described. Keeps your library tidy.</div>
+          <div class="delegate-card-cta">
+            <span>Iterate on it</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+          </div>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script src="../core/api-client.js"></script>
   <script src="../core/auth.js"></script>
   <script src="../core/tool-manager.js"></script>
