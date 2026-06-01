@@ -379,8 +379,8 @@ const ToolManager = (() => {
     ${tool.contentScript}
     ${testModeDone}
   } catch (err) {
-    console.error(\'[New Order] Tool error in \' + TOOL_NAME + \':\', err);
-    showToolToast(\'Tool error: \' + err.message);
+    console.error('[New Order] Tool error in ' + TOOL_NAME + ':', err);
+    showToolToast('Tool error: ' + err.message);
     ${testModeErrorDone}
   }
   // ============ USER TOOL CODE END ============

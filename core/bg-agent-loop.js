@@ -266,6 +266,27 @@
                     return { success: true, url: t.url, title: t.title };
                 } catch (e) { return { success: false, error: e.message }; }
             }
+            case 'download': {
+                // Issue 21: Download actions from background tasks were falling
+                // through to execInTab which doesn't handle 'download'. Route
+                // through chrome.downloads.download() directly.
+                const url = p.url;
+                if (!url) return { success: false, error: 'download requires params.url' };
+                try {
+                    const dlId = await new Promise((resolve, reject) => {
+                        chrome.downloads.download(
+                            { url, filename: p.filename || undefined, saveAs: false },
+                            (id) => {
+                                if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message));
+                                else resolve(id);
+                            }
+                        );
+                    });
+                    return { success: true, downloadId: dlId, url };
+                } catch (e) {
+                    return { success: false, error: `Download failed: ${e.message}` };
+                }
+            }
             case 'askUser':
             case 'confirmAction':
                 // The background loop cannot answer these. Server already saved
@@ -534,8 +555,12 @@
             if (answerResp.done) return { ok: true, stage: 'done', taskId: pending.taskId };
             if (!answerResp.step || !answerResp.step.action) return { ok: false, stage: 'answer', error: 'no_next_step' };
 
-            // We don't have the original tier info here — use a safe cap.
-            return await runStepLoop({ taskId: pending.taskId, state, currentStep: answerResp.step, maxSteps: 50 });
+            // Issue 15: Read maxSteps from the task's server response
+            // instead of hardcoding 50, which could exceed free-tier limits.
+            // The /answer response includes the task's tier max; fall back
+            // to a safe cap if it's missing.
+            const taskMaxSteps = answerResp.tier?.maxSteps || 50;
+            return await runStepLoop({ taskId: pending.taskId, state, currentStep: answerResp.step, maxSteps: taskMaxSteps });
         } finally {
             stopKeepalive();
         }

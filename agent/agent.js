@@ -1862,7 +1862,10 @@
             // Tab recovery failed above; `error` is already set. Fall
             // through to the reporting phase so the server is informed.
           } else if (action === 'done') {
-            // Task complete
+            // Issue 13: Previously returned here, skipping the /step report.
+            // Now we render the done UI but FALL THROUGH to the reporting
+            // phase so the server receives the final step result (consistent
+            // with bg-agent-loop which always reports done to /step).
             removeExecutingIndicator();
             renderDoneStep(params?.summary || 'Task completed');
             updateTaskStatus('completed');
@@ -1871,7 +1874,8 @@
             stopKeepAlive();
             await loadTaskHistory();
             sendToBackground('ge-clear-staged-files').catch(() => {});
-            return;
+            result = { success: true, summary: params?.summary || 'Task completed' };
+            // Fall through — the step result will be reported to /step below.
           }
 
           // === Server-only action safety net ===
