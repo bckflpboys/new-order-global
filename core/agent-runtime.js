@@ -5,10 +5,8 @@
 (function () {
   'use strict';
 
-  if (window.__geAgentLoaded) return;
-  window.__geAgentLoaded = true;
-
-  console.log('[Global Executive] Agent Runtime loaded');
+  if (window[Symbol.for('_grt')]) return;
+  window[Symbol.for('_grt')] = true;
 
   // ============================================
   // DOM mutation tracker — used by readPage to flag SPAs that are still
@@ -484,9 +482,15 @@
     }
 
     const el = elements[index];
-    try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
-    // Give the browser a tick to settle scroll-into-view.
-    await new Promise(r => setTimeout(r, 80));
+    // Only scroll if element is not already in viewport
+    const _elR = el.getBoundingClientRect();
+    const _elInVP = _elR.top >= 0 && _elR.left >= 0 &&
+                    _elR.bottom <= innerHeight && _elR.right <= innerWidth &&
+                    _elR.width > 0 && _elR.height > 0;
+    if (!_elInVP) {
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+      await new Promise(r => setTimeout(r, 50 + Math.random() * 50));
+    }
 
     // Pre-click health check — bail with a STRUCTURED reason so the agent
     // can pick a real recovery instead of retrying a doomed click.
@@ -511,20 +515,27 @@
     const targetBlank = isAnchor && (el.getAttribute('target') === '_blank' || el.target === '_blank');
     const href = isAnchor ? el.href : null;
 
-    // Dispatch realistic pointer + mouse events. Some sites listen for
-    // pointerdown only, others for mousedown only — fire both.
+    // Dispatch realistic pointer + mouse events with coordinates and timing.
+    const _cRect = el.getBoundingClientRect();
+    const _cx = _cRect.left + _cRect.width / 2 + (Math.random() * 6 - 3);
+    const _cy = _cRect.top + _cRect.height / 2 + (Math.random() * 6 - 3);
+    const _mBase = { clientX: _cx, clientY: _cy, screenX: _cx, screenY: _cy };
     const fire = (type, init = {}) => {
-      try { el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window, button: clickType === 'right' ? 2 : 0, ...init })); } catch {}
+      try { el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window, button: clickType === 'right' ? 2 : 0, ..._mBase, ...init })); } catch {}
     };
     const firePointer = (type) => {
-      try { el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'mouse' })); } catch {}
+      try { el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerType: 'mouse', ..._mBase })); } catch {}
     };
 
     fire('mouseover');
     fire('mouseenter');
     firePointer('pointerover');
+    // Human-like pre-click pause
+    await new Promise(r => setTimeout(r, 10 + Math.random() * 25));
     firePointer('pointerdown');
     fire('mousedown');
+    // Human-like press-to-release gap (40–120ms)
+    await new Promise(r => setTimeout(r, 40 + Math.random() * 80));
     firePointer('pointerup');
     fire('mouseup');
 
@@ -533,6 +544,7 @@
     } else if (clickType === 'double') {
       try { el.click(); } catch {}
       fire('click');
+      await new Promise(r => setTimeout(r, 40 + Math.random() * 60));
       try { el.click(); } catch {}
       fire('dblclick');
     } else {
@@ -744,7 +756,7 @@
     el.value = value;
   }
 
-  function executeType(params) {
+  async function executeType(params) {
     // Multi-strategy input resolution. Same philosophy as resolveClickCandidates:
     // try the explicit `selector` first (preserves prior behaviour), then
     // cascade through `name` / `label` / `placeholder` so the LLM can target
@@ -780,8 +792,27 @@
       return { success: false, reason: 'disabled', error: 'Input is disabled or readonly.', health, recovery: 'A previous step probably needs to enable this field — fill prerequisites first.' };
     }
 
-    try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
-    try { el.focus(); } catch {}
+    // Only scroll if element is not in viewport
+    const _tR = el.getBoundingClientRect();
+    const _tInVP = _tR.top >= 0 && _tR.left >= 0 &&
+                   _tR.bottom <= innerHeight && _tR.right <= innerWidth &&
+                   _tR.width > 0 && _tR.height > 0;
+    if (!_tInVP) {
+      try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch {}
+    }
+    // Focus via realistic click sequence instead of bare focus()
+    try {
+      const _fR = el.getBoundingClientRect();
+      const _fx = _fR.left + _fR.width / 2 + (Math.random() * 4 - 2);
+      const _fy = _fR.top + _fR.height / 2 + (Math.random() * 4 - 2);
+      const _fB = { bubbles: true, cancelable: true, view: window, clientX: _fx, clientY: _fy };
+      el.dispatchEvent(new PointerEvent('pointerdown', { ..._fB, pointerType: 'mouse' }));
+      el.dispatchEvent(new MouseEvent('mousedown', _fB));
+      el.focus();
+      el.dispatchEvent(new PointerEvent('pointerup', { ..._fB, pointerType: 'mouse' }));
+      el.dispatchEvent(new MouseEvent('mouseup', _fB));
+      el.dispatchEvent(new MouseEvent('click', _fB));
+    } catch { try { el.focus(); } catch {} }
 
     const text = params.text || '';
     if (el.isContentEditable) {
@@ -1356,7 +1387,7 @@
         elements = deepQuerySelectorAll(selector, document);
       }
     } catch (e) {
-      console.warn('[Global Executive] Invalid selector:', selector);
+      // Invalid selector — silent fail
       return [];
     }
 
@@ -1487,7 +1518,7 @@
             result = await executeClick(params);
             break;
           case 'type':
-            result = executeType(params);
+            result = await executeType(params);
             break;
           case 'scroll':
             result = executeScroll(params);
@@ -1545,7 +1576,6 @@
         }
         sendResponse({ success: true, result });
       } catch (err) {
-        console.error('[Global Executive] Action error:', err);
         sendResponse({ success: false, error: err.message });
       }
     })();

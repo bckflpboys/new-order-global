@@ -215,12 +215,11 @@
   // ============================================
   function injectedHighlighter_LEGACY(action, params, label, thought, stepNum, totalSteps) {
     try {
-      const HOST_ID = '__noglobal_replay_overlay__';
-      const old = document.getElementById(HOST_ID);
+      const old = document.querySelector('[data-ext-ui]');
       if (old) old.remove();
 
       const host = document.createElement('div');
-      host.id = HOST_ID;
+      host.setAttribute('data-ext-ui', '1');
       host.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:2147483647;';
       (document.body || document.documentElement).appendChild(host);
 

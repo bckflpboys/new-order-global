@@ -17,8 +17,8 @@
 // rather than throwing.
 
 (function () {
-  if (window.__GE_WA_WATCHER_LOADED) return;
-  window.__GE_WA_WATCHER_LOADED = true;
+  if (window[Symbol.for('_gewa')]) return;
+  window[Symbol.for('_gewa')] = true;
 
   const LOG = (...args) => console.log('[GE-WA]', ...args);
   const ERR = (...args) => console.warn('[GE-WA]', ...args);

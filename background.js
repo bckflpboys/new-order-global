@@ -1592,6 +1592,11 @@ function debuggerAttach(tabId) {
                     return reject(new Error('debugger.attach: ' + msg));
                 }
                 __geAttachedTabs.add(tabId);
+                // Override navigator.webdriver so pages can't detect debugger attachment
+                chrome.debugger.sendCommand({ tabId }, 'Runtime.evaluate', {
+                    expression: "try{Object.defineProperty(navigator,'webdriver',{get:()=>false,configurable:true})}catch(e){}",
+                    allowUnsafeEvalBlockedByCSP: true
+                }, () => { void chrome.runtime.lastError; });
                 resolve();
             });
         } catch (e) { reject(e); }
@@ -1710,10 +1715,14 @@ async function runDebuggerAction(tabId, action, params) {
             const button = action === 'rightClickAt' ? 'right' : 'left';
             const count = action === 'doubleClickAt' ? 2 : 1;
             await mouseMove(x, y);
+            // Human-like press-to-release gap
             await mouseDown(x, y, button, 1);
+            await new Promise(r => setTimeout(r, 40 + Math.random() * 80));
             await mouseUp(x, y, button, 1);
             if (count === 2) {
+                await new Promise(r => setTimeout(r, 40 + Math.random() * 60));
                 await mouseDown(x, y, button, 2);
+                await new Promise(r => setTimeout(r, 30 + Math.random() * 50));
                 await mouseUp(x, y, button, 2);
             }
             return { success: true, clickedAt: { x, y }, button, clickCount: count };

@@ -1348,13 +1348,13 @@
 
     // If this task came in remotely (Telegram/WhatsApp) AND has no required inputs,
     // auto-approve so the agent runs without needing the user to click.
-    if (window.__geNextTaskIsRemote && (!ctx.requiredInputs || ctx.requiredInputs.length === 0)) {
-      window.__geNextTaskIsRemote = false;
+    if (window._geNTR && (!ctx.requiredInputs || ctx.requiredInputs.length === 0)) {
+      window._geNTR = false;
       showInlineNotice('No briefing needed — auto-approving remote task.', 'info');
       setTimeout(() => approvePlanAndStart(), 200);
-    } else if (window.__geNextTaskIsRemote) {
+    } else if (window._geNTR) {
       // Has required inputs — the user must come back to the page. Notify them.
-      window.__geNextTaskIsRemote = false;
+      window._geNTR = false;
       showInlineNotice('This task needs briefing inputs. Please fill them in to continue.', 'warning');
     }
   }
@@ -2989,7 +2989,7 @@
             toggle.querySelectorAll('.mode-option').forEach(b => b.classList.toggle('active', b.dataset.mode === 'autopilot'));
           }
           // Mark as remote-triggered so plan modal can auto-approve when possible
-          window.__geNextTaskIsRemote = true;
+          window._geNTR = true;
           // If the server flagged a resume pointer (session persistence on
           // the paid tier), thread the new prompt onto that prior session.
           startTask(prompt, data.resumeFromTaskId ? { resumeFromTaskId: data.resumeFromTaskId } : {});

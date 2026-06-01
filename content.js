@@ -2,15 +2,13 @@
 // Swaps comments to right side and related videos to bottom
 
 // Guard against double-injection (manifest + programmatic injection)
-if (window.__ytNewOrderLoaded) {
+if (window[Symbol.for('_ytno')]) {
   // Already loaded, do nothing
 } else {
-  window.__ytNewOrderLoaded = true;
+  window[Symbol.for('_ytno')] = true;
 
   (function () {
     'use strict';
-
-    console.log('YouTube New Order: Script loaded');
 
     // Respond to ping from background script to confirm content script is active
     if (typeof chrome !== 'undefined' && chrome.runtime) {

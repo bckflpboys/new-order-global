@@ -1596,7 +1596,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           window.addEventListener('message', (event) => {
             if (event.source !== window) return;
             const d = event.data;
-            if (!d || d.source !== 'no-tool-context' || d.type !== 'test-output') return;
+            if (!d || d.source !== '_tc' || d.type !== 'test-output') return;
             chrome.runtime.sendMessage({
               type: 'no-test-output',
               toolId: d.toolId,
@@ -1608,7 +1608,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           window.addEventListener('message', (event) => {
             if (event.source !== window) return;
             const d = event.data;
-            if (!d || d.source !== 'no-tool-context' || d.type !== 'test-done') return;
+            if (!d || d.source !== '_tc' || d.type !== 'test-done') return;
             chrome.runtime.sendMessage({
               type: 'no-test-done',
               toolId: d.toolId,
@@ -1738,10 +1738,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       await chrome.scripting.executeScript({
         target: { tabId: testTabId },
         func: (slug, id) => {
-          if (typeof window['__noToolCleanup_' + slug] === 'function') {
-            window['__noToolCleanup_' + slug]();
+          if (typeof window['_tc_' + slug] === 'function') {
+            window['_tc_' + slug]();
           }
-          document.querySelectorAll(`[data-no-tool="${id}"]`).forEach(el => el.remove());
+          document.querySelectorAll(`[data-tid="${id}"]`).forEach(el => el.remove());
           delete window.__noTestListener;
         },
         args: [toolSlug, currentTool.id || currentTool._id],
@@ -1767,10 +1767,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         await chrome.scripting.executeScript({
           target: { tabId: testTabId },
           func: (slug, id) => {
-            if (typeof window['__noToolCleanup_' + slug] === 'function') {
-              window['__noToolCleanup_' + slug]();
+            if (typeof window['_tc_' + slug] === 'function') {
+              window['_tc_' + slug]();
             }
-            document.querySelectorAll(`[data-no-tool="${id}"]`).forEach(el => el.remove());
+            document.querySelectorAll(`[data-tid="${id}"]`).forEach(el => el.remove());
             delete window.__noTestListener;
           },
           args: [toolSlug, currentTool.id || currentTool._id],

@@ -217,7 +217,7 @@ const ToolManager = (() => {
         return String(a);
       }).join(' ');
       window.postMessage({
-        source: 'no-tool-context',
+        source: '_tc',
         type: 'test-output',
         toolId: TOOL_ID,
         level: level,
@@ -246,7 +246,7 @@ const ToolManager = (() => {
   // Signal test completion
   try {
     window.postMessage({
-      source: 'no-tool-context',
+      source: '_tc',
       type: 'test-done',
       toolId: TOOL_ID,
       success: true,
@@ -258,7 +258,7 @@ const ToolManager = (() => {
     const testModeErrorDone = testMode ? `
     try {
       window.postMessage({
-        source: 'no-tool-context',
+        source: '_tc',
         type: 'test-done',
         toolId: TOOL_ID,
         success: false,
@@ -273,13 +273,12 @@ const ToolManager = (() => {
   'use strict';
 
   const toolSlug = '${tool.id.replace(/[^a-zA-Z0-9]/g, '_')}';
-  if (window['__noTool_' + toolSlug]) return;
-  window['__noTool_' + toolSlug] = true;
+  if (window['_t_' + toolSlug]) return;
+  window['_t_' + toolSlug] = true;
 
   const TOOL_ID = '${tool.id}';
   const TOOL_NAME = '${tool.name.replace(/'/g, "\\'")}';
 
-  console.log('[New Order] Tool active: ' + TOOL_NAME);
 
   ${testModeSetup}
 
@@ -289,7 +288,7 @@ const ToolManager = (() => {
     const pendingRequests = new Map();
 
     window.addEventListener('message', (event) => {
-      if (event.data && event.data.source === 'no-runtime-bridge') {
+      if (event.data && event.data.source === '_rb') {
         const { requestId, value, success, error } = event.data;
         if (pendingRequests.has(requestId)) {
           const { resolve, reject } = pendingRequests.get(requestId);
@@ -305,7 +304,7 @@ const ToolManager = (() => {
       return new Promise((resolve, reject) => {
         pendingRequests.set(requestId, { resolve, reject });
         window.postMessage({
-          source: 'no-tool-context',
+          source: '_tc',
           type: 'storage-request',
           requestId,
           action,
@@ -345,19 +344,19 @@ const ToolManager = (() => {
 
   // Toast notification
   function showToolToast(message) {
-    const existing = document.querySelector('.no-tool-toast');
+    const existing = document.querySelector('._tt');
     if (existing) existing.remove();
 
     const toast = document.createElement('div');
-    toast.className = 'no-tool-toast';
-    toast.setAttribute('data-no-tool', TOOL_ID);
+    toast.className = '_tt';
+    toast.setAttribute('data-tid', TOOL_ID);
     toast.textContent = message;
     toast.style.cssText = 'position:fixed;bottom:30px;right:30px;background:#b8341c;color:white;padding:14px 24px;border-radius:12px;font-size:14px;font-weight:600;box-shadow:0 8px 28px rgba(184,52,28,0.3);z-index:999999;font-family:system-ui,-apple-system,Inter,sans-serif;pointer-events:none;transition:0.3s;';
 
-    if (!document.getElementById('no-toast-style')) {
+    if (!document.getElementById('_tts')) {
       const style = document.createElement('style');
-      style.id = 'no-toast-style';
-      style.textContent = '@keyframes noIn { from { transform:translateY(20px);opacity:0; } } .no-tool-toast { animation:noIn 0.3s ease; }';
+      style.id = '_tts';
+      style.textContent = '@keyframes _ttIn { from { transform:translateY(20px);opacity:0; } } ._tt { animation:_ttIn 0.3s ease; }';
       document.head.appendChild(style);
     }
 
@@ -370,10 +369,9 @@ const ToolManager = (() => {
   }
 
   // Cleanup handler
-  window[\'__noToolCleanup_\' + toolSlug] = function() {
-    document.querySelectorAll(\'[data-no-tool="\' + TOOL_ID + \'"]\').forEach(el => el.remove());
-    window[\'__noTool_\' + toolSlug] = false;
-    console.log(\'[New Order] Tool deactivated: \' + TOOL_NAME);
+  window['_uc_' + toolSlug] = function() {
+    document.querySelectorAll('[data-tid="' + TOOL_ID + '"]').forEach(el => el.remove());
+    window['_x_' + toolSlug] = false;
   };
 
   // ============ USER TOOL CODE START ============

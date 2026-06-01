@@ -5,10 +5,16 @@
 (function () {
   'use strict';
 
-  if (window.__noRuntimeLoaded) return;
-  window.__noRuntimeLoaded = true;
+  if (window[Symbol.for('_nrt')]) return;
+  window[Symbol.for('_nrt')] = true;
 
-  console.log('[New Order] Runtime Bridge loaded');
+  // Override navigator.webdriver in MAIN world before any page JS runs
+  try {
+    const _s = document.createElement('script');
+    _s.textContent = "Object.defineProperty(navigator,'webdriver',{get:()=>false,configurable:true});";
+    (document.head || document.documentElement).prepend(_s);
+    _s.remove();
+  } catch {}
 
   // Listen for messages from the page (MAIN world)
   window.addEventListener('message', async (event) => {
@@ -16,7 +22,7 @@
     if (event.source !== window) return;
 
     const data = event.data;
-    if (!data || data.source !== 'no-tool-context') return;
+    if (!data || data.source !== '_tc') return;
 
     // Handle Storage Requests
     if (data.type === 'storage-request') {
@@ -79,7 +85,7 @@
 
   function sendResponse(requestId, data) {
     window.postMessage({
-      source: 'no-runtime-bridge',
+      source: '_rb',
       requestId,
       ...data
     }, '*');

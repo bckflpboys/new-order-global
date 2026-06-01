@@ -631,7 +631,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 func: (toolId) => {
-                    const cleanupKey = `__noToolCleanup_${toolId.replace(/[^a-zA-Z0-9]/g, '_')}`;
+                    const cleanupKey = `_tc_${toolId.replace(/[^a-zA-Z0-9]/g, '_')}`;
                     if (typeof window[cleanupKey] === 'function') {
                         window[cleanupKey]();
                     }

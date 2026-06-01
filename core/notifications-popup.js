@@ -19,8 +19,8 @@
   'use strict';
 
   // Already wired? Bail.
-  if (window.__ngoNotificationsPopupLoaded) return;
-  window.__ngoNotificationsPopupLoaded = true;
+  if (window[Symbol.for('_ngo_np')]) return;
+  window[Symbol.for('_ngo_np')] = true;
 
   // -----------------------------------------------------------------
   // Auth + base-URL helpers. We delegate to the shared NewOrderAPI
