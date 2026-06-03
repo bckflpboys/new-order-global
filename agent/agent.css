@@ -710,47 +710,6 @@ body.autopilot-mode .agent-app {
   color: var(--on-surface);
 }
 
-.task-id-chip {
-  font-family: var(--font-mono, ui-monospace, "SFMono-Regular", Menlo, monospace);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--on-surface);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s ease, transform 0.1s ease;
-}
-.task-id-chip:hover { background: rgba(255, 255, 255, 0.12); }
-.task-id-chip:active { transform: scale(0.96); }
-.task-id-chip.copied { background: rgba(80, 200, 120, 0.25); border-color: rgba(80, 200, 120, 0.5); }
-
-/* Separates tasks inside a resumed session chain so the conversation
-   reads top-to-bottom. Each divider is a hairline with a centered label. */
-.session-divider {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin: 18px 0;
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.35);
-}
-.session-divider::before,
-.session-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(to right, transparent, rgba(255,255,255,0.15), transparent);
-}
-.session-divider span { white-space: nowrap; }
-
 .task-status-badge {
   display: flex;
   align-items: center;
@@ -1452,13 +1411,8 @@ body.autopilot-mode .agent-app {
 }
 
 .model-card.selected {
-  border: 2px solid var(--primary);
-  background: rgba(184, 52, 28, 0.15);
-  box-shadow: 0 0 0 1px var(--primary), 0 0 12px rgba(184, 52, 28, 0.2);
-}
-.model-card.selected .model-card-name {
-  color: var(--primary);
-  font-weight: 700;
+  border: 1.5px solid var(--primary);
+  background: var(--primary-fixed);
 }
 
 .model-card-icon {
@@ -1504,23 +1458,6 @@ body.autopilot-mode .agent-app {
 .model-tag.vision { background: rgba(46, 125, 79, 0.15); color: var(--success); }
 .model-tag.fast { background: rgba(46, 125, 79, 0.15); color: var(--success); }
 .model-tag.full { background: rgba(138, 109, 0, 0.15); color: var(--tertiary); }
-.model-tag.free { background: rgba(46, 125, 79, 0.18); color: var(--success); border: 1px solid rgba(46, 125, 79, 0.35); }
-
-.model-card.free-model {
-  border: 1.5px solid var(--success);
-  background: rgba(46, 125, 79, 0.06);
-  box-shadow: 0 0 8px rgba(46, 125, 79, 0.35), 0 0 20px rgba(46, 125, 79, 0.15);
-}
-.model-card.free-model:hover {
-  border-color: var(--success);
-  background: rgba(46, 125, 79, 0.12);
-  box-shadow: 0 0 12px rgba(46, 125, 79, 0.45), 0 0 28px rgba(46, 125, 79, 0.2);
-}
-.model-card.free-model.selected {
-  border-color: var(--success);
-  background: rgba(46, 125, 79, 0.15);
-  box-shadow: 0 0 14px rgba(46, 125, 79, 0.5), 0 0 32px rgba(46, 125, 79, 0.25);
-}
 
 .model-card-check {
   position: absolute;
@@ -1661,17 +1598,6 @@ body.autopilot-mode .agent-app {
 
 .form-group input:focus {
   border-color: var(--primary);
-}
-
-.form-group input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  padding: 0;
-  margin: 0;
-  background: none;
-  border: none;
-  accent-color: var(--primary);
-  flex: 0 0 auto;
 }
 
 .btn-auth-submit {
@@ -2558,96 +2484,4 @@ body.autopilot-mode .agent-app {
   padding: 0 4px;
   font-size: 10px;
   color: var(--on-surface-variant);
-}
-
-/* ============================================
-   Delegated-from-Builder banner
-   Shown above the task input when the user arrived here from a Builder
-   "Build & delegate" handoff. Premium gradient ribbon with tool name.
-   ============================================ */
-.delegate-banner {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin: 0 auto 16px;
-  max-width: 860px;
-  padding: 12px 16px 12px 14px;
-  border-radius: 14px;
-  background:
-    linear-gradient(135deg, rgba(184, 52, 28, 0.16) 0%, rgba(217, 71, 52, 0.08) 100%),
-    var(--surface-container, #1a1a1a);
-  border: 1px solid rgba(184, 52, 28, 0.4);
-  box-shadow:
-    0 8px 24px rgba(184, 52, 28, 0.18),
-    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-  animation: delegateBannerIn 0.42s cubic-bezier(0.22, 1, 0.36, 1);
-  color: var(--on-surface, #fff);
-}
-
-@keyframes delegateBannerIn {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
-.delegate-banner-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, var(--primary, #b8341c), #d94734);
-  color: #fff;
-  flex-shrink: 0;
-  box-shadow: 0 6px 14px rgba(184, 52, 28, 0.45);
-}
-
-.delegate-banner-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.delegate-banner-eyebrow {
-  font-family: var(--font-label, system-ui);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--primary, #b8341c);
-  margin-bottom: 2px;
-}
-
-.delegate-banner-title {
-  font-family: var(--font-headline, 'Noto Serif', Georgia, serif);
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--on-surface, #fff);
-  line-height: 1.3;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.delegate-banner-title strong {
-  font-weight: 700;
-  color: var(--primary, #b8341c);
-}
-
-.delegate-banner-close {
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 8px;
-  color: var(--on-surface-muted, #999);
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all 0.18s ease;
-}
-.delegate-banner-close:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--on-surface, #fff);
-  border-color: rgba(255, 255, 255, 0.18);
 }
