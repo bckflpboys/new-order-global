@@ -1415,6 +1415,21 @@ body.autopilot-mode .agent-app {
   background: var(--primary-fixed);
 }
 
+.model-card.locked {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.model-card.locked .model-tag.upgrade {
+  opacity: 1;
+}
+
+.model-card.locked:hover {
+  background: var(--surface-container-low);
+  border-color: var(--ghost-border);
+  transform: none;
+}
+
 .model-card-icon {
   width: 32px;
   height: 32px;
@@ -1458,6 +1473,7 @@ body.autopilot-mode .agent-app {
 .model-tag.vision { background: rgba(46, 125, 79, 0.15); color: var(--success); }
 .model-tag.fast { background: rgba(46, 125, 79, 0.15); color: var(--success); }
 .model-tag.full { background: rgba(138, 109, 0, 0.15); color: var(--tertiary); }
+.model-tag.upgrade { background: rgba(214, 40, 40, 0.15); color: var(--accent-red); }
 
 .model-card-check {
   position: absolute;
