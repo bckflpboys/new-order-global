@@ -111,6 +111,7 @@ new order global/
 - **WhatsApp** — Watch a dedicated "My Agent" group; agent reads incoming messages and types replies
 - **Notification preferences** — choose channel (Telegram/WhatsApp/none), toggle per-event (complete, awaiting, failure)
 - **Chat nudges** — mid-task messages from Telegram/WhatsApp are injected into the agent's context
+- **In-app popups** — Extension surfaces server-sent notifications (tier-targeted) with clear/dismiss actions
 
 ### Dashboard Pages
 - **Setup** — Telegram/WhatsApp linking, notification prefs, agent behaviour, research depth, agent limits & custom rules, per-domain rules, long-term memory browser, scheduled tasks
@@ -119,6 +120,7 @@ new order global/
 - **Action Replay** — browse past tasks, step-by-step playback with speed control
 - **Credits & Billing** — balance, one-time packages, subscription management
 - **Settings** — profile display name and email
+- **Updates & Notices** — shows extension self-update popups (latest release + changelog) and unread in-app notifications
 
 ---
 
@@ -260,6 +262,14 @@ The iframe communicates with the parent using these message types:
 | `deleteData` | iframe → parent | Delete specific data entries |
 
 The parent page's event listener accepts null/empty origins (required for `srcdoc` iframes) and only processes known message types for security.
+
+---
+
+## Updates & In-App Notifications
+
+- **Self-update polling:** The extension calls `/api/extension/latest-release` with its current version. When `hasUpdate` is true, a popup displays the changelog plus "Open release" / "Download ZIP" links. History comes from `/api/extension/releases`.
+- **Notification popups:** Periodically hits `/api/notifications/unread` and renders tier-targeted messages; supports dismiss-one (`POST /api/notifications/:id/read`) and clear-all.
+- **Safety:** Popups run in the dashboard context; unread state is tracked server-side so messages do not repeat across devices.
 
 ---
 
