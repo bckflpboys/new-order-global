@@ -413,6 +413,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.location.href = '../dashboard/settings.html';
   });
 
+  // User info (credits/name) - navigate to billing page
+  document.getElementById('user-info')?.addEventListener('click', () => {
+    window.location.href = '../dashboard/billing.html';
+  });
+
   document.getElementById('btn-toggle-history').addEventListener('click', () => {
     historySidebar.classList.toggle('open');
     if (historySidebar.classList.contains('open')) {
