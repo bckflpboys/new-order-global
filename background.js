@@ -94,6 +94,33 @@ async function ensureHostPermission() {
 }
 
 // ============================================
+// Service Worker Port Keep-Alive
+// --------------------------------------------
+// MV3 service workers die after ~30s of inactivity. Pages and content
+// scripts keep them alive by opening a named port. However, an UNHANDLED
+// port is immediately dropped, making the keep-alive useless. We must
+// listen on onConnect and hold the port open with periodic pings.
+// Ports that are accepted here will reset Chrome's idle timer on every
+// message, preventing SW suspension during active agent tasks.
+// ============================================
+const _activePorts = new Set();
+chrome.runtime.onConnect.addListener((port) => {
+    // Accept any keep-alive port from pages or content scripts
+    if (port.name === 'ge-keep-alive' || port.name === 'ge-bg-keepalive') {
+        _activePorts.add(port);
+        // Send periodic pings so the port stays alive (and resets SW idle)
+        const pingTimer = setInterval(() => {
+            try { port.postMessage({ type: 'ge-sw-ping', t: Date.now() }); }
+            catch { clearInterval(pingTimer); _activePorts.delete(port); }
+        }, 20000);
+        port.onDisconnect.addListener(() => {
+            clearInterval(pingTimer);
+            _activePorts.delete(port);
+        });
+    }
+});
+
+// ============================================
 // Register YouTube Content Scripts
 // ============================================
 let _registrationInProgress = null;
@@ -737,16 +764,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // open http(s) tab. If nothing works, surface a directive
                 // error the LLM can act on (openTab / goto).
                 async function resolveFallbackTabId() {
+                    // Only real http(s) tabs are valid agent work targets.
+                    // Never pick chrome-extension://, devtools://, about:, etc.
+                    const isUsable = (url) => /^https?:\/\//i.test(url || '');
                     try {
                         const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
-                        if (active && typeof active.id === 'number' && /^https?:\/\//i.test(active.url || '')) return active.id;
+                        if (active && typeof active.id === 'number' && isUsable(active.url)) return active.id;
                     } catch { /* ignore */ }
                     try {
                         const all = await chrome.tabs.query({});
-                        const cand = all.find(t => typeof t.id === 'number' && /^https?:\/\//i.test(t.url || ''));
+                        const cand = all.find(t => typeof t.id === 'number' && isUsable(t.url));
                         if (cand) return cand.id;
                     } catch { /* ignore */ }
-                    return null;
+                    // Last resort: open a background tab on a neutral page.
+                    try {
+                        const t = await chrome.tabs.create({ url: 'https://www.google.com', active: false });
+                        return t.id;
+                    } catch { return null; }
                 }
 
                 let tabIdRecovered = false;
@@ -761,13 +795,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         return;
                     }
                 } else {
-                    // Validate the supplied tabId is still alive; if not, try a fallback.
+                    // Validate the supplied tabId is still alive AND is a real web page.
+                    // If it's an extension page (agent.html, popup.html, etc.),
+                    // the agent must not operate on it — redirect to a real tab.
                     let alive = false;
-                    try { await chrome.tabs.get(tabId); alive = true; } catch { alive = false; }
-                    if (!alive) {
+                    let isExtensionPage = false;
+                    try {
+                        const t = await chrome.tabs.get(tabId);
+                        alive = true;
+                        isExtensionPage = !(/^https?:\/\//i.test(t.url || ''));
+                    } catch { alive = false; }
+
+                    if (!alive || isExtensionPage) {
+                        const reason = !alive ? 'is dead' : 'is an extension/internal page — agent must not operate on it';
                         const fallback = await resolveFallbackTabId();
                         if (fallback) {
-                            console.log('[bg] ge-execute-in-tab: supplied tabId', tabId, 'is dead; auto-recovered to', fallback);
+                            console.log(`[bg] ge-execute-in-tab: supplied tabId ${tabId} ${reason}; auto-recovered to`, fallback);
                             tabId = fallback;
                             tabIdRecovered = true;
                         } else {
@@ -1484,10 +1527,12 @@ async function ensureAgentRuntime(tabId) {
     if (!tabId) return;
 
     try {
-        // Check tab is a real web page we can inject into
+        // Check tab is a real web page we can inject into.
+        // Block ALL non-http(s) schemes: chrome://, chrome-extension://,
+        // devtools://, edge://, about:, data:, etc.
         const tab = await chrome.tabs.get(tabId);
-        if (!tab.url || tab.url.startsWith('chrome://') || tab.url.startsWith('chrome-extension://')) {
-            throw new Error(`Cannot inject agent runtime into ${tab.url}`);
+        if (!tab.url || !/^https?:\/\//i.test(tab.url)) {
+            throw new Error(`Cannot inject agent runtime into ${tab.url || '(no url)'}`);
         }
     } catch (e) {
         throw new Error(`Tab ${tabId} not accessible: ${e.message}`);

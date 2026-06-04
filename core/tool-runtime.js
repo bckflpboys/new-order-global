@@ -98,4 +98,20 @@
     }
   });
 
+  // Keep-alive port for the background agent loop.
+  // The service worker (bg-agent-loop.js) opens a 'ge-bg-keepalive' port
+  // to this content script while a background task is running. An open port
+  // resets Chrome's SW idle timer, preventing suspension mid-task.
+  // If we don't listen here the port disconnects immediately (no-op).
+  chrome.runtime.onConnect.addListener((port) => {
+    if (port.name !== 'ge-bg-keepalive') return;
+    // Reply to pings from the SW to confirm the port is live
+    port.onMessage.addListener((msg) => {
+      if (msg && msg.type === 'ge-ka-ping') {
+        try { port.postMessage({ type: 'ge-ka-pong', t: Date.now() }); } catch { /* ignore */ }
+      }
+    });
+    // No explicit port.disconnect — let the SW manage the lifecycle
+  });
+
 })();

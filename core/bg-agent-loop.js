@@ -14,6 +14,7 @@
     'use strict';
 
     const ALARM_NAME = 'geBgAgentPoll';
+    const GE_KA_ALARM = 'ge-sw-keepalive'; // self-sustaining SW alarm during tasks
     const POLL_MINUTES = 0.5; // 30s (chrome.alarms minimum in MV3)
     // Keep the integrations cache shorter than the alarm period so every tick
     // sees a fresh `backgroundAgent.autoRun` status. Previously 2 minutes,
@@ -27,6 +28,24 @@
     let _running = false;
     let _cachedIntegAt = 0;
     let _cachedInteg = null;
+
+    // ============================================
+    // SW self-keep-alive via alarm
+    // ============================================
+    // Chrome MV3 service workers suspend after ~30s of inactivity.
+    // The port-based keepalive (_kaPort) helps, but dies if the tab
+    // navigates. A separate alarm fires every 25s and does a trivial
+    // chrome.alarms.get() — this I/O call prevents the SW from being
+    // classified as idle and resets the suspension timer reliably.
+    // We only run this alarm while a task is actually executing.
+    function startSwKeepalive() {
+        try {
+            chrome.alarms.create(GE_KA_ALARM, { periodInMinutes: 25 / 60 }); // ~25s
+        } catch (e) { /* non-fatal */ }
+    }
+    function stopSwKeepalive() {
+        try { chrome.alarms.clear(GE_KA_ALARM); } catch { /* non-fatal */ }
+    }
 
     // ============================================
     // Service-worker keep-alive
@@ -98,6 +117,49 @@
     }
 
     // ============================================
+    // Storage-based status & step logging
+    // Written to chrome.storage.local so the popup "Agent Monitor" tab can
+    // read live progress without needing an open message channel.
+    // ============================================
+    const BG_LOG_KEY    = 'ge_bg_agent_log';    // rolling array of step events
+    const BG_STATUS_KEY = 'ge_bg_agent_status'; // current task status object
+    const BG_ABORT_KEY  = 'ge_bg_agent_abort';  // set to true by popup to stop the loop
+    const BG_LOG_MAX    = 50;
+
+    async function writeBgStatus(patch) {
+        try {
+            const existing = (await chrome.storage.local.get([BG_STATUS_KEY]))[BG_STATUS_KEY] || {};
+            await chrome.storage.local.set({ [BG_STATUS_KEY]: { ...existing, ...patch } });
+        } catch { /* non-fatal */ }
+    }
+
+    async function appendBgLog(entry) {
+        try {
+            const data = await chrome.storage.local.get([BG_LOG_KEY]);
+            const log = data[BG_LOG_KEY] || [];
+            log.unshift({ t: Date.now(), ...entry });
+            if (log.length > BG_LOG_MAX) log.length = BG_LOG_MAX;
+            await chrome.storage.local.set({ [BG_LOG_KEY]: log });
+        } catch { /* non-fatal */ }
+    }
+
+    async function clearBgStatus() {
+        try {
+            await chrome.storage.local.set({
+                [BG_STATUS_KEY]: { running: false, lastStopAt: Date.now() },
+                [BG_ABORT_KEY]: false
+            });
+        } catch { /* non-fatal */ }
+    }
+
+    async function isAbortRequested() {
+        try {
+            const d = await chrome.storage.local.get([BG_ABORT_KEY]);
+            return !!d[BG_ABORT_KEY];
+        } catch { return false; }
+    }
+
+    // ============================================
     // Auth / HTTP
     // ============================================
     async function getToken() {
@@ -141,19 +203,31 @@
     // ============================================
     // Target tab resolution
     // ============================================
+    // Returns true for URLs that can be used as agent work targets.
+    // Excludes chrome://, chrome-extension://, devtools://, about:, edge://, etc.
+    function _isUsableTabUrl(url) {
+        if (!url) return false;
+        if (!/^https?:\/\//i.test(url)) return false;
+        return true;
+    }
+
     async function pickOrOpenTargetTab() {
-        // Prefer the currently-active tab if it's a normal web page.
+        // Prefer the currently-active tab IF it is a real web page (not an
+        // extension page, devtools, newtab, etc.). Without this check the
+        // agent sometimes picks agent.html or popup.html as the work target
+        // and navigates away from it, killing the UI.
         try {
             const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (active && active.id && active.url && /^https?:\/\//i.test(active.url)) return active.id;
+            if (active && active.id && _isUsableTabUrl(active.url)) return active.id;
         } catch { /* ignore */ }
-        // Otherwise pick any open http(s) tab.
+        // Otherwise pick any open http(s) tab (never an extension page).
         try {
             const tabs = await chrome.tabs.query({});
-            const cand = tabs.find(t => t.url && /^https?:\/\//i.test(t.url));
+            const cand = tabs.find(t => _isUsableTabUrl(t.url));
             if (cand && cand.id) return cand.id;
         } catch { /* ignore */ }
-        // Last resort: open a new background tab on a neutral page.
+        // Last resort: open a new tab in the background on a neutral page.
+        // active:false keeps it from stealing focus from any UI the user has open.
         const created = await chrome.tabs.create({ url: 'https://www.google.com', active: false });
         try { await waitForTabLoad(created.id, 15000); } catch { /* best effort */ }
         return created.id;
@@ -330,13 +404,32 @@
     // Executes `currentStep` in `state`, then rounds through /step until
     // done, awaiting_user, max steps, or an error.
     // ============================================
-    async function runStepLoop({ taskId, state, currentStep, maxSteps }) {
+    async function runStepLoop({ taskId, state, currentStep, maxSteps, source, prompt }) {
         let iterations = 0;
         while (iterations < maxSteps + 5) {
             iterations++;
 
+            // Check if the popup requested an abort.
+            if (await isAbortRequested()) {
+                await writeBgStatus({ running: false, aborted: true, lastStopAt: Date.now() });
+                await appendBgLog({ action: 'aborted', summary: 'Stopped by user via popup monitor', ok: false });
+                return { ok: false, stage: 'aborted', taskId };
+            }
+
+            // Update live status
+            await writeBgStatus({
+                running: true,
+                taskId,
+                source: source || 'background',
+                prompt: prompt || '',
+                stepNumber: currentStep.stepNumber,
+                lastAction: currentStep.action,
+                lastStepAt: Date.now()
+            });
+
             // Execute current action
             let result = null, error = null;
+            const actionStartAt = Date.now();
             try {
                 const out = await executeAction(state, currentStep.action, currentStep.params);
                 if (out && out.success) result = out;
@@ -350,6 +443,24 @@
                 // → loop exits via the `nextData.done` branch below.
             } catch (e) {
                 error = e.message || String(e);
+            }
+
+            // Log the step to storage for the popup monitor
+            {
+                const p = currentStep.params || {};
+                let summary = currentStep.action;
+                if (p.url) summary += ` → ${String(p.url).slice(0, 60)}`;
+                else if (p.selector) summary += ` on ${String(p.selector).slice(0, 50)}`;
+                else if (p.text) summary += ` "${String(p.text).slice(0, 50)}"`;
+                else if (p.key) summary += ` [${p.key}]`;
+                await appendBgLog({
+                    action: currentStep.action,
+                    stepNumber: currentStep.stepNumber,
+                    summary,
+                    ok: !error,
+                    error: error || undefined,
+                    ms: Date.now() - actionStartAt
+                });
             }
 
             // Refresh page state after DOM-affecting actions
@@ -427,12 +538,24 @@
                 }
             }
 
-            if (nextData.done) return { ok: true, stage: 'done', taskId, summary: nextData.summary, status: nextData.status };
-            if (nextData.awaitingUser) return { ok: true, stage: 'awaiting_user', taskId };
-            if (!nextData.step || !nextData.step.action) return { ok: false, stage: 'step', error: 'no_next_action', taskId };
+            if (nextData.done) {
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'done' });
+                await appendBgLog({ action: 'done', summary: nextData.summary ? String(nextData.summary).slice(0, 120) : 'Task completed', ok: true });
+                return { ok: true, stage: 'done', taskId, summary: nextData.summary, status: nextData.status };
+            }
+            if (nextData.awaitingUser) {
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'awaiting_user' });
+                await appendBgLog({ action: 'awaiting_user', summary: 'Waiting for your reply', ok: true });
+                return { ok: true, stage: 'awaiting_user', taskId };
+            }
+            if (!nextData.step || !nextData.step.action) {
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'no_next_action' });
+                return { ok: false, stage: 'step', error: 'no_next_action', taskId };
+            }
 
             currentStep = nextData.step;
         }
+        await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'max_steps' });
         return { ok: false, stage: 'max_steps', taskId };
     }
 
@@ -456,11 +579,26 @@
     // Main loop — fresh task from /inbox queue
     // ============================================
     async function runOneTask({ prompt, source, resumeFromTaskId }) {
+        // Reset abort flag at task start so stale aborts don't block new tasks
+        try { await chrome.storage.local.set({ [BG_ABORT_KEY]: false }); } catch {}
+
         const tabId = await pickOrOpenTargetTab();
         const state = makeTabState(tabId);
         let tabInfo;
         try { tabInfo = await chrome.tabs.get(tabId); } catch { tabInfo = {}; }
         startKeepalive(tabId);
+        startSwKeepalive(); // alarm-based SW keep-alive (survives tab navigations)
+
+        // Announce we're starting
+        await writeBgStatus({
+            running: true,
+            source: source || 'background',
+            prompt: String(prompt || '').slice(0, 200),
+            startedAt: Date.now(),
+            lastAction: 'planning',
+            taskId: null
+        });
+        await appendBgLog({ action: 'started', summary: `Task received from ${source || 'background'}: ${String(prompt || '').slice(0, 80)}`, ok: true });
 
         try {
             // --- PLAN ---
@@ -484,13 +622,20 @@
                 });
             } catch (err) {
                 console.warn('[GE bg-agent] /plan failed:', err.status, err.message);
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'plan_failed' });
                 return { ok: false, stage: 'plan', error: err.message, status: err.status };
             }
 
             const taskId = planResp.taskId;
-            if (!taskId) return { ok: false, stage: 'plan', error: 'no_task_id' };
+            if (!taskId) {
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'no_task_id' });
+                return { ok: false, stage: 'plan', error: 'no_task_id' };
+            }
+
+            await writeBgStatus({ taskId });
 
             if (Array.isArray(planResp.requiredInputs) && planResp.requiredInputs.length) {
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'requires_briefing' });
                 return { ok: false, stage: 'requires_briefing', taskId };
             }
 
@@ -509,16 +654,27 @@
                     })
                 });
             } catch (err) {
-                if (err.status === 403) return { ok: false, stage: 'brief', error: 'not_eligible', taskId };
+                if (err.status === 403) {
+                    await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'not_eligible' });
+                    return { ok: false, stage: 'brief', error: 'not_eligible', taskId };
+                }
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'brief_failed' });
                 return { ok: false, stage: 'brief', error: err.message, taskId, status: err.status };
             }
 
-            if (briefResp.done) return { ok: true, stage: 'done', taskId, summary: briefResp.summary };
-            if (!briefResp.step || !briefResp.step.action) return { ok: false, stage: 'brief', error: 'no_first_step', taskId };
+            if (briefResp.done) {
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'done' });
+                return { ok: true, stage: 'done', taskId, summary: briefResp.summary };
+            }
+            if (!briefResp.step || !briefResp.step.action) {
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'no_first_step' });
+                return { ok: false, stage: 'brief', error: 'no_first_step', taskId };
+            }
 
-            return await runStepLoop({ taskId, state, currentStep: briefResp.step, maxSteps });
+            return await runStepLoop({ taskId, state, currentStep: briefResp.step, maxSteps, source, prompt });
         } finally {
             stopKeepalive();
+            stopSwKeepalive();
         }
     }
 
@@ -538,9 +694,24 @@
         }
         if (!pending || !pending.taskId || !pending.reply) return null;
 
+        // Reset abort flag when resuming a pending reply
+        try { await chrome.storage.local.set({ [BG_ABORT_KEY]: false }); } catch {}
+
         const tabId = await pickOrOpenTargetTab();
         const state = makeTabState(tabId);
         startKeepalive(tabId);
+        startSwKeepalive();
+
+        await writeBgStatus({
+            running: true,
+            taskId: pending.taskId,
+            source: 'chat_reply',
+            prompt: String(pending.reply || '').slice(0, 200),
+            startedAt: Date.now(),
+            lastAction: 'resuming'
+        });
+        await appendBgLog({ action: 'resumed', summary: `Resumed task with reply: ${String(pending.reply || '').slice(0, 80)}`, ok: true });
+
         try {
             let answerResp;
             try {
@@ -549,20 +720,31 @@
                     body: JSON.stringify({ taskId: pending.taskId, reply: pending.reply, runMode: 'background' })
                 });
             } catch (err) {
-                if (err.status === 403) return { ok: false, stage: 'answer', error: 'not_eligible' };
+                if (err.status === 403) {
+                    await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'not_eligible' });
+                    return { ok: false, stage: 'answer', error: 'not_eligible' };
+                }
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'answer_failed' });
                 return { ok: false, stage: 'answer', error: err.message };
             }
-            if (answerResp.done) return { ok: true, stage: 'done', taskId: pending.taskId };
-            if (!answerResp.step || !answerResp.step.action) return { ok: false, stage: 'answer', error: 'no_next_step' };
+            if (answerResp.done) {
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'done' });
+                return { ok: true, stage: 'done', taskId: pending.taskId };
+            }
+            if (!answerResp.step || !answerResp.step.action) {
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'no_next_step' });
+                return { ok: false, stage: 'answer', error: 'no_next_step' };
+            }
 
             // Issue 15: Read maxSteps from the task's server response
             // instead of hardcoding 50, which could exceed free-tier limits.
             // The /answer response includes the task's tier max; fall back
             // to a safe cap if it's missing.
             const taskMaxSteps = answerResp.tier?.maxSteps || 50;
-            return await runStepLoop({ taskId: pending.taskId, state, currentStep: answerResp.step, maxSteps: taskMaxSteps });
+            return await runStepLoop({ taskId: pending.taskId, state, currentStep: answerResp.step, maxSteps: taskMaxSteps, source: 'chat_reply', prompt: pending.reply });
         } finally {
             stopKeepalive();
+            stopSwKeepalive();
         }
     }
 
@@ -654,6 +836,17 @@
         if (alarm && alarm.name === ALARM_NAME) {
             onTick().catch(err => console.error('[GE bg-agent] tick error:', err));
         }
+        // The SW keepalive alarm just needs to fire — doing so resets the idle
+        // timer and prevents Chrome from suspending the worker mid-task.
+        // We also piggy-back an opportunistic tick here.
+        if (alarm && alarm.name === GE_KA_ALARM) {
+            // Trivial I/O to reset idle timer
+            chrome.alarms.get(ALARM_NAME, () => {});
+            // If we somehow lost track of running, let the loop self-recover
+            if (!_running) {
+                onTick().catch(() => {});
+            }
+        }
     });
 
     // ============================================
@@ -700,7 +893,19 @@
     chrome.runtime.onInstalled.addListener(ensureAlarm);
     if (chrome.runtime.onStartup) chrome.runtime.onStartup.addListener(ensureAlarm);
     // Also do an immediate-ish first tick after the worker wakes.
-    setTimeout(() => { ensureAlarm(); onTick().catch(() => {}); }, 3000);
+    // Before that: clear any stale running:true from a previously-killed SW.
+    setTimeout(() => {
+        // If the previous SW was killed while running, storage might still say
+        // running:true. Since _running is always false at SW startup, clear it.
+        chrome.storage.local.get([BG_STATUS_KEY], (d) => {
+            if (d[BG_STATUS_KEY] && d[BG_STATUS_KEY].running) {
+                console.log('[GE bg-agent] Clearing stale running:true from previous SW instance');
+                writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'sw_restarted' });
+            }
+        });
+        ensureAlarm();
+        onTick().catch(() => {});
+    }, 3000);
 
     // Expose for debugging / other modules
     globalThis.GE_BG_AGENT = {

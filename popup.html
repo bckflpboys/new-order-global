@@ -958,6 +958,372 @@
             color: var(--primary);
             font-weight: 600;
         }
+        /* === Inner Tab Switcher (Tools / Agent Monitor) === */
+        .inner-tab-bar {
+            margin-bottom: 18px;
+            position: sticky;
+            top: -24px;
+            z-index: 10;
+            background: var(--surface-container-low);
+            margin-left: -24px;
+            margin-right: -24px;
+            padding: 12px 24px 0;
+        }
+
+        .inner-tab-track {
+            display: flex;
+            background: var(--surface-container);
+            border-radius: 14px;
+            padding: 4px;
+            position: relative;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.12);
+            border: 1px solid var(--ghost-border);
+            overflow: hidden;
+        }
+
+        .inner-tab-pill {
+            position: absolute;
+            top: 4px;
+            bottom: 4px;
+            left: 4px;
+            width: calc(50% - 4px);
+            background: var(--surface-container-highest, #2a2a2a);
+            border-radius: 10px;
+            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.22), 0 0 0 1px rgba(255,255,255,0.06);
+            pointer-events: none;
+        }
+
+        .inner-tab-track.monitor-active .inner-tab-pill {
+            transform: translateX(calc(100% + 0px));
+        }
+
+        .inner-tab-btn {
+            flex: 1;
+            position: relative;
+            z-index: 1;
+            background: transparent;
+            border: none;
+            padding: 9px 12px;
+            font-family: var(--font-label);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            color: var(--on-surface-muted);
+            cursor: pointer;
+            border-radius: 10px;
+            transition: color 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            text-transform: uppercase;
+        }
+
+        .inner-tab-btn.active {
+            color: var(--on-surface);
+        }
+
+        .inner-tab-btn svg {
+            width: 13px;
+            height: 13px;
+            opacity: 0.6;
+            transition: opacity 0.25s ease;
+        }
+
+        .inner-tab-btn.active svg {
+            opacity: 1;
+        }
+
+        /* Status dot on Monitor tab when running */
+        .monitor-tab-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+            flex-shrink: 0;
+            display: none;
+        }
+
+        .monitor-tab-dot.visible {
+            display: block;
+            animation: pulse-green 1.8s infinite;
+        }
+
+        /* Inner panels that slide */
+        .inner-panels-wrap {
+            overflow: hidden;
+            position: relative;
+        }
+
+        .inner-panels-track {
+            display: flex;
+            width: 200%;
+            transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .inner-panel {
+            width: 50%;
+            min-width: 0;
+        }
+
+        .inner-panels-track.show-monitor {
+            transform: translateX(-50%);
+        }
+
+        /* === Agent Monitor === */
+        .agent-status-card {
+            background: var(--surface-container-lowest);
+            border: 1px solid var(--ghost-border);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: var(--shadow-xs);
+        }
+
+        .agent-status-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .agent-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            border-radius: var(--radius-full);
+            font-family: var(--font-label);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+        }
+
+        .agent-status-badge.idle {
+            background: var(--surface-container);
+            color: var(--on-surface-muted);
+            border: 1px solid var(--ghost-border);
+        }
+
+        .agent-status-badge.running {
+            background: rgba(46, 125, 79, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(46, 125, 79, 0.25);
+        }
+
+        .agent-status-badge.awaiting {
+            background: rgba(109, 94, 0, 0.1);
+            color: var(--tertiary);
+            border: 1px solid rgba(109, 94, 0, 0.25);
+        }
+
+        .agent-status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .agent-status-badge.running .agent-status-dot {
+            background: var(--success);
+            box-shadow: 0 0 0 0 rgba(46, 125, 79, 0.4);
+            animation: pulse-green 1.8s infinite;
+        }
+
+        .agent-status-badge.idle .agent-status-dot {
+            background: var(--on-surface-muted);
+        }
+
+        .agent-status-badge.awaiting .agent-status-dot {
+            background: var(--tertiary);
+            animation: pulse-gold 2s infinite;
+        }
+
+        @keyframes pulse-gold {
+            0% { box-shadow: 0 0 0 0 rgba(109, 94, 0, 0.5); }
+            70% { box-shadow: 0 0 0 5px rgba(109, 94, 0, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(109, 94, 0, 0); }
+        }
+
+        .monitor-meta {
+            font-size: 11px;
+            color: var(--on-surface-muted);
+            line-height: 1.6;
+        }
+
+        .monitor-meta strong {
+            color: var(--on-surface-variant);
+            font-weight: 600;
+        }
+
+        .monitor-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .monitor-btn {
+            flex: 1;
+            padding: 9px;
+            border-radius: var(--radius-md);
+            font-family: var(--font-label);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            border: 1px solid var(--ghost-border-strong);
+            transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+        }
+
+        .monitor-btn.open-agent {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-container) 100%);
+            color: var(--on-primary);
+            border-color: var(--primary);
+        }
+
+        .monitor-btn.open-agent:hover {
+            background: var(--inverse-surface);
+            border-color: var(--inverse-surface);
+        }
+
+        .monitor-btn.stop-agent {
+            background: transparent;
+            color: var(--danger);
+            border-color: rgba(186, 26, 26, 0.3);
+        }
+
+        .monitor-btn.stop-agent:hover {
+            background: var(--error-container);
+            color: var(--on-error-container);
+            border-color: var(--danger);
+        }
+
+        .monitor-btn.stop-agent:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+        }
+
+        .step-feed {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .step-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            padding: 10px 12px;
+            background: var(--surface-container-lowest);
+            border: 1px solid var(--ghost-border);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-xs);
+            animation: stepIn 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        @keyframes stepIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .step-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            background: var(--surface-container);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            flex-shrink: 0;
+        }
+
+        .step-item.ok .step-icon { background: rgba(46, 125, 79, 0.08); }
+        .step-item.err .step-icon { background: rgba(186, 26, 26, 0.08); }
+
+        .step-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .step-action {
+            font-family: var(--font-label);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--primary);
+            margin-bottom: 2px;
+        }
+
+        .step-summary {
+            font-size: 12px;
+            color: var(--on-surface);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .step-meta {
+            font-size: 10px;
+            color: var(--on-surface-muted);
+            margin-top: 2px;
+        }
+
+        .step-err-text {
+            font-size: 10px;
+            color: var(--danger);
+            margin-top: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .monitor-section-title {
+            font-family: var(--font-label);
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--on-surface-muted);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .monitor-clear-btn {
+            background: transparent;
+            border: none;
+            font-family: var(--font-label);
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--on-surface-muted);
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: var(--radius-sm);
+            transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .monitor-clear-btn:hover {
+            background: var(--surface-container);
+            color: var(--primary);
+        }
+
+        .empty-monitor-msg {
+            padding: 32px 16px;
+            text-align: center;
+            color: var(--on-surface-muted);
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .empty-monitor-msg .em-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 
@@ -1013,16 +1379,17 @@
                 </div>
             </nav>
 
-            <div class="screens-container" id="horizontal-slider">
+            <div class="screens-container" id="horizontal-slider" style="width: 300%;">
                 <!-- History -->
-                <div class="screen">
+                <div class="screen" style="width: 33.333%;">
                     <div class="screen-title">Chat History</div>
                     <div id="history-container">
                         <!-- Chat history will be injected here -->
                     </div>
                 </div>
+
                 <!-- Main -->
-                <div class="screen">
+                <div class="screen" style="width: 33.333%;">
                     <div class="main-actions">
                         <div class="action-card primary" id="btn-create"><svg viewBox="0 0 24 24">
                                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
@@ -1040,21 +1407,82 @@
                                     d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41L9.25 5.35C8.66 5.59 8.12 5.92 7.63 6.29L5.24 5.33c-.22-.08-.47 0-.59.22L2.73 8.87c-.11.21-.07.47.13.61l2.03 1.58c-.05.3-.09.63-.09.94s.04.64.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .43-.17.47-.41l0.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.49-.12-.61l-2.03-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6s3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
                             </svg><span>Config</span></div>
                     </div>
-                    <div class="agent-action-card" id="btn-agent">
+
+                    <!-- Global Executive Button -->
+                    <div class="agent-action-card" id="btn-agent" style="margin-bottom: 14px;">
                         <svg viewBox="0 0 24 24">
                             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
                         </svg>
                         <span>Global Executive</span>
                     </div>
-                    <div class="screen-title" style="font-size:16px; margin-bottom: 16px;">Active Tools</div>
-                    <div id="tools-container">
-                        <div class="tool-card" style="opacity: 0.5;">
-                            <div class="tool-name">Loading...</div>
+
+                    <!-- Segmented Tab Bar: Active Tools | Agent Monitor -->
+                    <div class="inner-tab-bar">
+                        <div class="inner-tab-track" id="inner-tab-track">
+                            <div class="inner-tab-pill" id="inner-tab-pill"></div>
+                            <button class="inner-tab-btn active" id="tab-btn-tools">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
+                                Active Tools
+                            </button>
+                            <button class="inner-tab-btn" id="tab-btn-monitor">
+                                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14H7v-2h5v2zm5-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                                Monitor
+                                <span class="monitor-tab-dot" id="monitor-tab-dot"></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Sliding inner panels -->
+                    <div class="inner-panels-wrap">
+                        <div class="inner-panels-track" id="inner-panels-track">
+                            <!-- Panel 1: Active Tools -->
+                            <div class="inner-panel" id="inner-panel-tools">
+                                <div id="tools-container">
+                                    <div class="tool-card" style="opacity: 0.5;">
+                                        <div class="tool-name">Loading...</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Panel 2: Agent Monitor -->
+                            <div class="inner-panel" id="inner-panel-monitor">
+                                <!-- Status Card -->
+                                <div class="agent-status-card">
+                                    <div class="agent-status-row">
+                                        <span class="agent-status-badge idle" id="monitor-badge">
+                                            <span class="agent-status-dot"></span>
+                                            <span id="monitor-badge-text">Idle</span>
+                                        </span>
+                                    </div>
+                                    <div class="monitor-meta" id="monitor-meta">No background task running.</div>
+                                    <div class="monitor-actions">
+                                        <button class="monitor-btn open-agent" id="monitor-open-agent">
+                                            Open Full Agent
+                                        </button>
+                                        <button class="monitor-btn stop-agent" id="monitor-stop-btn" disabled>
+                                            Stop Agent
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Step Feed -->
+                                <div class="monitor-section-title">
+                                    Live Steps
+                                    <button class="monitor-clear-btn" id="monitor-clear-log">Clear</button>
+                                </div>
+                                <div class="step-feed" id="monitor-step-feed">
+                                    <div class="empty-monitor-msg">
+                                        <div class="em-icon">🤖</div>
+                                        <div>Background agent steps will appear here in real time.</div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <!-- Settings -->
-                <div class="screen">
+
+                <!-- Settings / Integrations -->
+                <div class="screen" style="width: 33.333%;">
                     <div class="screen-title">Integrations</div>
                     <div class="notification-item">
                         <div class="notification-icon">🎞️</div>

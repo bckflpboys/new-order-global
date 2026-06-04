@@ -36,13 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
         btnLeft.innerHTML = hPos === 0 ? '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.41z"/></svg>';
         btnRight.innerHTML = hPos === 2 ? '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>';
         
-        // Update Active States (Make them Red when selected)
+        // Update Active States
         btnLeft.classList.toggle('active', hPos === 0);
         btnRight.classList.toggle('active', hPos === 2);
     }
 
-    btnLeft.addEventListener('click', () => { hPos = hPos === 0 ? 1 : 0; updateH(); });
-    btnRight.addEventListener('click', () => { hPos = hPos === 2 ? 1 : 2; updateH(); });
+    btnLeft.addEventListener('click', () => { hPos = hPos === 0 ? 1 : hPos - 1; updateH(); });
+    btnRight.addEventListener('click', () => { hPos = hPos === 2 ? 1 : hPos + 1; updateH(); });
 
     // --- Navigation ---
     const open = (u) => chrome.tabs.create({ url: chrome.runtime.getURL(u) });
@@ -52,6 +52,34 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-account').onclick = () => open('dashboard/billing.html');
     document.getElementById('btn-settings').onclick = () => open('dashboard/settings.html');
     document.getElementById('btn-yt-settings').onclick = () => chrome.runtime.openOptionsPage();
+
+    // --- Inner Tab Switcher (Active Tools <-> Agent Monitor) ---
+    const innerTrack     = document.getElementById('inner-tab-track');
+    const innerPanels    = document.getElementById('inner-panels-track');
+    const tabBtnTools    = document.getElementById('tab-btn-tools');
+    const tabBtnMonitor  = document.getElementById('tab-btn-monitor');
+    let innerTab = 'tools'; // 'tools' | 'monitor'
+
+    function switchInnerTab(to) {
+        innerTab = to;
+        const showMonitor = to === 'monitor';
+
+        // Slide the pill
+        innerTrack.classList.toggle('monitor-active', showMonitor);
+
+        // Slide the content panels
+        innerPanels.classList.toggle('show-monitor', showMonitor);
+
+        // Active styling on buttons
+        tabBtnTools.classList.toggle('active', !showMonitor);
+        tabBtnMonitor.classList.toggle('active', showMonitor);
+
+        // Lazy-init the monitor on first switch
+        if (showMonitor) initAgentMonitor();
+    }
+
+    tabBtnTools.addEventListener('click', () => switchInnerTab('tools'));
+    tabBtnMonitor.addEventListener('click', () => switchInnerTab('monitor'));
 
     // =========================================================
     // Toast Notification System
@@ -1185,6 +1213,160 @@ document.addEventListener('DOMContentLoaded', () => {
                 return false;
             }
         });
+    }
+
+    // =========================================================
+    // Agent Monitor
+    // =========================================================
+    const BG_STATUS_KEY = 'ge_bg_agent_status';
+    const BG_LOG_KEY    = 'ge_bg_agent_log';
+    const BG_ABORT_KEY  = 'ge_bg_agent_abort';
+
+    // Action → emoji map for step icons
+    const ACTION_ICONS = {
+        goto:         '🌐', click:        '👆', type:         '⌨️',
+        scroll:       '↕️', extract:      '📋', readPage:     '👁️',
+        openTab:      '➕', closeTab:     '❌', switchTab:    '🔀',
+        wait:         '⏳', think:        '🧠', message:      '💬',
+        done:         '✅', awaiting_user:'💭', aborted:      '🛑',
+        started:      '▶️', resumed:      '🔄', download:     '⬇️',
+        readEmail:    '📧', screenshot:   '📷', pressKey:     '⌨️',
+        storeData:    '💾', uploadFiles:  '📤', useTool:      '🔧',
+        default:      '⚙️'
+    };
+
+    function getActionIcon(action) {
+        return ACTION_ICONS[action] || ACTION_ICONS.default;
+    }
+
+    function formatRelTime(ts) {
+        if (!ts) return '';
+        const diff = Date.now() - ts;
+        if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
+        if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+        return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+
+    let _monitorStorageListener = null;
+    let _monitorInitialised = false;
+
+    function renderMonitorStatus(status) {
+        const badge = document.getElementById('monitor-badge');
+        const badgeText = document.getElementById('monitor-badge-text');
+        const meta = document.getElementById('monitor-meta');
+        const stopBtn = document.getElementById('monitor-stop-btn');
+        const monitorDot = document.getElementById('monitor-tab-dot');
+        if (!badge || !meta || !stopBtn) return;
+
+        const running = status && status.running;
+        const awaiting = status && status.lastResult === 'awaiting_user' && !running;
+
+        badge.className = 'agent-status-badge ' + (running ? 'running' : awaiting ? 'awaiting' : 'idle');
+        badgeText.textContent = running ? 'Running' : awaiting ? 'Awaiting Reply' : 'Idle';
+        stopBtn.disabled = !running;
+
+        // Show pulsing dot on the tab button when running
+        if (monitorDot) monitorDot.classList.toggle('visible', !!running);
+
+        if (!status || !status.taskId) {
+            meta.innerHTML = '<span>No background task running.</span>';
+            return;
+        }
+
+        const src = status.source ? `<strong>${status.source}</strong>` : 'background';
+        const prompt = status.prompt ? `<br>"${String(status.prompt).slice(0, 90)}${status.prompt.length > 90 ? '…' : ''}"` : '';
+        const step = status.stepNumber ? ` · Step ${status.stepNumber}` : '';
+        const action = status.lastAction ? ` · ${status.lastAction}` : '';
+        const time = status.lastStepAt ? `<br>Last activity: ${formatRelTime(status.lastStepAt)}` : '';
+        const result = status.lastResult && !running ? `<br>Result: <strong>${status.lastResult}</strong>` : '';
+
+        meta.innerHTML = `From: ${src}${step}${action}${prompt}${time}${result}`;
+    }
+
+    function renderMonitorLog(log) {
+        const feed = document.getElementById('monitor-step-feed');
+        if (!feed) return;
+
+        if (!log || log.length === 0) {
+            feed.innerHTML = `<div class="empty-monitor-msg"><div class="em-icon">🤖</div><div>Background agent steps will appear here in real time.</div></div>`;
+            return;
+        }
+
+        feed.innerHTML = log.map(entry => {
+            const cls = entry.ok ? 'ok' : 'err';
+            const icon = getActionIcon(entry.action);
+            const time = formatRelTime(entry.t);
+            const ms = entry.ms ? ` · ${entry.ms}ms` : '';
+            const errLine = entry.error ? `<div class="step-err-text">${String(entry.error).slice(0, 100)}</div>` : '';
+            const step = entry.stepNumber != null ? `Step ${entry.stepNumber} · ` : '';
+            return `
+                <div class="step-item ${cls}">
+                    <div class="step-icon">${icon}</div>
+                    <div class="step-body">
+                        <div class="step-action">${entry.action || '—'}</div>
+                        <div class="step-summary">${String(entry.summary || '').slice(0, 90)}</div>
+                        <div class="step-meta">${step}${time}${ms}</div>
+                        ${errLine}
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function initAgentMonitor() {
+        if (_monitorInitialised) return; // Only set up listener once
+        _monitorInitialised = true;
+
+        // Initial load from storage
+        chrome.storage.local.get([BG_STATUS_KEY, BG_LOG_KEY], (data) => {
+            renderMonitorStatus(data[BG_STATUS_KEY] || null);
+            renderMonitorLog(data[BG_LOG_KEY] || []);
+        });
+
+        // Live updates
+        _monitorStorageListener = (changes, area) => {
+            if (area !== 'local') return;
+            if (changes[BG_STATUS_KEY]) {
+                renderMonitorStatus(changes[BG_STATUS_KEY].newValue || null);
+            }
+            if (changes[BG_LOG_KEY]) {
+                renderMonitorLog(changes[BG_LOG_KEY].newValue || []);
+            }
+        };
+        chrome.storage.onChanged.addListener(_monitorStorageListener);
+
+        // Open Full Agent button
+        const openBtn = document.getElementById('monitor-open-agent');
+        if (openBtn) {
+            openBtn.onclick = () => open('agent/agent.html');
+        }
+
+        // Stop Agent button — sets abort flag in storage
+        const stopBtn = document.getElementById('monitor-stop-btn');
+        if (stopBtn) {
+            stopBtn.onclick = async () => {
+                stopBtn.textContent = 'Stopping…';
+                stopBtn.disabled = true;
+                await chrome.storage.local.set({ [BG_ABORT_KEY]: true });
+                showToast('Stop signal sent to agent', 'warning', 4000, false);
+                setTimeout(() => {
+                    stopBtn.textContent = 'Stop Agent';
+                    // Re-enable only if still running
+                    chrome.storage.local.get([BG_STATUS_KEY], (d) => {
+                        stopBtn.disabled = !(d[BG_STATUS_KEY] && d[BG_STATUS_KEY].running);
+                    });
+                }, 3000);
+            };
+        }
+
+        // Clear Log button
+        const clearBtn = document.getElementById('monitor-clear-log');
+        if (clearBtn) {
+            clearBtn.onclick = () => {
+                chrome.storage.local.remove([BG_LOG_KEY]);
+                renderMonitorLog([]);
+            };
+        }
     }
 
     // =========================================================
