@@ -1235,6 +1235,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
         showToolPreview(result.tool);
+
+        // ============================================
+        // "How it works" info bubble — shown after every new tool creation
+        // Built from the tool's own metadata, no extra API call needed
+        // ============================================
+        setTimeout(() => addHowItWorksBubble(result.tool), 350);
       } else if (result.message) {
         const creditsUsed = result.usage?.creditsUsed || 0;
         totalCreditsUsed += creditsUsed;
@@ -1475,6 +1481,73 @@ document.addEventListener('DOMContentLoaded', async () => {
     chatMessages.appendChild(msg);
     chatMessages.scrollTop = chatMessages.scrollHeight;
     return msg;
+  }
+
+  // ============================================
+  // addHowItWorksBubble — Shows a compact info card after a tool is generated
+  // explaining how to use the tool. Built purely from tool metadata — no API call.
+  // ============================================
+  function addHowItWorksBubble(tool) {
+    if (!tool) return;
+
+    const tips = [];
+    const name = tool.name || 'this tool';
+    const desc = tool.description || '';
+    const sites = Array.isArray(tool.targetSites) && tool.targetSites.length
+      ? tool.targetSites
+      : ['*://*/*'];
+
+    const isAllSites = sites.some(s => s === '*://*/*' || s === '<all_urls>');
+    const siteList = isAllSites
+      ? 'any website'
+      : sites.map(s => s.replace(/\*:\/\/\*?\.?/, '').replace(/\/\*$/, '')).slice(0, 3).join(', ');
+
+    // Tip 1 — how to activate
+    tips.push(`<li><strong>Activate it</strong> — Go to ${siteList} and make sure <em>${escapeHtml(name)}</em> is switched <strong>On</strong> in your tools sidebar. It loads automatically when you visit the target site.</li>`);
+
+    // Tip 2 — what it does (from description, trimmed)
+    const shortDesc = desc.length > 180 ? desc.slice(0, 177) + '…' : desc;
+    if (shortDesc) {
+      tips.push(`<li><strong>What it does</strong> — ${escapeHtml(shortDesc)}</li>`);
+    }
+
+    // Tip 3 — keyboard shortcuts (scan description for shortcut hints)
+    const shortcutMatch = desc.match(/\b(Alt|Ctrl|Shift)\s*\+\s*[A-Za-z0-9]/i);
+    if (shortcutMatch) {
+      tips.push(`<li><strong>Keyboard shortcut</strong> — Press <code>${escapeHtml(shortcutMatch[0])}</code> to quickly toggle or trigger the tool.</li>`);
+    }
+
+    // Tip 4 — data/storage hint
+    const hasStorage = tool.storageSchema && Object.keys(tool.storageSchema).length > 0;
+    const hasDashboard = !!(tool.dashboardHTML && tool.dashboardHTML.length > 100);
+    if (hasStorage || hasDashboard) {
+      tips.push(`<li><strong>Your data</strong> — Everything the tool collects is saved locally and synced to your account. View it anytime from <strong>My Tools → ${escapeHtml(name)} → Dashboard</strong>.</li>`);
+    }
+
+    // Tip 5 — iterate hint
+    tips.push(`<li><strong>Want changes?</strong> — Just tell me what to adjust. Type <em>"make the panel smaller"</em>, <em>"add a search filter"</em>, or anything else and I'll update the tool instantly.</li>`);
+
+    const bubble = document.createElement('div');
+    bubble.className = 'message ai how-it-works-bubble';
+    bubble.style.cssText = 'animation: fadeInUp 0.4s ease;';
+
+    bubble.innerHTML = `
+      <div class="message-avatar" style="background:rgba(30,120,210,0.12);color:#1e6fd4;">ℹ</div>
+      <div class="message-bubble" style="border-left:3px solid rgba(30,120,210,0.35);background:rgba(30,120,210,0.04);">
+        <div class="message-content">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <span style="font-weight:700;font-size:13px;color:#1b1c1d;">How to use <em>${escapeHtml(name)}</em></span>
+          </div>
+          <ul style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px;font-size:13px;line-height:1.55;color:#434653;">
+            ${tips.join('')}
+          </ul>
+        </div>
+      </div>
+    `;
+
+    chatMessages.appendChild(bubble);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return bubble;
   }
 
   function formatMessage(text) {

@@ -704,6 +704,32 @@ body {
   from { opacity: 0; transform: translateY(8px); }
 }
 
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* How It Works bubble — info-tinted variation */
+.how-it-works-bubble {
+  max-width: 90%;
+}
+
+.how-it-works-bubble .message-avatar {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.how-it-works-bubble ul li code {
+  background: rgba(30, 111, 212, 0.1);
+  color: #1e6fd4;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+
+
 .message.user {
   align-self: flex-end;
   flex-direction: row-reverse;
