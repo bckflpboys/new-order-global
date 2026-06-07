@@ -37,7 +37,14 @@
         {
             "resources": [
                 "icons/logo.png",
-                "core/tool-runtime.js"
+                "core/tool-runtime.js",
+                "core/doc-engine.js",
+                "core/pdf-sandbox.js",
+                "libs/pdf-lib.min.js",
+                "libs/xlsx.mini.min.js",
+                "libs/pizzip.min.js",
+                "libs/docxtemplater.js",
+                "libs/mammoth.browser.min.js"
             ],
             "matches": [
                 "<all_urls>"

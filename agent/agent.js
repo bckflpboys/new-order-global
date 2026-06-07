@@ -1901,28 +1901,423 @@
           // === Server-only action safety net ===
           // These actions are executed entirely on the backend; the server
           // is supposed to rewrite them to a `message` (or handle the side
-          // effect like ledger update / SERP fetch / file capture) BEFORE
-          // they reach the extension. If a rewrite slips through (e.g. an
-          // older server build, /start before its server-only-action
-          // guard, or a network reordering), dispatching the raw action
-          // to the in-tab runtime would return "Unknown action: X" and
-          // fail the step. We intercept here and return a success no-op
-          // so the agent loop continues and the server can re-handle on
-          // the next /step call.
+          // effect like ledger update / SERP fetch) BEFORE they reach the
+          // extension. If a rewrite slips through, dispatching the raw action
+          // to the in-tab runtime would return "Unknown action: X" and fail.
+          // NOTE: captureFile, editPdf, fillPdf, pdfPages etc. are NOT in
+          // this list — they have real client-side handlers below.
           const SERVER_ONLY_ACTIONS = new Set([
             'setMilestones', 'completeMilestone', 'addMilestone',
             'webSearch', 'researchNote',
-            'captureFile', 'viewCapturedFile',
-            'pdfPages', 'viewPdfPages', 'editPdf', 'fillPdf',
             'readFile', 'createTool', 'spawnSubAgent', 'useTool'
           ]);
           if (SERVER_ONLY_ACTIONS.has(action)) {
             result = {
               success: true,
               serverOnly: true,
-              note: `Server-only action "${action}" was acknowledged on the client. The server handles its side effect; on your next step the relevant state (ledger / research notes / captured file / etc.) will be reflected in your context.`
+              note: `Server-only action "${action}" was acknowledged on the client. The server handles its side effect; on your next step the relevant state (ledger / research notes / etc.) will be reflected in your context.`
             };
+
+          // ============================================
+          // captureFile — fetch a URL with the user's cookies and store it.
+          // Routes to background.js runCaptureFile() which already handles
+          // the full fetch + OBS upload flow. This was previously a fake
+          // no-op in SERVER_ONLY_ACTIONS — now it executes for real.
+          // ============================================
+          } else if (action === 'captureFile') {
+            result = await (async () => {
+              const url = (params?.url || '').trim();
+              if (!url || !/^https?:\/\//i.test(url)) {
+                return { success: false, error: 'captureFile: url param is required and must be an absolute https:// URL.' };
+              }
+              // Inject taskId so background.js can include it in the OBS upload.
+              const cf = await sendToBackground('ge-execute-in-tab', {
+                tabId: currentTabId,
+                action: 'captureFile',
+                params: { ...params, taskId: currentTaskId }
+              });
+              if (cf?.success && cf.result) return cf.result;
+              return cf?.result || cf || { success: false, error: 'captureFile failed' };
+            })();
+
+          // ============================================
+          // viewCapturedFile — used after captureFile to get a signed URL
+          // for a previously stored file. Server handles this; we forward.
+          // ============================================
+          } else if (action === 'viewCapturedFile') {
+            // This is legitimately server-handled (just a signed URL lookup).
+            result = {
+              success: true,
+              serverOnly: true,
+              note: 'viewCapturedFile: Server will resolve the signed URL on the next step.'
+            };
+
+          // ============================================
+          // pdfPages / viewPdfPages — extract page metadata + field list
+          // from a PDF using DocEngine (pdf-lib) in the browser.
+          // ============================================
+          } else if (action === 'pdfPages' || action === 'viewPdfPages') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') {
+                return { success: false, error: 'DocEngine not loaded. pdf-lib may not have initialised yet.' };
+              }
+              const fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src;
+              if (!fileUrl) {
+                return { success: false, error: 'pdfPages: provide url (the PDF URL to inspect).' };
+              }
+              const meta = await DocEngine.loadPdf(fileUrl);
+              if (!meta.ok) return { success: false, error: meta.error };
+              return {
+                success: true,
+                pageCount: meta.pageCount,
+                fields: meta.fields,
+                hasAcroForm: meta.hasAcroForm,
+                title: meta.title,
+                author: meta.author,
+                bytes: meta.bytes,
+                hint: meta.fields.length > 0
+                  ? `PDF has ${meta.fields.length} AcroForm field(s). Call editPdf with formFields to fill them.`
+                  : 'PDF has no AcroForm fields — use overlays to draw text at coordinates.'
+              };
+            })();
+
+          // ============================================
+          // editPdf / fillPdf — fill AcroForm fields and/or draw text
+          // overlays using pdf-lib in the browser. Shows a live sandbox
+          // card in the chat view as fields are filled.
+          // ============================================
+          } else if (action === 'editPdf' || action === 'fillPdf') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') {
+                return { success: false, error: 'DocEngine not loaded. pdf-lib may not have initialised yet.' };
+              }
+              const fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src;
+              if (!fileUrl) {
+                return { success: false, error: 'editPdf: provide url (the source PDF URL).' };
+              }
+
+              const edits = {
+                formFields:  params?.formFields || params?.fields || {},
+                overlays:    params?.overlays   || [],
+                flattenForm: params?.flattenForm || false
+              };
+
+              const fieldEntries = Object.entries(edits.formFields);
+              const filename = params?.filename || params?.outputFilename
+                || fileUrl.split('/').pop().split('?')[0] || 'edited.pdf';
+
+              // --- Create sandbox card in the current step entry ---
+              let sandbox = null;
+              const lastEntry = stepLog.querySelector('.step-entry:last-of-type');
+              if (lastEntry && typeof PdfSandbox !== 'undefined') {
+                // First get field list for the sandbox UI
+                let fieldList = [];
+                try {
+                  const meta = await DocEngine.loadPdf(fileUrl);
+                  if (meta.ok) fieldList = meta.fields;
+                } catch { /* use empty list */ }
+
+                sandbox = PdfSandbox.create(lastEntry.querySelector('.step-body') || lastEntry, {
+                  filename,
+                  pageCount: 0, // updated after load
+                  fields: fieldList.length ? fieldList : fieldEntries.map(([n]) => ({ name: n, type: 'text' })),
+                  docType: 'pdf'
+                });
+                sandbox.setReading();
+              }
+
+              // Mark each field as "filling" sequentially with a short delay
+              // so the user can watch the agent work in real-time.
+              const animateFields = async (fields, getStatus) => {
+                let filled = 0;
+                const total = fields.length;
+                for (const [name, value] of fields) {
+                  if (sandbox) {
+                    sandbox.setFieldStatus(name, 'filling');
+                    sandbox.setProgress(filled, total);
+                    await sleep(80); // brief visual pause per field
+                  }
+                  const status = getStatus ? getStatus(name) : 'done';
+                  if (sandbox) sandbox.setFieldStatus(name, status, String(value).slice(0, 40));
+                  filled++;
+                  if (sandbox) sandbox.setProgress(filled, total);
+                }
+              };
+
+              if (sandbox) sandbox.setFilling();
+
+              // Run the actual edit
+              const editResult = await DocEngine.editPdf(fileUrl, edits);
+
+              if (!editResult.ok) {
+                if (sandbox) sandbox.setError(editResult.error);
+                return { success: false, error: editResult.error };
+              }
+
+              // Animate field completion based on actual results
+              const skippedSet = new Set((editResult.skippedFields || []).map(s => s.field));
+              await animateFields(fieldEntries, (name) => skippedSet.has(name) ? 'skipped' : 'done');
+
+              // Show the finished PDF in the sandbox embed
+              if (sandbox) sandbox.showResult(editResult.pdfBytes, filename);
+
+              // Also auto-download the result so the user has it immediately.
+              // The agent can still upload it separately if needed.
+              DocEngine.downloadFile(editResult.pdfBytes, filename, 'application/pdf');
+
+              // Convert to base64 so the server can attach it to the task context
+              // for follow-up actions (uploadFile, notifyUser, etc.)
+              const b64 = DocEngine.bytesToBase64(editResult.pdfBytes);
+
+              return {
+                success: true,
+                filledFields: editResult.filledFields,
+                skippedFields: editResult.skippedFields,
+                drawnOverlays: editResult.drawnOverlays,
+                pageCount: editResult.pageCount,
+                filename,
+                pdfBase64: b64.slice(0, 100) + '…', // truncated for prompt — don't flood context
+                pdfSize: editResult.pdfBytes.length,
+                hint: `PDF edited client-side and downloaded as "${filename}". ${editResult.filledFields.length} fields filled. ${editResult.skippedFields.length} skipped. If you need to upload it, tell the user to use the file from their Downloads folder.`
+              };
+            })();
+
+          // ============================================
+          // readDocx — extract text, HTML, headings, and tables from a .docx
+          // Uses mammoth.js for faithful extraction.
+          // ============================================
+          } else if (action === 'readDocx') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') return { success: false, error: 'DocEngine not loaded.' };
+              const fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src;
+              if (!fileUrl) return { success: false, error: 'readDocx: provide url (the .docx file URL).' };
+              if (!DocEngine.isMammothReady()) return { success: false, error: 'mammoth.js not loaded. Make sure libs/mammoth.browser.min.js is included.' };
+
+              const r = await DocEngine.readDocx(fileUrl);
+              if (!r.ok) return { success: false, error: r.error };
+              return {
+                success: true,
+                text: r.text,
+                html: r.html,
+                headings: r.headings,
+                tables: r.tables,
+                wordCount: r.wordCount,
+                warnings: r.warnings,
+                hint: `Word document read. ${r.wordCount} words, ${r.headings.length} heading(s), ${r.tables.length} table(s). Use editDocx to modify it.`
+              };
+            })();
+
+          // ============================================
+          // editDocx — fill a Word document template OR find-and-replace text.
+          //
+          // TEMPLATE mode (doc has {placeholder} tags):
+          //   { action: "editDocx", params: { url: "...", data: { "name": "John" }, mode: "template" } }
+          //
+          // FIND & REPLACE mode (any .docx, no special tags needed):
+          //   { action: "editDocx", params: { url: "...", replacements: [ { find: "OLD", replace: "NEW" } ] } }
+          //
+          // Shows a live sandbox card in chat as substitutions are applied.
+          // ============================================
+          } else if (action === 'editDocx') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') return { success: false, error: 'DocEngine not loaded.' };
+              const fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src;
+              if (!fileUrl) return { success: false, error: 'editDocx: provide url (the .docx file URL).' };
+              if (!DocEngine.isPizZipReady()) return { success: false, error: 'PizZip not loaded. Make sure libs/pizzip.min.js is included.' };
+
+              const filename = params?.filename || params?.outputFilename
+                || fileUrl.split('/').pop().split('?')[0].replace(/\.docx$/i, '') + '-edited.docx' || 'edited.docx';
+
+              const hasData         = params?.data && Object.keys(params.data).length > 0;
+              const hasReplacements = Array.isArray(params?.replacements) && params.replacements.length > 0;
+              const items = hasData
+                ? Object.entries(params.data)
+                : (params?.replacements || []).map(r => [r.find, r.replace]);
+
+              // --- Sandbox card ---
+              let sandbox = null;
+              const lastEntry = stepLog.querySelector('.step-entry:last-of-type');
+              if (lastEntry && typeof PdfSandbox !== 'undefined' && items.length > 0) {
+                sandbox = PdfSandbox.create(lastEntry.querySelector('.step-body') || lastEntry, {
+                  filename,
+                  pageCount: 1,
+                  fields: items.map(([k]) => ({ name: String(k), type: 'text' })),
+                  docType: 'docx'
+                });
+                sandbox.setReading();
+              }
+
+              const editResult = await DocEngine.editDocx(fileUrl, params);
+
+              if (!editResult.ok) {
+                if (sandbox) sandbox.setError(editResult.error);
+                return { success: false, error: editResult.error };
+              }
+
+              // Animate replacements
+              if (sandbox) {
+                sandbox.setFilling();
+                let done = 0;
+                for (const [key, val] of items) {
+                  sandbox.setFieldStatus(String(key), 'filling');
+                  sandbox.setProgress(done, items.length);
+                  await sleep(60);
+                  sandbox.setFieldStatus(String(key), 'done', String(val ?? '').slice(0, 40));
+                  done++;
+                  sandbox.setProgress(done, items.length);
+                }
+                // Show download for docx (no embed — browser can't preview docx inline)
+                sandbox.showResult(null, filename);
+              }
+
+              // Download the finished .docx
+              const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+              DocEngine.downloadFile(editResult.docxBytes, filename, DOCX_MIME);
+
+              return {
+                success: true,
+                mode: editResult.mode,
+                replaced: editResult.replaced,
+                filename,
+                docxSize: editResult.docxBytes.length,
+                hint: editResult.hint + ` Downloaded as "${filename}".`
+              };
+            })();
+
+          // ============================================
+          // createDocx — build a new Word document from scratch.
+          // { action: "createDocx", params: { title, paragraphs: [ { text, bold?, italic?, fontSize? } ], tables?: [...] } }
+          // ============================================
+          } else if (action === 'createDocx') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') return { success: false, error: 'DocEngine not loaded.' };
+              if (!DocEngine.isPizZipReady()) return { success: false, error: 'PizZip not loaded.' };
+
+              const filename = params?.filename || (params?.title || 'document').replace(/[^a-zA-Z0-9\-_ ]/g, '').trim() + '.docx';
+              const content = {
+                title:      params?.title || 'New Document',
+                paragraphs: params?.paragraphs || params?.content || [],
+                tables:     params?.tables || []
+              };
+
+              // Sandbox
+              let sandbox = null;
+              const lastEntry = stepLog.querySelector('.step-entry:last-of-type');
+              if (lastEntry && typeof PdfSandbox !== 'undefined') {
+                sandbox = PdfSandbox.create(lastEntry.querySelector('.step-body') || lastEntry, {
+                  filename,
+                  pageCount: 1,
+                  fields: content.paragraphs.slice(0, 5).map(p => ({ name: (p.text || '').slice(0, 40), type: 'text' })),
+                  docType: 'docx'
+                });
+                sandbox.setStatus('Creating…');
+              }
+
+              const r = await DocEngine.createDocx(content, params);
+              if (!r.ok) {
+                if (sandbox) sandbox.setError(r.error);
+                return { success: false, error: r.error };
+              }
+
+              const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+              if (sandbox) sandbox.showResult(null, filename);
+              DocEngine.downloadFile(r.docxBytes, filename, DOCX_MIME);
+
+              return {
+                success: true,
+                filename,
+                paragraphCount: r.paragraphCount,
+                docxSize: r.docxBytes.length,
+                hint: `Word document created with ${r.paragraphCount} paragraph(s) and downloaded as "${filename}".`
+              };
+            })();
+
+          // ============================================
+          // loadSheet — read a spreadsheet and return sheet names + preview
+          // { action: "loadSheet", params: { url } }
+          // ============================================
+          } else if (action === 'loadSheet' || action === 'readSheet') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') return { success: false, error: 'DocEngine not loaded.' };
+              if (!DocEngine.isXlsxReady()) return { success: false, error: 'SheetJS not loaded.' };
+              const fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src;
+              if (!fileUrl) return { success: false, error: 'loadSheet: provide url (the spreadsheet URL).' };
+              const r = await DocEngine.loadSheet(fileUrl);
+              if (!r.ok) return { success: false, error: r.error };
+              return {
+                success: true,
+                sheetNames: r.sheetNames,
+                sheets: r.sheets,
+                hint: `Spreadsheet loaded: ${r.sheetNames.length} sheet(s). Use editSheet to modify cells.`
+              };
+            })();
+
+          // ============================================
+          // editSheet — fill cells in a spreadsheet
+          // { action: "editSheet", params: { url, sheetName?, cells: [ { ref: 'A1', value: 'x' } ], rows?: [...] } }
+          // ============================================
+          } else if (action === 'editSheet') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') return { success: false, error: 'DocEngine not loaded.' };
+              if (!DocEngine.isXlsxReady()) return { success: false, error: 'SheetJS not loaded.' };
+              const fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src;
+              if (!fileUrl) return { success: false, error: 'editSheet: provide url (the .xlsx file URL).' };
+
+              const filename = params?.filename || params?.outputFilename
+                || fileUrl.split('/').pop().split('?')[0].replace(/\.(xlsx|xls|csv)$/i, '') + '-edited.xlsx' || 'edited.xlsx';
+
+              const cells = params?.cells || [];
+              const rows  = params?.rows  || [];
+
+              // Sandbox
+              let sandbox = null;
+              const lastEntry = stepLog.querySelector('.step-entry:last-of-type');
+              if (lastEntry && typeof PdfSandbox !== 'undefined' && cells.length > 0) {
+                sandbox = PdfSandbox.create(lastEntry.querySelector('.step-body') || lastEntry, {
+                  filename,
+                  pageCount: 1,
+                  fields: cells.slice(0, 20).map(c => ({ name: c.ref, type: 'text' })),
+                  docType: 'xlsx'
+                });
+                sandbox.setReading();
+              }
+
+              const r = await DocEngine.editSheet(fileUrl, params);
+              if (!r.ok) {
+                if (sandbox) sandbox.setError(r.error);
+                return { success: false, error: r.error };
+              }
+
+              // Animate cells
+              if (sandbox) {
+                sandbox.setFilling();
+                let done = 0;
+                for (const cell of cells.slice(0, 20)) {
+                  sandbox.setFieldStatus(cell.ref, 'filling');
+                  sandbox.setProgress(done, cells.length);
+                  await sleep(60);
+                  sandbox.setFieldStatus(cell.ref, 'done', String(cell.value ?? '').slice(0, 30));
+                  done++;
+                  sandbox.setProgress(done, cells.length);
+                }
+                sandbox.showResult(null, filename);
+              }
+
+              const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+              DocEngine.downloadFile(r.xlsxBytes, filename, XLSX_MIME);
+
+              return {
+                success: true,
+                edited: r.edited,
+                sheetName: r.sheetName,
+                filename,
+                xlsxSize: r.xlsxBytes.length,
+                hint: `Spreadsheet updated — ${r.edited.length} cell(s) changed in sheet "${r.sheetName}". Downloaded as "${filename}".`
+              };
+            })();
+
           } else if (action === 'think') {
+
             result = { success: true };
           } else if (action === 'message') {
             result = { success: true };
@@ -1948,6 +2343,7 @@
             result = { success: true, recorded: params?.claim || '' };
           } else if (action === 'wait') {
             await sleep(Math.min(params?.ms || 1000, 10000));
+
             result = { success: true };
           } else if (action === 'openTab') {
             const newTab = await sendToBackground('ge-open-tab', { url: params.url });

@@ -1571,7 +1571,7 @@
               success: false,
               reason: 'unknown_action',
               error: `Unknown action: "${action}". This action is not implemented in the in-tab runtime.`,
-              recovery: 'If you believe this is a server-handled action (setMilestones, webSearch, researchNote, captureFile, viewCapturedFile, pdfPages, viewPdfPages, editPdf, readFile, createTool, useTool, spawnSubAgent), the server normally rewrites it before dispatch — re-emit on the next step. Otherwise pick a known primitive (readPage, click, type, scroll, screenshot, goto, switchTab, extract, waitForElement, waitForStable, waitUntil, hover, pressKey, clear, uploadFile) or a macro (gotoAndRead, clickAndWait, typeAndSubmit, readAndExtract, scrollAndExtract).'
+              recovery: 'If you believe this is a server-handled action (setMilestones, webSearch, researchNote, readFile, createTool, useTool, spawnSubAgent), the server normally rewrites it before dispatch — re-emit on the next step. For document actions (captureFile, editPdf, fillPdf, pdfPages), these are handled by the agent panel — they should not reach this runtime. Otherwise pick a known primitive (readPage, click, type, scroll, screenshot, goto, switchTab, extract, waitForElement, waitForStable, waitUntil, hover, pressKey, clear, uploadFile) or a macro (gotoAndRead, clickAndWait, typeAndSubmit, readAndExtract, scrollAndExtract).'
             };
         }
         sendResponse({ success: true, result });

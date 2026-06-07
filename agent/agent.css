@@ -2501,3 +2501,274 @@ body.autopilot-mode .agent-app {
   font-size: 10px;
   color: var(--on-surface-variant);
 }
+
+/* ============================================
+   PDF / Document Sandbox Card
+   Appears inline in the step-log when the agent
+   edits a PDF, spreadsheet, or Word doc.
+   ============================================ */
+
+.pdf-sandbox-card {
+  margin-top: 10px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-container-lowest);
+  border: 1px solid var(--ghost-border);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+  font-family: var(--font-body);
+  transition: box-shadow 0.2s ease;
+}
+
+.pdf-sandbox-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* Header row */
+.psb-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface-container-low);
+  border-bottom: 1px solid var(--ghost-border);
+}
+
+.psb-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.psb-title-block {
+  flex: 1;
+  min-width: 0;
+}
+
+.psb-filename {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.psb-meta {
+  font-size: 11px;
+  color: var(--on-surface-muted);
+  margin-top: 2px;
+}
+
+/* Status badge */
+.psb-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-label);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.psb-badge-working {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.psb-badge-reading {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.psb-badge-done {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.psb-badge-error {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* Spinner inside badge */
+.psb-spinner {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: psb-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes psb-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Progress bar */
+.psb-progress-wrap {
+  padding: 10px 14px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.psb-progress-bar {
+  height: 5px;
+  background: var(--surface-container);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.psb-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--primary), var(--primary-container));
+  border-radius: var(--radius-full);
+  transition: width 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.psb-progress-label {
+  font-size: 10.5px;
+  font-family: var(--font-label);
+  color: var(--on-surface-muted);
+  letter-spacing: 0.02em;
+}
+
+/* Field list */
+.psb-fields {
+  padding: 8px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.psb-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  transition: background 0.2s ease;
+}
+
+.psb-field-active {
+  background: var(--info-bg);
+}
+
+.psb-field-done {
+  background: var(--success-bg);
+}
+
+.psb-field-icon {
+  font-size: 13px;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.psb-field-icon.psb-done     { color: var(--success); }
+.psb-field-icon.psb-filling  { color: var(--info); }
+.psb-field-icon.psb-skipped  { color: var(--on-surface-muted); }
+.psb-field-icon.psb-pending  { color: var(--on-surface-muted); opacity: 0.5; }
+
+.psb-field-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.psb-field-done .psb-field-name {
+  color: var(--on-surface);
+}
+
+.psb-field-value {
+  font-size: 11px;
+  color: var(--on-surface-muted);
+  max-width: 100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-style: italic;
+}
+
+.psb-more-fields {
+  color: var(--on-surface-muted);
+  font-size: 11px;
+  font-style: italic;
+  padding: 2px 6px;
+}
+
+/* Result embed */
+.psb-result {
+  border-top: 1px solid var(--ghost-border);
+}
+
+.psb-embed-wrap {
+  width: 100%;
+  height: 260px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.psb-pdf-embed {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+.psb-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--ghost-border);
+  background: var(--surface-container-low);
+}
+
+.psb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-label);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--ghost-border);
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.psb-btn-download {
+  background: var(--surface-container);
+  color: var(--on-surface-variant);
+}
+
+.psb-btn-download:hover {
+  background: var(--primary);
+  color: var(--on-primary);
+  border-color: var(--primary);
+}
+
+/* Error */
+.psb-error {
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-top: 1px solid var(--ghost-border);
+  font-family: var(--font-label);
+}
+
