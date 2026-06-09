@@ -1,4 +1,4 @@
-// Global Executive — Agent UI Controller
+﻿// Global Executive â€” Agent UI Controller
 // Manages the agent loop: start task -> get action -> execute via background -> report result -> loop
 
 (function () {
@@ -65,7 +65,7 @@
   }
 
   // ============================================
-  // handleBuilderHandoff — pick up a delegation from the Builder via
+  // handleBuilderHandoff â€” pick up a delegation from the Builder via
   // URL params (?fromBuilder=1&prompt=...&toolId=...&toolName=...&autostart=1).
   // Pre-fills the task input, shows a delegation banner, optionally
   // auto-starts the task, then strips the params so a refresh doesn't
@@ -82,7 +82,7 @@
     const autostart = url.searchParams.get('autostart') === '1';
 
     if (!prompt) {
-      // Strip the flag and bail — nothing useful to do.
+      // Strip the flag and bail â€” nothing useful to do.
       url.searchParams.delete('fromBuilder');
       window.history.replaceState(null, '', url.toString());
       return;
@@ -104,14 +104,14 @@
 
     if (autostart) {
       // Small delay so the user sees the banner + prompt populate before
-      // the task UI replaces the welcome screen — keeps the handoff from
+      // the task UI replaces the welcome screen â€” keeps the handoff from
       // feeling abrupt.
       setTimeout(() => { try { handleUserSubmit(prompt); } catch (e) { console.error('[Global Executive] autostart failed', e); } }, 600);
     }
   }
 
   // ============================================
-  // renderDelegateBanner — premium ribbon showing "Delegated from Builder"
+  // renderDelegateBanner â€” premium ribbon showing "Delegated from Builder"
   // and the tool the agent is expected to use. Inserted into the welcome
   // screen and stays in the task header after start.
   // ============================================
@@ -130,7 +130,7 @@
       </div>
       <div class="delegate-banner-body">
         <div class="delegate-banner-eyebrow">Delegated from Builder</div>
-        <div class="delegate-banner-title">${toolName ? `Using your new tool · <strong>${escapeHtml(toolName)}</strong>` : 'Using your newly-built tool'}</div>
+        <div class="delegate-banner-title">${toolName ? `Using your new tool Â· <strong>${escapeHtml(toolName)}</strong>` : 'Using your newly-built tool'}</div>
       </div>
       <button type="button" class="delegate-banner-close" aria-label="Dismiss">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -205,7 +205,7 @@
       hideLoading();
 
       // ============================================
-      // Builder → Executive delegate handoff
+      // Builder â†’ Executive delegate handoff
       // When the Builder finishes generating a tool and the user picked
       // "Build & delegate", it opens us with these URL params:
       //   ?fromBuilder=1&autostart=1&prompt=<augmented>&toolId=<id>&toolName=<name>
@@ -647,14 +647,14 @@
 
   // ============================================
   // Send-button state helper
-  //   true  → disabled + animated "sending" appearance + spinner icon
-  //   false → idle, ready to accept the next prompt
+  //   true  â†’ disabled + animated "sending" appearance + spinner icon
+  //   false â†’ idle, ready to accept the next prompt
   // ============================================
   function setSendingState(flag) {
     if (!btnSend) return;
     btnSend.disabled = !!flag;
     btnSend.classList.toggle('sending', !!flag);
-    btnSend.title = flag ? 'Working…' : 'Start Task';
+    btnSend.title = flag ? 'Workingâ€¦' : 'Start Task';
   }
 
   // ============================================
@@ -724,7 +724,7 @@
     if ((ledger.stuckScore || 0) >= 3) {
       const warn = document.createElement('div');
       warn.className = 'milestones-stuck';
-      warn.innerHTML = `⚠️ Stuck score ${ledger.stuckScore}/5 — agent is being nudged to change approach.`;
+      warn.innerHTML = `âš ï¸ Stuck score ${ledger.stuckScore}/5 â€” agent is being nudged to change approach.`;
       els.panel.insertBefore(warn, els.list);
     }
   }
@@ -733,7 +733,7 @@
     const { panel, header, toggle } = getMilestonesEls();
     if (!panel || !header) return;
     const flip = (e) => {
-      // Only toggle if user clicked header background or the toggle button —
+      // Only toggle if user clicked header background or the toggle button â€”
       // avoid swallowing clicks on milestone items themselves.
       if (e.target.closest('.milestone-item')) return;
       panel.classList.toggle('collapsed');
@@ -776,7 +776,7 @@
         for (let n = 0; n < wordsPerTick && i < words.length; n++, i++) {
           buf += words[i];
         }
-        // Re-render markdown each tick — small enough text for this to be cheap.
+        // Re-render markdown each tick â€” small enough text for this to be cheap.
         el.innerHTML = formatMarkdown(buf);
         scrollToBottom();
         if (i < words.length) {
@@ -798,7 +798,7 @@
   }
 
   function renderStep(step) {
-    // Special rendering for message actions — stream the text in word-by-word
+    // Special rendering for message actions â€” stream the text in word-by-word
     // so the user sees the agent "typing" rather than a sudden bubble pop.
     if (step.action === 'message') {
       const msgEl = document.createElement('div');
@@ -809,7 +809,7 @@
       return;
     }
 
-    // Special rendering for think actions — bubble + animated dots, with the
+    // Special rendering for think actions â€” bubble + animated dots, with the
     // reasoning text streamed in beside the dots.
     if (step.action === 'think') {
       const thinkEl = document.createElement('div');
@@ -853,7 +853,7 @@
       else if (step.action === 'rememberThis') detailText = `Remembering: "${(step.params.text || '').substring(0, 80)}"`;
       else if (step.action === 'notifyUser') detailText = `Pinging user: "${(step.params.text || '').substring(0, 80)}"`;
       else if (step.action === 'webSearch') detailText = `Searching the web: "${(step.params.query || step.params.q || '').substring(0, 80)}"`;
-      else if (step.action === 'researchNote') detailText = `Recording evidence [${step.params.topic || 'general'}]: "${(step.params.claim || '').substring(0, 80)}" — ${step.params.source || ''}`;
+      else if (step.action === 'researchNote') detailText = `Recording evidence [${step.params.topic || 'general'}]: "${(step.params.claim || '').substring(0, 80)}" â€” ${step.params.source || ''}`;
     }
 
     entry.innerHTML = `
@@ -868,6 +868,11 @@
 
     stepLog.appendChild(entry);
     scrollToBottom();
+  }
+
+  function getLatestStepEntry() {
+    const entries = stepLog.querySelectorAll('.step-entry');
+    return entries.length ? entries[entries.length - 1] : null;
   }
 
   function renderDoneStep(summary) {
@@ -1024,7 +1029,7 @@
   // ============================================
   function handleUserSubmit(prompt) {
     if (isRunning && currentTaskId) {
-      // Task is live — deliver as chat nudge.
+      // Task is live â€” deliver as chat nudge.
       sendChatToActiveTask(prompt);
       return;
     }
@@ -1087,11 +1092,11 @@
     // Show the user's prompt as a chat bubble immediately so they get instant
     // feedback that their message landed. We swap to the task view first so
     // the bubble lands in step-log even if the welcome screen is still up.
-    // IMPORTANT: when resuming, do NOT wipe the existing step-log — the
+    // IMPORTANT: when resuming, do NOT wipe the existing step-log â€” the
     // user is continuing an ongoing conversation, so the prior chain must
     // stay visible. We only update the title and append a thin divider +
     // the new user bubble.
-    const newTitle = trimmed.length > 60 ? trimmed.substring(0, 57) + '…' : trimmed;
+    const newTitle = trimmed.length > 60 ? trimmed.substring(0, 57) + 'â€¦' : trimmed;
     // Only preserve the visible thread when the user is actually looking
     // at the task we're resuming onto. If a Telegram inbox poll brought us
     // here with a resume pointer for a different task than the one on
@@ -1111,13 +1116,13 @@
       showTaskView(newTitle);
     }
     renderUserPromptBubble(trimmed);
-    // Show a transient "Planning…" thinking bubble while we wait for /plan.
+    // Show a transient "Planningâ€¦" thinking bubble while we wait for /plan.
     const planningBubble = document.createElement('div');
     planningBubble.className = 'step-thinking';
     planningBubble.id = 'ge-planning-bubble';
     planningBubble.innerHTML = `
       <div class="thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-      <span>Planning your task…</span>
+      <span>Planning your taskâ€¦</span>
     `;
     stepLog.appendChild(planningBubble);
     scrollToBottom();
@@ -1153,7 +1158,7 @@
         taskType: planData.taskType || 'action',
         requiredInputs: planData.requiredInputs || [],
         permissionsRequested: planData.permissionsRequested || {},
-        // Phase 3 — skill compounding match (null if no match).
+        // Phase 3 â€” skill compounding match (null if no match).
         // mode === 'fast_path': UI shows "Replay this recipe?" banner +
         //   pre-fills briefing fields from paramsHint. The PRIOR ART block
         //   was also injected into the planner so the plan already
@@ -1168,7 +1173,7 @@
       };
       currentTierMaxSteps = planData.tier?.maxSteps || 50;
 
-      // Plan ready — dismiss the planning bubble before showing the modal.
+      // Plan ready â€” dismiss the planning bubble before showing the modal.
       const pb = document.getElementById('ge-planning-bubble');
       if (pb) pb.remove();
       // Show plan + briefing modal; user clicks Approve or Cancel
@@ -1179,7 +1184,7 @@
       if (pb) pb.remove();
       setSendingState(false);
       // Server-typed, non-retryable errors. Branch on `err.code` BEFORE the
-      // generic 502/503/504/retryable bucket — otherwise a 429 daily-quota
+      // generic 502/503/504/retryable bucket â€” otherwise a 429 daily-quota
       // response gets misclassified as "planner overloaded", which is the
       // wrong message AND hides the upgrade CTA from the user.
       if (err.code === 'daily_quota_exceeded') {
@@ -1199,15 +1204,15 @@
       } else if (err.code === 'agent_rate_limit') {
         const perMin = (err.serverBody && err.serverBody.limitPerMinute) || 60;
         showInlineNotice(
-          `You're going too fast — hit the per-minute rate limit (${perMin}/min). Wait about a minute, then try again.`,
+          `You're going too fast â€” hit the per-minute rate limit (${perMin}/min). Wait about a minute, then try again.`,
           'warning'
         );
       } else if (err.message?.includes('already have') && err.message?.includes('running')) {
         await loadTaskHistory();
         historySidebar.classList.add('open');
-        showInlineNotice('You have running tasks. Stop one in the sidebar (×) before starting another.', 'warning');
+        showInlineNotice('You have running tasks. Stop one in the sidebar (Ã—) before starting another.', 'warning');
       } else if (err.status === 504 || err.status === 502 || err.status === 503 || err.retryable) {
-        // The api-client already retried up to 3 times — upstream is genuinely
+        // The api-client already retried up to 3 times â€” upstream is genuinely
         // overloaded. Tell the user it's transient and let them retry.
         showInlineNotice(
           'The planner is overloaded right now (gateway timeout). I retried a few times but the server kept timing out. Please try again in a moment, or pick a faster model.',
@@ -1257,9 +1262,9 @@
     modeBanner.textContent = (ctx.mode === 'autopilot' ? 'Auto-Pilot' : 'Co-Pilot') + ' mode';
     const tt = String(ctx.taskType || 'action').toLowerCase();
     const badgeMap = {
-      research: { icon: '🔬', label: 'Research task', cls: 'tasktype-research', tip: 'The agent will gather and cross-reference sources before reporting. Done is gated until ≥2 distinct source domains are recorded.' },
-      mixed:    { icon: '🔀', label: 'Mixed (research + action)', cls: 'tasktype-mixed', tip: 'The agent will research first, then act. The same source-count gate applies.' },
-      action:   { icon: '⚙️', label: 'Action task', cls: 'tasktype-action', tip: 'The agent will execute on a site. No source-count gate.' }
+      research: { icon: 'ðŸ”¬', label: 'Research task', cls: 'tasktype-research', tip: 'The agent will gather and cross-reference sources before reporting. Done is gated until â‰¥2 distinct source domains are recorded.' },
+      mixed:    { icon: 'ðŸ”€', label: 'Mixed (research + action)', cls: 'tasktype-mixed', tip: 'The agent will research first, then act. The same source-count gate applies.' },
+      action:   { icon: 'âš™ï¸', label: 'Action task', cls: 'tasktype-action', tip: 'The agent will execute on a site. No source-count gate.' }
     };
     const b = badgeMap[tt] || badgeMap.action;
     let badge = document.getElementById('plan-tasktype-badge');
@@ -1289,20 +1294,20 @@
     // Sites & risks
     const sitesEl = document.getElementById('plan-sites');
     sitesEl.innerHTML = (ctx.plan?.candidateSites || []).map(s =>
-      `<div>• <a href="${escapeHtml(s)}" target="_blank" rel="noopener">${escapeHtml(s)}</a></div>`
+      `<div>â€¢ <a href="${escapeHtml(s)}" target="_blank" rel="noopener">${escapeHtml(s)}</a></div>`
     ).join('') || '<em>None identified</em>';
     const risksEl = document.getElementById('plan-risks');
     risksEl.innerHTML = (ctx.plan?.risks || []).length
-      ? '<h3>Risks</h3>' + ctx.plan.risks.map(r => `<div>⚠ ${escapeHtml(r)}</div>`).join('')
+      ? '<h3>Risks</h3>' + ctx.plan.risks.map(r => `<div>âš  ${escapeHtml(r)}</div>`).join('')
       : '';
 
-    // ---- Phase 3 — Skill match banner ----
+    // ---- Phase 3 â€” Skill match banner ----
     // Render a banner above the briefing section if the planner found a
     // match in this user's skill library. Two flavours:
     //   - fast_path: green "Replay" banner with skill name + success stats
     //                + an Auto-fill button that pre-populates briefing
     //                fields from `paramsHint`.
-    //   - suggest:   subtle blue "Library match" badge — informational
+    //   - suggest:   subtle blue "Library match" badge â€” informational
     //                only; the recipe was injected as PRIOR ART so the
     //                plan above already reflects it.
     renderSkillMatchBanner(ctx);
@@ -1370,17 +1375,17 @@
     // auto-approve so the agent runs without needing the user to click.
     if (window._geNTR && (!ctx.requiredInputs || ctx.requiredInputs.length === 0)) {
       window._geNTR = false;
-      showInlineNotice('No briefing needed — auto-approving remote task.', 'info');
+      showInlineNotice('No briefing needed â€” auto-approving remote task.', 'info');
       setTimeout(() => approvePlanAndStart(), 200);
     } else if (window._geNTR) {
-      // Has required inputs — the user must come back to the page. Notify them.
+      // Has required inputs â€” the user must come back to the page. Notify them.
       window._geNTR = false;
       showInlineNotice('This task needs briefing inputs. Please fill them in to continue.', 'warning');
     }
   }
 
   // ============================================
-  // Phase 3 — Skill-match banner renderer
+  // Phase 3 â€” Skill-match banner renderer
   // Inserts (or removes) a banner inside the plan modal showing whether
   // the new prompt matched a previously mined skill. Idempotent:
   // re-renders cleanly when the modal is opened a second time.
@@ -1403,9 +1408,9 @@
     const fast = m.mode === 'fast_path';
     const accent = fast ? '#22c55e' : '#60a5fa';
     const bg = fast ? 'rgba(34,197,94,0.10)' : 'rgba(96,165,250,0.10)';
-    const label = fast ? '⚡ Replay this recipe' : '📚 Library match';
+    const label = fast ? 'âš¡ Replay this recipe' : 'ðŸ“š Library match';
     const sk = m.skill;
-    const stats = `${sk.successCount || 0}× success · ~${sk.avgSteps || '?'} steps avg`;
+    const stats = `${sk.successCount || 0}Ã— success Â· ~${sk.avgSteps || '?'} steps avg`;
     const score = (m.score || 0).toFixed(2);
 
     // Fast-path banner is interactive; suggest banner is purely informational.
@@ -1447,7 +1452,7 @@
         break;
       case 'select':
         inputHtml = `<select id="${id}" data-input="${inp.name}" ${inp.required ? 'required' : ''}>
-          <option value="">— Select —</option>
+          <option value="">â€” Select â€”</option>
           ${(inp.options || []).map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}
         </select>`;
         break;
@@ -1580,7 +1585,7 @@
     // Honours the user's "Open a new window for research tasks" setting in
     // Setup. Pure `action` tasks keep running in whatever tab the user had
     // pointed (so "fill this form" still targets the right page). On any
-    // failure we silently fall back to the current tab — better to run in
+    // failure we silently fall back to the current tab â€” better to run in
     // the user's tab than not at all.
     let initialTabIdOverride = null;
     try {
@@ -1656,12 +1661,12 @@
       'readPage', 'click', 'type', 'scroll', 'scrollUntil', 'extract',
       'waitForElement', 'waitForStable', 'waitUntil',
       'select', 'pressKey', 'clear', 'hover', 'uploadFile',
-      // Compound macro actions — see executeLoop dispatch.
+      // Compound macro actions â€” see executeLoop dispatch.
       'clickAndWait', 'typeAndSubmit', 'gotoAndRead',
       'readAndExtract', 'scrollAndExtract'
     ]);
 
-    // Actions that INTRINSICALLY change the URL — staleness check below
+    // Actions that INTRINSICALLY change the URL â€” staleness check below
     // skips these because the URL "drift" they cause is intentional.
     const NAVIGATION_ACTIONS = new Set([
       'goto', 'goBack', 'goForward', 'reload', 'openTab', 'switchTab',
@@ -1685,7 +1690,7 @@
       const rawTabs = (tabsResp?.success && Array.isArray(tabsResp.tabs)) ? tabsResp.tabs : [];
       const liveIds = new Set(rawTabs.map(t => t.tabId).filter(id => typeof id === 'number'));
 
-      // Fast path: current tab is alive — nothing to do.
+      // Fast path: current tab is alive â€” nothing to do.
       if (currentTabId && liveIds.has(currentTabId)) return { healed: false };
 
       const previousTabId = currentTabId;
@@ -1775,7 +1780,7 @@
         any_open_tab: 'fell back to another open browser tab',
         opened_fallback_tab: 'opened a fresh google.com tab as a last resort'
       })[reason] || 'auto-recovered';
-      const note = `AUTO-RECOVERED TAB: ${prevDesc}, so the agent ${reasonDesc} — you are now on "${label}". Do not call switchTab for this tab; proceed with your next action (readPage / goto / click / etc.) on it.`;
+      const note = `AUTO-RECOVERED TAB: ${prevDesc}, so the agent ${reasonDesc} â€” you are now on "${label}". Do not call switchTab for this tab; proceed with your next action (readPage / goto / click / etc.) on it.`;
 
       return { healed: true, reason, note, previousTabId, newTabId: chosen.tabId };
     }
@@ -1790,7 +1795,7 @@
     // and attach a `pageStaleHint` to the action result so the LLM sees
     // "the page changed under you, re-read it" on its next /step.
     //
-    // We DO NOT block dispatch — many drifts are benign (hash/query change,
+    // We DO NOT block dispatch â€” many drifts are benign (hash/query change,
     // SPA route within same app). The runtime's own `reason` codes still
     // fire if the action genuinely fails. The hint is purely advisory.
     //
@@ -1809,7 +1814,7 @@
         }
       } catch { /* best effort */ }
       if (!liveUrl) return null;
-      // Compare hostname + pathname only — query/hash drift is usually fine
+      // Compare hostname + pathname only â€” query/hash drift is usually fine
       // (SPAs use them heavily) and would create too much noise.
       let expectedHostPath = '', liveHostPath = '';
       try {
@@ -1817,14 +1822,14 @@
         const b = new URL(liveUrl);     liveHostPath     = b.hostname.replace(/^www\./, '') + b.pathname.replace(/\/$/, '');
       } catch { return null; }
       if (expectedHostPath === liveHostPath) return null;
-      // Drift detected — sync trackedTabs so future steps don't keep firing
+      // Drift detected â€” sync trackedTabs so future steps don't keep firing
       // this hint, and surface a one-shot note to the LLM.
       if (trackedTabs[activeTabIndex]) trackedTabs[activeTabIndex].url = liveUrl;
       return {
         stale: true,
         expectedUrl,
         liveUrl,
-        hint: `PAGE-STALE: the tab navigated from "${expectedUrl}" to "${liveUrl}" between the page-state you saw and this action. Selectors / text targets you chose may not exist on the new page. If your action fails or returns unexpected content, call \`readPage\` ONCE to refresh, then retry with new targets — do NOT loop on \`readPage\`.`
+        hint: `PAGE-STALE: the tab navigated from "${expectedUrl}" to "${liveUrl}" between the page-state you saw and this action. Selectors / text targets you chose may not exist on the new page. If your action fails or returns unexpected content, call \`readPage\` ONCE to refresh, then retry with new targets â€” do NOT loop on \`readPage\`.`
       };
     }
 
@@ -1860,7 +1865,7 @@
           } catch (healErr) {
             console.warn('[Global Executive] ensureLiveTab failed:', healErr?.message || healErr);
           }
-          // Page-staleness — only meaningful if we have a live tab AND the
+          // Page-staleness â€” only meaningful if we have a live tab AND the
           // action depends on the current DOM (i.e. NOT a navigation action).
           // If the recovery path just created/switched tabs we skip the check
           // for this iteration (the recovery note already carries that signal).
@@ -1869,7 +1874,7 @@
               const stale = await checkPageStaleness(action);
               if (stale && stale.stale) {
                 pageStaleNote = stale.hint;
-                console.log(`[Global Executive] page-stale detected: ${stale.expectedUrl} → ${stale.liveUrl}`);
+                console.log(`[Global Executive] page-stale detected: ${stale.expectedUrl} â†’ ${stale.liveUrl}`);
               }
             } catch (staleErr) {
               console.warn('[Global Executive] checkPageStaleness failed:', staleErr?.message || staleErr);
@@ -1895,7 +1900,7 @@
             await loadTaskHistory();
             sendToBackground('ge-clear-staged-files').catch(() => {});
             result = { success: true, summary: params?.summary || 'Task completed' };
-            // Fall through — the step result will be reported to /step below.
+            // Fall through â€” the step result will be reported to /step below.
           }
 
           // === Server-only action safety net ===
@@ -1905,7 +1910,7 @@
           // extension. If a rewrite slips through, dispatching the raw action
           // to the in-tab runtime would return "Unknown action: X" and fail.
           // NOTE: captureFile, editPdf, fillPdf, pdfPages etc. are NOT in
-          // this list — they have real client-side handlers below.
+          // this list â€” they have real client-side handlers below.
           const SERVER_ONLY_ACTIONS = new Set([
             'setMilestones', 'completeMilestone', 'addMilestone',
             'webSearch', 'researchNote',
@@ -1919,10 +1924,10 @@
             };
 
           // ============================================
-          // captureFile — fetch a URL with the user's cookies and store it.
+          // captureFile â€” fetch a URL with the user's cookies and store it.
           // Routes to background.js runCaptureFile() which already handles
           // the full fetch + OBS upload flow. This was previously a fake
-          // no-op in SERVER_ONLY_ACTIONS — now it executes for real.
+          // no-op in SERVER_ONLY_ACTIONS â€” now it executes for real.
           // ============================================
           } else if (action === 'captureFile') {
             result = await (async () => {
@@ -1941,7 +1946,7 @@
             })();
 
           // ============================================
-          // viewCapturedFile — used after captureFile to get a signed URL
+          // viewCapturedFile â€” used after captureFile to get a signed URL
           // for a previously stored file. Server handles this; we forward.
           // ============================================
           } else if (action === 'viewCapturedFile') {
@@ -1953,7 +1958,7 @@
             };
 
           // ============================================
-          // pdfPages / viewPdfPages — extract page metadata + field list
+          // pdfPages / viewPdfPages â€” extract page metadata + field list
           // from a PDF using DocEngine (pdf-lib) in the browser.
           // ============================================
           } else if (action === 'pdfPages' || action === 'viewPdfPages') {
@@ -1977,12 +1982,12 @@
                 bytes: meta.bytes,
                 hint: meta.fields.length > 0
                   ? `PDF has ${meta.fields.length} AcroForm field(s). Call editPdf with formFields to fill them.`
-                  : 'PDF has no AcroForm fields — use overlays to draw text at coordinates.'
+                  : 'PDF has no AcroForm fields â€” use overlays to draw text at coordinates.'
               };
             })();
 
           // ============================================
-          // editPdf / fillPdf — fill AcroForm fields and/or draw text
+          // editPdf / fillPdf â€” fill AcroForm fields and/or draw text
           // overlays using pdf-lib in the browser. Shows a live sandbox
           // card in the chat view as fields are filled.
           // ============================================
@@ -2008,7 +2013,7 @@
 
               // --- Create sandbox card in the current step entry ---
               let sandbox = null;
-              const lastEntry = stepLog.querySelector('.step-entry:last-of-type');
+              const lastEntry = getLatestStepEntry();
               if (lastEntry && typeof PdfSandbox !== 'undefined') {
                 // First get field list for the sandbox UI
                 let fieldList = [];
@@ -2076,14 +2081,14 @@
                 drawnOverlays: editResult.drawnOverlays,
                 pageCount: editResult.pageCount,
                 filename,
-                pdfBase64: b64.slice(0, 100) + '…', // truncated for prompt — don't flood context
+                pdfBase64: b64.slice(0, 100) + 'â€¦', // truncated for prompt â€” don't flood context
                 pdfSize: editResult.pdfBytes.length,
                 hint: `PDF edited client-side and downloaded as "${filename}". ${editResult.filledFields.length} fields filled. ${editResult.skippedFields.length} skipped. If you need to upload it, tell the user to use the file from their Downloads folder.`
               };
             })();
 
           // ============================================
-          // readDocx — extract text, HTML, headings, and tables from a .docx
+          // readDocx â€” extract text, HTML, headings, and tables from a .docx
           // Uses mammoth.js for faithful extraction.
           // ============================================
           } else if (action === 'readDocx') {
@@ -2108,7 +2113,7 @@
             })();
 
           // ============================================
-          // editDocx — fill a Word document template OR find-and-replace text.
+          // editDocx â€” fill a Word document template OR find-and-replace text.
           //
           // TEMPLATE mode (doc has {placeholder} tags):
           //   { action: "editDocx", params: { url: "...", data: { "name": "John" }, mode: "template" } }
@@ -2136,7 +2141,7 @@
 
               // --- Sandbox card ---
               let sandbox = null;
-              const lastEntry = stepLog.querySelector('.step-entry:last-of-type');
+              const lastEntry = getLatestStepEntry();
               if (lastEntry && typeof PdfSandbox !== 'undefined' && items.length > 0) {
                 sandbox = PdfSandbox.create(lastEntry.querySelector('.step-body') || lastEntry, {
                   filename,
@@ -2166,7 +2171,7 @@
                   done++;
                   sandbox.setProgress(done, items.length);
                 }
-                // Show download for docx (no embed — browser can't preview docx inline)
+                // Show download for docx (no embed â€” browser can't preview docx inline)
                 sandbox.showResult(null, filename);
               }
 
@@ -2185,7 +2190,7 @@
             })();
 
           // ============================================
-          // createDocx — build a new Word document from scratch.
+          // createDocx â€” build a new Word document from scratch.
           // { action: "createDocx", params: { title, paragraphs: [ { text, bold?, italic?, fontSize? } ], tables?: [...] } }
           // ============================================
           } else if (action === 'createDocx') {
@@ -2202,7 +2207,7 @@
 
               // Sandbox
               let sandbox = null;
-              const lastEntry = stepLog.querySelector('.step-entry:last-of-type');
+              const lastEntry = getLatestStepEntry();
               if (lastEntry && typeof PdfSandbox !== 'undefined') {
                 sandbox = PdfSandbox.create(lastEntry.querySelector('.step-body') || lastEntry, {
                   filename,
@@ -2210,7 +2215,7 @@
                   fields: content.paragraphs.slice(0, 5).map(p => ({ name: (p.text || '').slice(0, 40), type: 'text' })),
                   docType: 'docx'
                 });
-                sandbox.setStatus('Creating…');
+                sandbox.setStatus('Creatingâ€¦');
               }
 
               const r = await DocEngine.createDocx(content, params);
@@ -2233,7 +2238,7 @@
             })();
 
           // ============================================
-          // loadSheet — read a spreadsheet and return sheet names + preview
+          // loadSheet â€” read a spreadsheet and return sheet names + preview
           // { action: "loadSheet", params: { url } }
           // ============================================
           } else if (action === 'loadSheet' || action === 'readSheet') {
@@ -2253,7 +2258,7 @@
             })();
 
           // ============================================
-          // editSheet — fill cells in a spreadsheet
+          // editSheet â€” fill cells in a spreadsheet
           // { action: "editSheet", params: { url, sheetName?, cells: [ { ref: 'A1', value: 'x' } ], rows?: [...] } }
           // ============================================
           } else if (action === 'editSheet') {
@@ -2271,7 +2276,7 @@
 
               // Sandbox
               let sandbox = null;
-              const lastEntry = stepLog.querySelector('.step-entry:last-of-type');
+              const lastEntry = getLatestStepEntry();
               if (lastEntry && typeof PdfSandbox !== 'undefined' && cells.length > 0) {
                 sandbox = PdfSandbox.create(lastEntry.querySelector('.step-body') || lastEntry, {
                   filename,
@@ -2312,7 +2317,7 @@
                 sheetName: r.sheetName,
                 filename,
                 xlsxSize: r.xlsxBytes.length,
-                hint: `Spreadsheet updated — ${r.edited.length} cell(s) changed in sheet "${r.sheetName}". Downloaded as "${filename}".`
+                hint: `Spreadsheet updated â€” ${r.edited.length} cell(s) changed in sheet "${r.sheetName}". Downloaded as "${filename}".`
               };
             })();
 
@@ -2322,7 +2327,7 @@
           } else if (action === 'message') {
             result = { success: true };
           } else if (action === 'rememberThis') {
-            // Server handled the actual memory write — this is just a
+            // Server handled the actual memory write â€” this is just a
             // rendered step on the client. Nothing to do in the tab.
             result = { success: true, remembered: params?.text || '' };
           } else if (action === 'notifyUser') {
@@ -2533,7 +2538,7 @@
             // `macroSubResults` so debugging and the LLM's next-step
             // context stay accurate.
             //
-            // Tunable timings — kept short (waitForStable defaults to
+            // Tunable timings â€” kept short (waitForStable defaults to
             // 2000 ms, post-goto sleep 800 ms) because the macro is meant
             // to save a round-trip, not to be a bulletproof flow runner.
             // If a site needs longer waits, the LLM should fall back to
@@ -2544,7 +2549,7 @@
                 // Goto first (uses background-relayed handler so all the
                 // "openedNew" / tab-tracking logic from regular `goto`
                 // applies). On failure we abort and surface the error
-                // — no point reading a page we never reached.
+                // â€” no point reading a page we never reached.
                 if (!params?.url) {
                   error = "gotoAndRead requires params.url. Retry with the url field.";
                 } else {
@@ -2562,10 +2567,10 @@
                     }
                     // Wait for the page to actually settle before reading.
                     // ge-goto already awaited waitForTabLoad (status=='complete'),
-                    // but many SPAs paint after that — Tripadvisor, Google,
+                    // but many SPAs paint after that â€” Tripadvisor, Google,
                     // Amazon all show "loading: true, mutationCount: 1" if
                     // we readPage immediately. We layer two waits:
-                    //   1. waitForStable (MutationObserver-based) — returns
+                    //   1. waitForStable (MutationObserver-based) â€” returns
                     //      as soon as the DOM goes quiet for ~600ms.
                     //   2. If the resulting readPage STILL reports loading,
                     //      sleep + re-read once.
@@ -2575,10 +2580,10 @@
                         action: 'waitForStable',
                         params: { timeout: 4000, quietMs: 600 }
                       });
-                    } catch { /* best effort — fall through to readPage */ }
+                    } catch { /* best effort â€” fall through to readPage */ }
                     let r = await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'readPage', params: {} });
                     if (r?.success && r.result && r.result.loading === true) {
-                      // Partial DOM — give the page another moment then re-read.
+                      // Partial DOM â€” give the page another moment then re-read.
                       await sleep(1500);
                       const r2 = await sendToBackground('ge-execute-in-tab', { tabId: currentTabId, action: 'readPage', params: {} });
                       if (r2?.success) r = r2;
@@ -2595,7 +2600,7 @@
                         hint: 'Macro: navigated AND read page in one step. Inspect `readPage` for the next interactive target.'
                       };
                     } else {
-                      // Navigation succeeded but readPage failed — still report
+                      // Navigation succeeded but readPage failed â€” still report
                       // a partial success so the agent doesn't think the goto
                       // was rejected. It can readPage explicitly next step.
                       result = {
@@ -2619,15 +2624,15 @@
                   error = c?.error || 'clickAndWait: click rejected by runtime';
                 } else if (c.result && c.result.success === false) {
                   // Click reached the runtime but failed (no_match, hidden, etc.)
-                  // — surface the structured failure as the macro's outcome
+                  // â€” surface the structured failure as the macro's outcome
                   // so the LLM sees the same `reason`/`recovery` it would
                   // have on a plain click.
                   result = { success: false, macro: 'clickAndWait', ...c.result, macroSubResults: { click: c.result } };
                   error = c.result.error || 'click failed';
                 } else {
                   subResults.click = c.result;
-                  // Wait phase. If `waitFor` selector provided → waitForElement
-                  // (deterministic). Otherwise → waitForStable (DOM settles).
+                  // Wait phase. If `waitFor` selector provided â†’ waitForElement
+                  // (deterministic). Otherwise â†’ waitForStable (DOM settles).
                   const waitForSel = params?.waitFor || params?.waitForSelector;
                   let w;
                   if (waitForSel) {
@@ -2750,7 +2755,7 @@
                   added++;
                 }
                 subResults.perPass.push({ pass: i, extracted: passItems.length, newItems: added });
-                // Don't scroll on the last pass — we already extracted everything we'll see.
+                // Don't scroll on the last pass â€” we already extracted everything we'll see.
                 if (i < passes - 1) {
                   await sendToBackground('ge-execute-in-tab', {
                     tabId: currentTabId,
@@ -2770,7 +2775,7 @@
                 items: collected,
                 dedupBy: dedupBy || null,
                 macroSubResults: subResults,
-                hint: `Macro: scrolled ${passes} time(s) and harvested ${collected.length} unique item(s). If you need more, call again — the page is already scrolled past what you've seen.`
+                hint: `Macro: scrolled ${passes} time(s) and harvested ${collected.length} unique item(s). If you need more, call again â€” the page is already scrolled past what you've seen.`
               };
             } catch (macroErr) {
               error = `scrollAndExtract macro failed: ${macroErr?.message || macroErr}`;
@@ -2804,7 +2809,7 @@
                 return;
               }
               // Mark current entry completed and jump to the next step (no /step round-trip)
-              const lastEntry2 = stepLog.querySelector('.step-entry:last-of-type');
+              const lastEntry2 = getLatestStepEntry();
               if (lastEntry2) lastEntry2.classList.add('completed');
               if (answerData.goalLedger) renderGoalLedger(answerData.goalLedger);
               step = answerData.step;
@@ -2823,7 +2828,7 @@
             // sub-100ms bursts with no variance. We add a randomized sleep
             // BEFORE every interactive action so the timing distribution
             // looks more like a human operator. Skipped for "readPage" and
-            // "extract" (pure DOM reads — no event fingerprint) to save
+            // "extract" (pure DOM reads â€” no event fingerprint) to save
             // credits, and capped so long-running tasks don't drag.
             const INTERACTIVE = new Set(['click', 'type', 'scroll', 'select', 'pressKey', 'clear', 'hover', 'uploadFile']);
             if (INTERACTIVE.has(action)) {
@@ -2894,7 +2899,7 @@
                     // script actions route correctly.
                     try { await sendToBackground('ge-switch-tab', { tabId: newest.tabId }); } catch { /* best-effort */ }
 
-                    // Enrich the action result — the server injects this
+                    // Enrich the action result â€” the server injects this
                     // into the next prompt so the LLM knows it's ALREADY
                     // on the new tab and must not call switchTab again.
                     result.autoAdoptedTab = {
@@ -2905,7 +2910,7 @@
                     result.hint = `New tab opened by this click was AUTO-ADOPTED. You are now on tab "${(newest.title || newest.url || '').slice(0, 80)}". Do NOT call \`switchTab\` for this tab. Proceed directly with your next action (readPage / extract / click / etc.) on this tab.`;
                   } else if (newest?.success === false && newest.reason === 'blank_or_blocked') {
                     // A new tab was created but never navigated away from
-                    // about:blank — popup blocker, failed window.open, or
+                    // about:blank â€” popup blocker, failed window.open, or
                     // the target page died instantly. Close the empty
                     // shell so it doesn't clutter trackedTabs, and tell
                     // the LLM to recover via `goto` on the current tab.
@@ -2917,12 +2922,12 @@
                     result.hint = `The click opened a new tab but it never navigated (popup blocker or failed window.open). The empty tab was closed automatically. To reach the destination, use \`goto\` with \`${(hrefHint || '<the link URL>').slice(0, 120)}\` on the current tab, or try \`click\` again with a different targeting strategy.`;
                   } else if (result?.openedNewTab && newest?.success === false) {
                     // The content script was sure a tab opened, but
-                    // background couldn't find one — very rare race.
+                    // background couldn't find one â€” very rare race.
                     result.autoAdoptFailed = true;
                     result.autoAdoptFailReason = newest.reason || 'unknown';
                   }
                   // reason === 'no_new_tab' on a click without
-                  // `openedNewTab` is the COMMON silent case — no tab
+                  // `openedNewTab` is the COMMON silent case â€” no tab
                   // opened, no annotation needed.
                 } catch (adoptErr) {
                   console.warn('[Global Executive] Auto-adopt new tab failed:', adoptErr?.message || adoptErr);
@@ -2947,7 +2952,7 @@
           }
 
           // Same channel for page-staleness drift. Always attach (even if
-          // the action itself succeeded) — the LLM still benefits from
+          // the action itself succeeded) â€” the LLM still benefits from
           // knowing the live URL differs from what it planned against.
           if (pageStaleNote && result && typeof result === 'object') {
             result.pageStale = true;
@@ -2962,7 +2967,7 @@
         removeExecutingIndicator();
 
         // Update the last step's UI with result
-        const lastEntry = stepLog.querySelector('.step-entry:last-of-type');
+        const lastEntry = getLatestStepEntry();
         if (lastEntry) {
           if (error) {
             lastEntry.classList.add('failed');
@@ -3004,7 +3009,7 @@
               // sees the current Chrome window state (not just the stale list
               // from task start). This is what `closeTab`/`switchTab` target.
               let liveTabs = [];
-              let liveTabIds = null; // Set<number> — null if lookup failed
+              let liveTabIds = null; // Set<number> â€” null if lookup failed
               let tabsResp = null;
               try {
                 tabsResp = await sendToBackground('ge-list-tabs', {});
@@ -3032,7 +3037,7 @@
                   }
                 }
                 if (currentTabId && !liveTabIds.has(currentTabId)) {
-                  // Current tab is gone — fall back to Chrome's active tab.
+                  // Current tab is gone â€” fall back to Chrome's active tab.
                   const active = liveTabs.find(t => t.active);
                   if (active) {
                     // Find or push the active tab into trackedTabs so
@@ -3123,7 +3128,7 @@
               if (m.match(/\b429\b/) || /rate limit/i.test(m)) {
                 const errEntry = document.createElement('div');
                 errEntry.className = 'step-entry failed';
-                errEntry.innerHTML = `<div class="step-number">⏳</div><div class="step-body"><div class="step-action">Rate limit reached (attempt ${attempt}/3)</div><div class="step-error">Too many steps in a short time. Pausing briefly…</div></div>`;
+                errEntry.innerHTML = `<div class="step-number">â³</div><div class="step-body"><div class="step-action">Rate limit reached (attempt ${attempt}/3)</div><div class="step-error">Too many steps in a short time. Pausing brieflyâ€¦</div></div>`;
                 stepLog.appendChild(errEntry);
                 stepLog.scrollTop = stepLog.scrollHeight;
                 // Backoff longer on 429 so we don't make it worse: 6s, 15s, 30s
@@ -3136,7 +3141,7 @@
               // 5xx / network: surface inline and retry up to 3 times
               const errEntry = document.createElement('div');
               errEntry.className = 'step-entry failed';
-              errEntry.innerHTML = `<div class="step-number">!</div><div class="step-body"><div class="step-action">Server error (attempt ${attempt}/3)</div><div class="step-error">A temporary error occurred. Retrying…</div></div>`;
+              errEntry.innerHTML = `<div class="step-number">!</div><div class="step-body"><div class="step-action">Server error (attempt ${attempt}/3)</div><div class="step-error">A temporary error occurred. Retryingâ€¦</div></div>`;
               stepLog.appendChild(errEntry);
               await sleep(1000 * attempt); // backoff
             }
@@ -3400,7 +3405,7 @@
         const data = await NewOrderAPI.request('/api/integrations/inbox');
         if (data?.queuedPrompt) {
           const prompt = data.queuedPrompt;
-          showInlineNotice(`Task received from ${data.source || 'remote'}: starting in auto-pilot…`, 'info');
+          showInlineNotice(`Task received from ${data.source || 'remote'}: starting in auto-pilotâ€¦`, 'info');
           // Force auto-pilot for remote-triggered tasks (user isn't watching)
           selectedMode = 'autopilot';
           const toggle = document.getElementById('mode-toggle');
@@ -3541,7 +3546,7 @@
         body: JSON.stringify({ dryRun: true })
       });
     } catch (err) {
-      // Non-fatal — fall through to a normal cancel.
+      // Non-fatal â€” fall through to a normal cancel.
       console.warn('[Global Executive] finalize-if-done check failed:', err.message);
     }
 
@@ -3550,7 +3555,7 @@
         'It looks like the agent finished this task but didn\'t mark it complete.\n\n' +
         'Inferred summary:\n' +
         (detection.inferredSummary || '(none)') +
-        '\n\nClick OK to save as ✅ Completed, or Cancel to cancel the task as usual.'
+        '\n\nClick OK to save as âœ… Completed, or Cancel to cancel the task as usual.'
       );
       if (confirmFinalize) {
         try {
@@ -3628,7 +3633,7 @@
     let timezone = '';
     try { timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch {}
     // Viewport: best-effort. The agent panel runs in a side panel, so window
-    // here reflects the panel — but we want the actual browsing viewport.
+    // here reflects the panel â€” but we want the actual browsing viewport.
     // Fall back to screen.avail* which approximates the visible browser area.
     let viewport;
     try {
@@ -3871,3 +3876,4 @@
   init();
 
 })();
+

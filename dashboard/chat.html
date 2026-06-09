@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>New Order Global - Chat with Creator</title>
+  <link rel="stylesheet" href="dashboard.css">
+  <style>
+    /* Chat specific styles */
+    .chat-container {
+      background: var(--surface-container-lowest);
+      border: 1px solid var(--ghost-border);
+      border-radius: var(--radius-xl);
+      display: flex;
+      flex-direction: column;
+      height: calc(100vh - 220px);
+      min-height: 500px;
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .chat-container.admin-mode {
+      flex-direction: row;
+    }
+
+    .chat-sidebar {
+      width: 280px;
+      border-right: 1px solid var(--ghost-border);
+      display: flex;
+      flex-direction: column;
+      background: var(--surface-container-low);
+      flex-shrink: 0;
+    }
+
+    .chat-sidebar-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--ghost-border);
+    }
+
+    .chat-sidebar-header h4 {
+      margin: 0;
+      font-family: var(--font-headline);
+      font-size: 16px;
+      color: var(--on-surface);
+    }
+
+    .chat-user-list {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .chat-user-item {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--ghost-border);
+      cursor: pointer;
+      transition: background 0.2s ease;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chat-user-item:hover {
+      background: var(--surface-container);
+    }
+
+    .chat-user-item.active {
+      background: var(--surface-container-high);
+      border-left: 3px solid var(--primary);
+      padding-left: 21px; /* adjust for border */
+    }
+
+    .chat-user-email {
+      font-size: 14px;
+      font-family: var(--font-body);
+      color: var(--on-surface);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex: 1;
+      margin-right: 8px;
+    }
+
+    .chat-unread-badge {
+      background: var(--primary);
+      color: white;
+      font-size: 11px;
+      font-weight: bold;
+      padding: 2px 6px;
+      border-radius: 10px;
+      min-width: 18px;
+      text-align: center;
+    }
+
+    .chat-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      min-width: 0;
+      min-height: 0;
+    }
+    
+    .chat-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--ghost-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface-container-lowest);
+      z-index: 2;
+    }
+    
+    .chat-header h3 {
+      font-family: var(--font-headline);
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--on-surface);
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .admin-controls {
+      display: none;
+    }
+    
+    .chat-messages {
+      flex: 1;
+      padding: 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      background: var(--background);
+    }
+    
+    .message {
+      max-width: 75%;
+      padding: 12px 16px;
+      border-radius: 16px;
+      font-family: var(--font-body);
+      font-size: 14.5px;
+      line-height: 1.5;
+      position: relative;
+    }
+    
+    .message-user {
+      align-self: flex-end;
+      background: var(--primary);
+      color: var(--on-primary);
+      border-bottom-right-radius: 4px;
+    }
+    
+    .message-admin {
+      align-self: flex-start;
+      background: var(--surface-container-high);
+      color: var(--on-surface);
+      border-bottom-left-radius: 4px;
+      border: 1px solid var(--ghost-border);
+    }
+    
+    .message-time {
+      font-size: 11px;
+      opacity: 0.7;
+      margin-top: 6px;
+      text-align: right;
+      display: block;
+    }
+    
+    .chat-date-divider {
+      text-align: center;
+      margin: 24px 0 8px;
+      position: relative;
+    }
+    
+    .chat-date-divider span {
+      background: var(--surface-container-high);
+      color: var(--on-surface-muted);
+      font-family: var(--font-body);
+      font-size: 11.5px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: var(--radius-full);
+      position: relative;
+      z-index: 1;
+      border: 1px solid var(--ghost-border);
+    }
+    
+    .chat-date-divider::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      border-top: 1px solid var(--ghost-border);
+      z-index: 0;
+    }
+    
+    .chat-input-area {
+      padding: 16px 24px;
+      background: var(--surface-container-lowest);
+      border-top: 1px solid var(--ghost-border);
+      display: flex;
+      gap: 12px;
+      align-items: flex-end;
+    }
+    
+    .chat-input {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: var(--radius-xl);
+      border: 1px solid var(--ghost-border-strong);
+      background: var(--surface-bright);
+      color: var(--on-surface);
+      font-family: var(--font-body);
+      font-size: 14.5px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      resize: none;
+      min-height: 24px;
+      max-height: 150px;
+      line-height: 1.5;
+      overflow: hidden;
+    }
+    
+    .chat-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(184, 52, 28, 0.15); /* using primary red with opacity */
+    }
+    
+    .chat-input:disabled {
+      background: var(--surface-container);
+      color: var(--on-surface-muted);
+      cursor: not-allowed;
+    }
+    
+    .btn-send {
+      background: var(--accent-gradient);
+      color: var(--on-primary);
+      border: none;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: opacity 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+      flex-shrink: 0;
+    }
+    
+    .btn-send:hover {
+      opacity: 0.9;
+      transform: translateY(-1px);
+    }
+    
+    .btn-send:disabled {
+      background: var(--surface-dim);
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .btn-send svg {
+      width: 18px;
+      height: 18px;
+      margin-left: -2px; /* slight visual offset for paper airplane */
+    }
+    
+    /* Loading state */
+    .chat-loading {
+      position: absolute;
+      inset: 0;
+      background: var(--surface-container-lowest);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    
+    .chat-spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid var(--surface-container-high);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin { 100% { transform: rotate(360deg); } }
+    
+    /* Empty state */
+    .chat-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--on-surface-muted);
+      text-align: center;
+      padding: 0 20px;
+    }
+    
+    .chat-empty svg {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-logo-wrap">
+        <img src="../icons/logo.png" alt="Logo" class="sidebar-logo">
+        <span class="beta-badge">BETA</span>
+      </div>
+      <div class="sidebar-title">New Order <span>Global</span></div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section">Dashboard</div>
+      <a href="../builder/builder.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> AI Builder</a>
+      <a href="../agent/agent.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg> Global Executive</a>
+      <a href="tools.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> My Tools</a>
+      <a href="replay.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg> Action Replay</a>
+      <a href="setup.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> Setup</a>
+      <a href="chat.html" class="nav-link active"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Chat with Creator</a>
+      <div class="nav-section">Account</div>
+      <a href="billing.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Credits & Billing</a>
+      <a href="settings.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/></svg> Settings</a>
+      <a href="../youtube.html" class="nav-link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z"/><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/></svg> YouTube Settings</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="https://voxcode.app?ref=nog-extention" target="_blank" rel="noopener">Partially created with voxcode.app</a>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <div class="page-header">
+      <h1>Chat with the Creator</h1>
+      <p id="chat-subtitle">Ask questions, request features, or get help directly from the creator.</p>
+    </div>
+
+    <div class="chat-container" id="chat-container">
+      <div id="chat-sidebar" class="chat-sidebar" style="display: none;">
+        <div class="chat-sidebar-header">
+          <h4>Conversations</h4>
+        </div>
+        <div id="user-list" class="chat-user-list">
+          <!-- Users injected here -->
+        </div>
+      </div>
+
+      <div class="chat-main">
+        <div id="chat-loading" class="chat-loading">
+          <div class="chat-spinner"></div>
+        </div>
+        
+        <div class="chat-header">
+          <h3>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            <span id="chat-title">Creator Chat</span>
+          </h3>
+          <div id="current-user-email" style="font-size: 14px; color: var(--on-surface-muted);"></div>
+        </div>
+        
+        <div id="chat-messages" class="chat-messages">
+          <!-- Messages will be injected here -->
+        </div>
+        
+        <div class="chat-input-area">
+          <textarea id="chat-input" class="chat-input" rows="1" placeholder="Type your message..." disabled></textarea>
+          <button id="btn-send" class="btn-send" disabled>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+  
+  <!-- Reuse the main API logic from background or other scripts, but keep it self-contained for the UI -->
+  <script src="../core/api-client.js"></script>
+  <script src="../core/auth.js"></script>
+  <script src="chat.js"></script>
+</body>
+</html>

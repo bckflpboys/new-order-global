@@ -18,6 +18,8 @@ const NewOrderAuth = (() => {
         const isValid = await NewOrderAPI.isLoggedIn();
         if (!isValid) {
           _currentUser = null;
+        } else {
+          fetchAndUpdateUnreadBadge();
         }
       }
     } catch (err) {
@@ -201,8 +203,39 @@ const NewOrderAuth = (() => {
     if (message.type === 'noAuthChanged') {
       _currentUser = message.user;
       _isInitialized = true;
+      if (_currentUser) fetchAndUpdateUnreadBadge();
     }
   });
+
+  // ============================================
+  // Chat Unread Badge
+  // ============================================
+  async function fetchAndUpdateUnreadBadge() {
+    try {
+      const res = await window.NewOrderAPI.request('/api/chat/unread-count');
+      const count = res.unreadCount || 0;
+      updateSidebarBadge(count);
+    } catch(e) { /* ignore */ }
+  }
+
+  function updateSidebarBadge(count) {
+    const chatLink = document.querySelector('a.nav-link[href*="chat.html"]');
+    if (!chatLink) return;
+    
+    let badge = chatLink.querySelector('.chat-global-badge');
+    if (count > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'chat-global-badge';
+        badge.style.cssText = 'background: var(--primary, #b8341c); color: white; font-size: 11px; font-weight: bold; padding: 2px 6px; border-radius: 10px; margin-left: auto;';
+        chatLink.style.display = 'flex'; // Ensure flex layout to push badge to right
+        chatLink.appendChild(badge);
+      }
+      badge.textContent = count;
+    } else if (badge) {
+      badge.remove();
+    }
+  }
 
   return {
     init,
@@ -213,7 +246,8 @@ const NewOrderAuth = (() => {
     isAuthenticated,
     getPlan,
     canUseAI,
-    getAIRequestsRemaining
+    getAIRequestsRemaining,
+    fetchAndUpdateUnreadBadge
   };
 })();
 
