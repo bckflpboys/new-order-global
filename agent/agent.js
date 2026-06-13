@@ -1,4 +1,4 @@
-﻿// Global Executive â€” Agent UI Controller
+// Global Executive â€” Agent UI Controller
 // Manages the agent loop: start task -> get action -> execute via background -> report result -> loop
 
 (function () {
@@ -499,7 +499,12 @@
     }).join('');
 
     list.querySelectorAll('.model-card').forEach(card => {
-      card.addEventListener('click', async () => {
+      card.addEventListener('click', async (e) => {
+        if (e.target.closest('.model-tag.upgrade')) {
+          window.location.href = '../dashboard/billing.html';
+          return;
+        }
+
         const canUse = card.dataset.canUse === 'true';
         
         if (!canUse) {

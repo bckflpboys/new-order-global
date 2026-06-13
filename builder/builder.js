@@ -307,7 +307,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }).join('');
 
     list.querySelectorAll('.model-card').forEach(card => {
-      card.addEventListener('click', async () => {
+      card.addEventListener('click', async (e) => {
+        if (e.target.closest('.model-tag.upgrade')) {
+          window.location.href = '../dashboard/billing.html';
+          return;
+        }
+
         const canUse = card.dataset.canUse === 'true';
         
         if (!canUse) {

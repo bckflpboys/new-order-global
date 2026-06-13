@@ -1416,12 +1416,29 @@ body.autopilot-mode .agent-app {
 }
 
 .model-card.locked {
-  opacity: 0.6;
   cursor: not-allowed;
+  position: relative;
+}
+
+.model-card.locked .model-card-icon,
+.model-card.locked .model-card-name,
+.model-card.locked .model-card-pricing,
+.model-card.locked .model-tag:not(.upgrade) {
+  opacity: 0.6;
+  filter: blur(0.4px);
+  pointer-events: none;
 }
 
 .model-card.locked .model-tag.upgrade {
   opacity: 1;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+}
+
+.model-card.locked .model-tag.upgrade:hover {
+  opacity: 0.8;
+  box-shadow: 0 0 0 2px rgba(214, 40, 40, 0.2);
 }
 
 .model-card.locked:hover {
