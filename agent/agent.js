@@ -1060,21 +1060,48 @@
   function showCapturedFiles(files) {
     if (!capturedFilesPanel || !capturedPanelBody) return;
     capturedFilesPanel.style.display = 'block';
-    capturedPanelBody.innerHTML = '<ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px;">' + 
+    
+    // Build the list
+    capturedPanelBody.innerHTML = '<div style="padding: 0 24px 12px; display:flex; flex-direction:column; gap:8px;">' + 
       files.map(f => {
         const sizeStr = (f.size / 1024).toFixed(1) + ' KB';
         const link = f.signedUrl || f.sourceUrl || '#';
-        return `<li style="background:var(--surface-sunken); padding:8px 12px; border-radius:6px; display:flex; justify-content:space-between; align-items:center;">
-          <div style="display:flex; flex-direction:column; overflow:hidden;">
-            <a href="${escapeHtml(link)}" target="_blank" style="color:var(--primary); text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500;" title="${escapeHtml(f.filename)}">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px;"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+        const fileRef = `fileRef="${escapeHtml(f.id)}"`;
+        
+        return `<div class="captured-file-item">
+          <div class="captured-file-info">
+            <a href="${escapeHtml(link)}" target="_blank" class="captured-file-title" title="${escapeHtml(f.filename)}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
               ${escapeHtml(f.filename)}
             </a>
-            ${f.description ? `<span style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtml(f.description)}</span>` : ''}
+            <div class="captured-file-meta">
+              <span>${sizeStr}</span>
+              ${f.description ? `<span>&middot;</span><span>${escapeHtml(f.description)}</span>` : ''}
+            </div>
           </div>
-          <span style="font-size:11px; color:var(--text-muted); white-space:nowrap; margin-left:12px;">${sizeStr}</span>
-        </li>`;
-      }).join('') + '</ul>';
+          <div class="captured-file-actions">
+            <button class="btn-file-action btn-mention-file" data-fileref='${escapeHtml(fileRef)}' title="Mention this file in the chat">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              Mention
+            </button>
+            <a href="${escapeHtml(link)}" target="_blank" class="btn-file-action" title="Download or open">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </a>
+          </div>
+        </div>`;
+      }).join('') + '</div>';
+
+    // Wire up "Mention" buttons
+    capturedPanelBody.querySelectorAll('.btn-mention-file').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const ref = btn.dataset.fileref;
+        if (taskInput) {
+          const prefix = taskInput.value.trim() ? ' ' : '';
+          taskInput.value += prefix + ref + ' ';
+          taskInput.focus();
+        }
+      });
+    });
   }
 
   function scrollToBottom() {
