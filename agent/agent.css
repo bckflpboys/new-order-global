@@ -976,6 +976,204 @@ body.autopilot-mode .agent-app {
   animation: fadeIn 0.3s ease;
 }
 
+/* ============================================
+   Document Card — rich UI for PDF/doc operations
+   ============================================ */
+.ge-doc-card {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.06) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  animation: fadeIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.ge-doc-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #6366f1, #8b5cf6, #a78bfa);
+  opacity: 0.7;
+}
+
+.ge-doc-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.ge-doc-icon-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.ge-doc-icon {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(99, 102, 241, 0.15);
+  border-radius: 10px;
+  font-size: 20px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.ge-doc-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  padding: 1px 5px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  font-family: var(--font-label);
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-radius: 4px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.ge-doc-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ge-doc-filename {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--on-surface);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 2px;
+}
+
+.ge-doc-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-label);
+  font-size: 10px;
+  color: var(--on-surface-muted);
+}
+
+.ge-doc-ref {
+  opacity: 0.6;
+  font-family: var(--font-mono);
+  font-size: 9px;
+}
+
+.ge-doc-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.ge-doc-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: var(--radius-full);
+  font-family: var(--font-label);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.ge-doc-stat.filled {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.ge-doc-stat.overlay {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.ge-doc-stat.skipped {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.ge-doc-stat.pages {
+  background: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.ge-doc-status {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--on-surface-variant);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.ge-doc-status p {
+  margin: 0 0 4px 0;
+}
+
+.ge-doc-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ge-doc-download-btn,
+.ge-doc-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  font-family: var(--font-label);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: none;
+}
+
+.ge-doc-download-btn {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+.ge-doc-download-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.ge-doc-download-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ge-doc-open-btn {
+  background: rgba(99, 102, 241, 0.1);
+  color: #8b5cf6;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.ge-doc-open-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  transform: translateY(-1px);
+}
+
 .step-done {
   padding: 14px 18px;
   background: var(--success-bg);
@@ -2768,12 +2966,14 @@ body.autopilot-mode .agent-app {
   transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
-.psb-btn-download {
+.psb-btn-download,
+.psb-btn-open {
   background: var(--surface-container);
   color: var(--on-surface-variant);
 }
 
-.psb-btn-download:hover {
+.psb-btn-download:hover,
+.psb-btn-open:hover {
   background: var(--primary);
   color: var(--on-primary);
   border-color: var(--primary);

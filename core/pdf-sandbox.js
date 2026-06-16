@@ -40,14 +40,24 @@ const PdfSandbox = (() => {
     card.className = 'pdf-sandbox-card';
     card.setAttribute('data-doc-type', docType);
 
-    const icon = docType === 'xlsx' ? '📊' : docType === 'docx' ? '📝' : '📄';
+    const icon = docType === 'xlsx' ? '📊' : docType === 'docx' ? '📝' : docType === 'pptx' ? '📽️' : '📄';
+    let metaText = '';
+    if (docType === 'xlsx') {
+      metaText = `${fields.length} cell${fields.length !== 1 ? 's' : ''}`;
+    } else if (docType === 'docx') {
+      metaText = `${fields.length} field${fields.length !== 1 ? 's' : ''}`;
+    } else if (docType === 'pptx') {
+      metaText = `${fields.length} slide${fields.length !== 1 ? 's' : ''}`;
+    } else {
+      metaText = `${pageCount} page${pageCount !== 1 ? 's' : ''} · ${fields.length} field${fields.length !== 1 ? 's' : ''}`;
+    }
 
     card.innerHTML = `
       <div class="psb-header">
         <span class="psb-icon">${icon}</span>
         <div class="psb-title-block">
           <div class="psb-filename" title="${escHtml(filename)}">${escHtml(truncate(filename, 46))}</div>
-          <div class="psb-meta">${pageCount} page${pageCount !== 1 ? 's' : ''} · ${fields.length} field${fields.length !== 1 ? 's' : ''}</div>
+          <div class="psb-meta">${metaText}</div>
         </div>
         <div class="psb-status-badge psb-badge-working">
           <span class="psb-spinner"></span>
@@ -76,6 +86,14 @@ const PdfSandbox = (() => {
           <embed class="psb-pdf-embed" type="application/pdf" src="" />
         </div>
         <div class="psb-actions">
+          <button class="psb-btn psb-btn-open">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+            Open File
+          </button>
           <button class="psb-btn psb-btn-download">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -109,6 +127,7 @@ const PdfSandbox = (() => {
     const embedEl    = card.querySelector('.psb-pdf-embed');
     const errorEl    = card.querySelector('.psb-error');
     const dlBtn      = card.querySelector('.psb-btn-download');
+    const openBtn    = card.querySelector('.psb-btn-open');
 
     function _setFieldEl(name, status, value) {
       const el = card.querySelector(`.psb-field[data-field-name="${CSS.escape(name)}"]`);
@@ -164,8 +183,16 @@ const PdfSandbox = (() => {
     if (dlBtn) {
       dlBtn.addEventListener('click', () => {
         if (_pdfBytes) {
-          DocEngine.downloadFile(_pdfBytes, _filename, 'application/pdf');
+          const mime = (typeof DocEngine !== 'undefined') ? DocEngine.mimeForFilename(_filename) : 'application/octet-stream';
+          DocEngine.downloadFile(_pdfBytes, _filename, mime);
         }
+      });
+    }
+
+    // Open button handler
+    if (openBtn) {
+      openBtn.addEventListener('click', () => {
+        if (_objectUrl) window.open(_objectUrl, '_blank');
       });
     }
 
@@ -189,7 +216,7 @@ const PdfSandbox = (() => {
       /** Switch badge to "Reading" state */
       setReading() {
         _setBadge('reading');
-        badgeText.textContent = 'Reading PDF…';
+        badgeText.textContent = 'Reading…';
       },
 
       /** Switch badge to "Filling" */
@@ -198,21 +225,45 @@ const PdfSandbox = (() => {
       },
 
       /** Show the finished PDF embed + download button */
-      showResult(pdfBytes, fname) {
+      showResult(pdfBytes, fname, actionText = 'Done') {
         _pdfBytes = pdfBytes;
         if (fname) _filename = fname;
 
         _setBadge('done');
+        if (badgeText) badgeText.textContent = actionText;
+        
         _updateProgress(_totalFields, _totalFields);
 
         // Revoke any previous object URL
         if (_objectUrl) { try { URL.revokeObjectURL(_objectUrl); } catch {} }
 
         if (pdfBytes && typeof DocEngine !== 'undefined') {
-          _objectUrl = DocEngine.bytesToObjectUrl(pdfBytes, 'application/pdf');
-          if (embedEl) {
-            embedEl.src = _objectUrl;
-            resultEl.style.display = '';
+          const mime = DocEngine.mimeForFilename(_filename);
+          _objectUrl = DocEngine.bytesToObjectUrl(pdfBytes, mime);
+          
+          const embedWrap = card.querySelector('.psb-embed-wrap');
+          if (mime === 'application/pdf') {
+            if (embedEl) {
+              embedEl.src = _objectUrl;
+              embedEl.style.display = '';
+            }
+            if (embedWrap) embedWrap.style.display = '';
+          } else {
+            if (embedEl) embedEl.style.display = 'none';
+            if (embedWrap) embedWrap.style.display = 'none';
+          }
+          resultEl.style.display = '';
+
+          // Calculate and append file size
+          const sizeBytes = pdfBytes.length || pdfBytes.byteLength;
+          if (sizeBytes) {
+            const sizeText = sizeBytes > 1024 * 1024 
+              ? (sizeBytes / (1024 * 1024)).toFixed(1) + ' MB'
+              : (sizeBytes / 1024).toFixed(1) + ' KB';
+            const metaEl = card.querySelector('.psb-meta');
+            if (metaEl && !metaEl.textContent.includes('MB') && !metaEl.textContent.includes('KB')) {
+              metaEl.textContent += ` · ${sizeText}`;
+            }
           }
         }
 

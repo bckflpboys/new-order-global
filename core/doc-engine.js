@@ -500,6 +500,156 @@ const DocEngine = (() => {
   }
 
   // ============================================
+  // PowerPoint utilities
+  // ============================================
+
+  /**
+   * Read a PowerPoint (.pptx) presentation — extract text slide-by-slide.
+   * Uses PizZip to dissect the presentation XML.
+   */
+  async function readPptx(url) {
+    const PizZip = pizzipLoaded();
+    if (!PizZip) return { ok: false, error: 'PizZip not loaded. Make sure libs/pizzip.min.js is included.' };
+    try {
+      const buf = await fetchBytes(url);
+      const zip = new PizZip(buf);
+
+      const slideFiles = Object.keys(zip.files).filter(k => /^ppt\/slides\/slide\d+\.xml$/i.test(k));
+      slideFiles.sort((a, b) => {
+        const numA = parseInt(a.match(/\d+/)[0], 10);
+        const numB = parseInt(b.match(/\d+/)[0], 10);
+        return numA - numB;
+      });
+
+      const slides = [];
+      let fullText = '';
+
+      for (const file of slideFiles) {
+        const xml = zip.files[file].asText();
+        // Extract text from <a:t> tags
+        const textMatches = xml.matchAll(/<a:t[^>]*>([\s\S]*?)<\/a:t>/g);
+        let slideText = '';
+        for (const m of textMatches) {
+          slideText += m[1].replace(/<[^>]+>/g, '').trim() + ' ';
+        }
+        const cleanText = slideText.trim();
+        slides.push({
+          slideNum: parseInt(file.match(/\d+/)[0], 10),
+          text: cleanText
+        });
+        fullText += `[Slide ${slides.length}]:\n${cleanText}\n\n`;
+      }
+
+      return {
+        ok: true,
+        text: fullText.trim(),
+        slides,
+        slideCount: slides.length,
+        wordCount: fullText.trim().split(/\s+/).filter(Boolean).length
+      };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  /**
+   * Fill a PowerPoint presentation template (.pptx) or find-and-replace text.
+   */
+  async function editPptx(url, params = {}) {
+    const PizZip  = pizzipLoaded();
+    const DocxTpl = docxTplLoaded();
+
+    const hasData         = params.data && Object.keys(params.data).length > 0;
+    const hasReplacements = Array.isArray(params.replacements) && params.replacements.length > 0;
+    const mode = params.mode || (hasReplacements ? 'replace' : 'template');
+
+    if (mode === 'template') {
+      if (!PizZip || !DocxTpl) {
+        return { ok: false, error: 'docxtemplater + PizZip not loaded. Make sure libs/pizzip.min.js and libs/docxtemplater.js are included.' };
+      }
+      try {
+        const buf = await fetchBytes(url);
+        const zip  = new PizZip(buf);
+        const doc  = new DocxTpl(zip, {
+          delimiters: params.delimiters || { start: '{', end: '}' },
+          paragraphLoop: true,
+          linebreaks: true
+        });
+
+        const data = params.data || {};
+        doc.render(data);
+
+        const out = doc.getZip().generate({
+          type: 'uint8array',
+          mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+          compression: 'DEFLATE'
+        });
+
+        return {
+          ok: true,
+          pptxBytes: out,
+          mode: 'template',
+          replaced: Object.keys(data),
+          hint: `PPTX template filled: ${Object.keys(data).length} placeholder(s) replaced.`
+        };
+      } catch (e) {
+        return { ok: false, error: `docxtemplater: ${e.message}` };
+      }
+    }
+
+    // --- Find & Replace mode (raw XML surgery) ---
+    if (!PizZip) {
+      return { ok: false, error: 'PizZip not loaded. Make sure libs/pizzip.min.js is included.' };
+    }
+    try {
+      const buf = await fetchBytes(url);
+      const zip = new PizZip(buf);
+
+      const slideFiles = Object.keys(zip.files).filter(k => /^ppt\/slides\/slide\d+\.xml$/i.test(k));
+      const replaced = [];
+
+      for (const part of slideFiles) {
+        let xml = zip.files[part].asText();
+        for (const { find, replace: repl } of (params.replacements || [])) {
+          if (!find) continue;
+          const escaped = String(find).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const before = xml;
+          xml = xml.replace(new RegExp(escaped, 'g'), String(repl ?? ''));
+          // Pass 2: match across split <a:t> runs (PowerPoint splits text elements)
+          if (xml === before) {
+            const xmlStripped = xml.replace(/<\/a:t>.*?<a:t[^>]*>/g, '');
+            if (xmlStripped.includes(find)) {
+              const runPattern = new RegExp(
+                String(find).split('').map(c => `${c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:<\\/a:t>.*?<a:t[^>]*>)?`).join(''),
+                'g'
+              );
+              xml = xml.replace(runPattern, String(repl ?? ''));
+            }
+          }
+          if (xml !== before) replaced.push({ find, part });
+        }
+        zip.file(part, xml);
+      }
+
+      const out = zip.generate({
+        type: 'uint8array',
+        mimeType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        compression: 'DEFLATE'
+      });
+
+      return {
+        ok: true,
+        pptxBytes: out,
+        mode: 'replace',
+        replaced,
+        hint: `Find & replace complete. ${replaced.length} slide substitution(s) made.`
+      };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  // ============================================
   // Spreadsheet utilities (SheetJS)
   // ============================================
 
@@ -622,6 +772,8 @@ const DocEngine = (() => {
       doc:  'application/msword',
       xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       xls:  'application/vnd.ms-excel',
+      pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      ppt:  'application/vnd.ms-powerpoint',
       csv:  'text/csv',
       txt:  'text/plain',
       png:  'image/png',
@@ -646,6 +798,9 @@ const DocEngine = (() => {
     // Spreadsheet
     loadSheet,
     editSheet,
+    // PowerPoint
+    readPptx,
+    editPptx,
     // Helpers
     downloadFile,
     bytesToBase64,

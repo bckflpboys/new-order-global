@@ -34,6 +34,8 @@
   const tabTracker = document.getElementById('tab-tracker');
   const storedDataPanel = document.getElementById('stored-data-panel');
   const dataPanelBody = document.getElementById('data-panel-body');
+  const capturedFilesPanel = document.getElementById('captured-files-panel');
+  const capturedPanelBody = document.getElementById('captured-panel-body');
   const historySidebar = document.getElementById('history-sidebar');
   const historyList = document.getElementById('history-list');
   const userInfo = document.getElementById('user-info');
@@ -630,6 +632,9 @@
       if (tail.storedData && Object.keys(tail.storedData).length > 0) {
         showStoredData(tail.storedData);
       }
+      if (tail.capturedFiles && tail.capturedFiles.length > 0) {
+        showCapturedFiles(tail.capturedFiles);
+      }
 
       historySidebar.classList.remove('open');
     } catch (err) {
@@ -646,6 +651,7 @@
     taskTitle.textContent = title;
     stepLog.innerHTML = '';
     storedDataPanel.style.display = 'none';
+    if (capturedFilesPanel) capturedFilesPanel.style.display = 'none';
     tabTracker.innerHTML = '';
     hideMilestonesPanel();
   }
@@ -806,6 +812,12 @@
     // Special rendering for message actions â€” stream the text in word-by-word
     // so the user sees the agent "typing" rather than a sudden bubble pop.
     if (step.action === 'message') {
+      // Check if this message includes a document card (PDF operations)
+      const docCard = step.params?._documentCard;
+      if (docCard) {
+        renderDocumentCard(step, docCard);
+        return;
+      }
       const msgEl = document.createElement('div');
       msgEl.className = 'step-message';
       stepLog.appendChild(msgEl);
@@ -858,7 +870,13 @@
       else if (step.action === 'rememberThis') detailText = `Remembering: "${(step.params.text || '').substring(0, 80)}"`;
       else if (step.action === 'notifyUser') detailText = `Pinging user: "${(step.params.text || '').substring(0, 80)}"`;
       else if (step.action === 'webSearch') detailText = `Searching the web: "${(step.params.query || step.params.q || '').substring(0, 80)}"`;
-      else if (step.action === 'researchNote') detailText = `Recording evidence [${step.params.topic || 'general'}]: "${(step.params.claim || '').substring(0, 80)}" â€” ${step.params.source || ''}`;
+      else if (step.action === 'researchNote') detailText = `Recording evidence [${step.params.topic || 'general'}]: "${(step.params.claim || '').substring(0, 80)}" — ${step.params.source || ''}`;
+      else if (step.action === 'pdfPages') detailText = `📄 Analyzing PDF: ${step.params.fileRef || ''}`;
+      else if (step.action === 'viewPdfPages') detailText = `🔍 Inspecting page ${step.params.page || step.params.pages?.[0] || '?'} of PDF: ${step.params.fileRef || ''}`;
+      else if (step.action === 'editPdf') detailText = `✏️ Editing PDF: ${step.params.fileRef || ''}`;
+      else if (step.action === 'viewCapturedFile') detailText = `👁️ Viewing file: ${step.params.fileRef || step.params.fileId || ''}`;
+      else if (step.action === 'readFile') detailText = `📖 Reading file: ${step.params.fileRef || step.params.fileId || ''}`;
+      else if (step.action === 'captureFile') detailText = `📎 Capturing file: ${step.params.filename || step.params.url || ''}`;
     }
 
     entry.innerHTML = `
@@ -890,6 +908,111 @@
     stepLog.appendChild(doneEl);
     scrollToBottom();
     streamMarkdownInto(doneEl.querySelector('.step-done-content'), summary || '', { wordsPerTick: 3, tickMs: 14 });
+  }
+
+  // ============================================
+  // Document Card — rich UI for PDF/document operations
+  // Shows what the agent is doing with a document: editing, viewing,
+  // inspecting, creating. Includes download button and operation stats.
+  // ============================================
+  function renderDocumentCard(step, doc) {
+    const card = document.createElement('div');
+    card.className = 'ge-doc-card';
+
+    // Determine action label and icon
+    const actionMap = {
+      editPdf: { label: 'Edited', icon: '✏️', verb: 'Editing' },
+      viewPdfPages: { label: 'Inspected', icon: '🔍', verb: 'Viewing' },
+      pdfPages: { label: 'Analyzed', icon: '📋', verb: 'Analyzing' }
+    };
+    const actionInfo = actionMap[doc.action] || { label: 'Processed', icon: '📄', verb: 'Processing' };
+
+    // Format file size
+    const sizeKB = doc.size ? (doc.size / 1024).toFixed(1) : '?';
+    const sizeLabel = doc.size > 1024 * 1024
+      ? `${(doc.size / (1024 * 1024)).toFixed(1)} MB`
+      : `${sizeKB} KB`;
+
+    // Build stats chips
+    const stats = [];
+    if (doc.filledFields > 0) stats.push(`<span class="ge-doc-stat filled">✓ ${doc.filledFields} field${doc.filledFields !== 1 ? 's' : ''} filled</span>`);
+    if (doc.drawnOverlays > 0) stats.push(`<span class="ge-doc-stat overlay">✎ ${doc.drawnOverlays} overlay${doc.drawnOverlays !== 1 ? 's' : ''} drawn</span>`);
+    if (doc.skippedFields > 0) stats.push(`<span class="ge-doc-stat skipped">⚠ ${doc.skippedFields} skipped</span>`);
+    if (doc.pageCount) stats.push(`<span class="ge-doc-stat pages">📄 ${doc.pageCount} page${doc.pageCount !== 1 ? 's' : ''}</span>`);
+
+    const statusText = step.params?.text || '';
+
+    card.innerHTML = `
+      <div class="ge-doc-card-header">
+        <div class="ge-doc-icon-wrap">
+          <div class="ge-doc-icon">${actionInfo.icon}</div>
+          <div class="ge-doc-badge">${escapeHtml(actionInfo.label)}</div>
+        </div>
+        <div class="ge-doc-info">
+          <div class="ge-doc-filename" title="${escapeHtml(doc.filename)}">${escapeHtml(doc.filename)}</div>
+          <div class="ge-doc-meta">
+            <span class="ge-doc-size">${sizeLabel}</span>
+            <span class="ge-doc-ref">${escapeHtml(doc.fileRef)}</span>
+          </div>
+        </div>
+      </div>
+      ${stats.length ? `<div class="ge-doc-stats">${stats.join('')}</div>` : ''}
+      ${statusText ? `<div class="ge-doc-status"></div>` : ''}
+      <div class="ge-doc-actions">
+        ${doc.signedUrl ? `<button class="ge-doc-download-btn" data-url="${escapeHtml(doc.signedUrl)}" data-filename="${escapeHtml(doc.filename)}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Download
+        </button>` : ''}
+        ${doc.signedUrl ? `<button class="ge-doc-open-btn" data-url="${escapeHtml(doc.signedUrl)}">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          Open
+        </button>` : ''}
+      </div>
+    `;
+
+    // Wire up download button
+    const dlBtn = card.querySelector('.ge-doc-download-btn');
+    if (dlBtn) {
+      dlBtn.addEventListener('click', async () => {
+        const url = dlBtn.getAttribute('data-url');
+        const filename = dlBtn.getAttribute('data-filename');
+        dlBtn.disabled = true;
+        dlBtn.textContent = 'Downloading…';
+        try {
+          const resp = await fetch(url);
+          const blob = await resp.blob();
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = filename || 'document.pdf';
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+          dlBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Downloaded';
+          setTimeout(() => {
+            dlBtn.disabled = false;
+            dlBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Download';
+          }, 3000);
+        } catch (e) {
+          dlBtn.textContent = 'Failed';
+          dlBtn.disabled = false;
+        }
+      });
+    }
+    // Wire up open button
+    const openBtn = card.querySelector('.ge-doc-open-btn');
+    if (openBtn) {
+      openBtn.addEventListener('click', () => {
+        window.open(openBtn.getAttribute('data-url'), '_blank');
+      });
+    }
+
+    stepLog.appendChild(card);
+    // Stream the status text if present
+    if (statusText) {
+      const statusEl = card.querySelector('.ge-doc-status');
+      if (statusEl) streamMarkdownInto(statusEl, statusText);
+    }
+    scrollToBottom();
   }
 
   function renderExecutingIndicator() {
@@ -932,6 +1055,26 @@
   function showStoredData(data) {
     storedDataPanel.style.display = 'block';
     dataPanelBody.textContent = JSON.stringify(data, null, 2);
+  }
+
+  function showCapturedFiles(files) {
+    if (!capturedFilesPanel || !capturedPanelBody) return;
+    capturedFilesPanel.style.display = 'block';
+    capturedPanelBody.innerHTML = '<ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px;">' + 
+      files.map(f => {
+        const sizeStr = (f.size / 1024).toFixed(1) + ' KB';
+        const link = f.signedUrl || f.sourceUrl || '#';
+        return `<li style="background:var(--surface-sunken); padding:8px 12px; border-radius:6px; display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; flex-direction:column; overflow:hidden;">
+            <a href="${escapeHtml(link)}" target="_blank" style="color:var(--primary); text-decoration:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-weight:500;" title="${escapeHtml(f.filename)}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px;"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path><polyline points="13 2 13 9 20 9"></polyline></svg>
+              ${escapeHtml(f.filename)}
+            </a>
+            ${f.description ? `<span style="font-size:11px; color:var(--text-muted); margin-top:2px;">${escapeHtml(f.description)}</span>` : ''}
+          </div>
+          <span style="font-size:11px; color:var(--text-muted); white-space:nowrap; margin-left:12px;">${sizeStr}</span>
+        </li>`;
+      }).join('') + '</ul>';
   }
 
   function scrollToBottom() {
@@ -2069,7 +2212,7 @@
               await animateFields(fieldEntries, (name) => skippedSet.has(name) ? 'skipped' : 'done');
 
               // Show the finished PDF in the sandbox embed
-              if (sandbox) sandbox.showResult(editResult.pdfBytes, filename);
+              if (sandbox) sandbox.showResult(editResult.pdfBytes, filename, 'Edited');
 
               // Also auto-download the result so the user has it immediately.
               // The agent can still upload it separately if needed.
@@ -2176,8 +2319,8 @@
                   done++;
                   sandbox.setProgress(done, items.length);
                 }
-                // Show download for docx (no embed â€” browser can't preview docx inline)
-                sandbox.showResult(null, filename);
+                // Show download for docx (no embed — browser can't preview docx inline)
+                sandbox.showResult(editResult.docxBytes, filename, 'Edited');
               }
 
               // Download the finished .docx
@@ -2230,7 +2373,7 @@
               }
 
               const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-              if (sandbox) sandbox.showResult(null, filename);
+              if (sandbox) sandbox.showResult(r.docxBytes, filename, 'Created');
               DocEngine.downloadFile(r.docxBytes, filename, DOCX_MIME);
 
               return {
@@ -2310,7 +2453,7 @@
                   done++;
                   sandbox.setProgress(done, cells.length);
                 }
-                sandbox.showResult(null, filename);
+                sandbox.showResult(r.xlsxBytes, filename, 'Edited');
               }
 
               const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -2322,7 +2465,97 @@
                 sheetName: r.sheetName,
                 filename,
                 xlsxSize: r.xlsxBytes.length,
-                hint: `Spreadsheet updated â€” ${r.edited.length} cell(s) changed in sheet "${r.sheetName}". Downloaded as "${filename}".`
+                hint: `Spreadsheet updated — ${r.edited.length} cell(s) changed in sheet "${r.sheetName}". Downloaded as "${filename}".`
+              };
+            })();
+
+          // ============================================
+          // readPptx — extract slide count and text from a .pptx
+          // ============================================
+          } else if (action === 'readPptx') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') return { success: false, error: 'DocEngine not loaded.' };
+              const fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src;
+              if (!fileUrl) return { success: false, error: 'readPptx: provide url (the .pptx file URL).' };
+              if (!DocEngine.isPizZipReady()) return { success: false, error: 'PizZip not loaded. Make sure libs/pizzip.min.js is included.' };
+
+              const r = await DocEngine.readPptx(fileUrl);
+              if (!r.ok) return { success: false, error: r.error };
+              return {
+                success: true,
+                text: r.text,
+                slides: r.slides,
+                slideCount: r.slideCount,
+                wordCount: r.wordCount,
+                hint: `PowerPoint presentation read. ${r.slideCount} slide(s), ${r.wordCount} words. Use editPptx to modify it.`
+              };
+            })();
+
+          // ============================================
+          // editPptx — fill a PowerPoint template OR find-and-replace text
+          // ============================================
+          } else if (action === 'editPptx') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') return { success: false, error: 'DocEngine not loaded.' };
+              const fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src;
+              if (!fileUrl) return { success: false, error: 'editPptx: provide url (the .pptx file URL).' };
+              if (!DocEngine.isPizZipReady()) return { success: false, error: 'PizZip not loaded. Make sure libs/pizzip.min.js is included.' };
+
+              const filename = params?.filename || params?.outputFilename
+                || fileUrl.split('/').pop().split('?')[0].replace(/\.pptx$/i, '') + '-edited.pptx' || 'edited.pptx';
+
+              const hasData         = params?.data && Object.keys(params.data).length > 0;
+              const hasReplacements = Array.isArray(params?.replacements) && params.replacements.length > 0;
+              const items = hasData
+                ? Object.entries(params.data)
+                : (params?.replacements || []).map(r => [r.find, r.replace]);
+
+              // --- Sandbox card ---
+              let sandbox = null;
+              const lastEntry = getLatestStepEntry();
+              if (lastEntry && typeof PdfSandbox !== 'undefined' && items.length > 0) {
+                sandbox = PdfSandbox.create(lastEntry.querySelector('.step-body') || lastEntry, {
+                  filename,
+                  pageCount: 1,
+                  fields: items.map(([k]) => ({ name: String(k), type: 'text' })),
+                  docType: 'pptx'
+                });
+                sandbox.setReading();
+              }
+
+              const editResult = await DocEngine.editPptx(fileUrl, params);
+
+              if (!editResult.ok) {
+                if (sandbox) sandbox.setError(editResult.error);
+                return { success: false, error: editResult.error };
+              }
+
+              // Animate replacements
+              if (sandbox) {
+                sandbox.setFilling();
+                let done = 0;
+                for (const [key, val] of items) {
+                  sandbox.setFieldStatus(String(key), 'filling');
+                  sandbox.setProgress(done, items.length);
+                  await sleep(60);
+                  sandbox.setFieldStatus(String(key), 'done', String(val ?? '').slice(0, 40));
+                  done++;
+                  sandbox.setProgress(done, items.length);
+                }
+                sandbox.showResult(editResult.pptxBytes, filename, 'Edited');
+              }
+
+              // Download the finished .pptx
+              const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+              DocEngine.downloadFile(editResult.pptxBytes, filename, PPTX_MIME);
+
+              return {
+                success: true,
+                mode: editResult.mode,
+                replaced: editResult.replaced,
+                filename,
+                pptxSize: editResult.pptxBytes.length,
+                hint: editResult.hint + ` Downloaded as "${filename}".`
               };
             })();
 
@@ -3859,6 +4092,11 @@
     // Stored data panel toggle
     document.getElementById('btn-toggle-data')?.addEventListener('click', () => {
       dataPanelBody.style.display = dataPanelBody.style.display === 'none' ? 'block' : 'none';
+    });
+
+    // Captured files panel toggle
+    document.getElementById('btn-toggle-captured')?.addEventListener('click', () => {
+      if (capturedPanelBody) capturedPanelBody.style.display = capturedPanelBody.style.display === 'none' ? 'block' : 'none';
     });
 
     // Settings button - navigate to settings page
