@@ -86,7 +86,7 @@ const DocEngine = (() => {
     try {
       const buf = await fetchBytes(url);
       const { PDFDocument } = lib;
-      const doc = await PDFDocument.load(buf, { ignoreEncryption: true, updateMetadata: false });
+      const doc = await PDFDocument.load(buf, { ignoreEncryption: true, updateMetadata: false, throwOnInvalidObject: false });
       const pages = doc.getPages();
 
       const fields = [];
@@ -126,7 +126,7 @@ const DocEngine = (() => {
     try {
       const buf = await fetchBytes(url);
       const { PDFDocument, StandardFonts, rgb } = lib;
-      const doc = await PDFDocument.load(buf, { ignoreEncryption: true });
+      const doc = await PDFDocument.load(buf, { ignoreEncryption: true, throwOnInvalidObject: false });
       const pages = doc.getPages();
 
       const filledFields = [];
