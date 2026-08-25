@@ -1206,7 +1206,7 @@
   // next /step round (services/agentService.js consumes task.chatNudges).
   // ============================================
   // ============================================
-  // Slash Commands & Autocomplete Engine
+  // Slash Commands Engine & SVG Icons (40 Commands)
   // ============================================
   const AGY_ICONS = {
     help: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
@@ -1227,23 +1227,50 @@
     stage: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`,
     settings: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
     warning: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
-    agent: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/><path d="M8 15h8"/></svg>`
+    agent: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/><path d="M8 15h8"/></svg>`,
+    sniff: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
+    clean: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>`,
+    storage: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>`,
+    diff: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9v12"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>`,
+    timemachine: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 8 14"/></svg>`,
+    mirror: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="8" height="18" rx="1"/><rect x="14" y="3" width="8" height="18" rx="1"/></svg>`,
+    record: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>`,
+    bridge: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+    hud: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h5"/><path d="M17 12h5"/><path d="M12 2v5"/><path d="M12 17v5"/><circle cx="12" cy="12" r="7"/></svg>`,
+    fakereview: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+    find: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+    shadow: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
+    solve: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`,
+    pricematch: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>`,
+    bionic: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
+    voice: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`,
+    focus: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>`,
+    mesh3d: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
+    acoustics: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>`,
+    heatmap: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`,
+    peek: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+    heal: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+    jargon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+    matrix: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`
   };
 
   const AGENT_SLASH_COMMANDS = [
+    // ----------------------------------------------------
+    // Category 1: 10 Essential & Expected Workhorses
+    // ----------------------------------------------------
     {
       name: '/help',
       aliases: ['/start', '/?', '/commands'],
-      category: 'Core',
+      category: 'Essential',
       icon: AGY_ICONS.help,
-      desc: 'Show all slash commands, shortcuts & interactive guide',
+      desc: 'Show all 40 commands, shortcuts & interactive directory',
       params: '',
       run: async () => renderAgentHelpCard()
     },
     {
       name: '/tabs',
       aliases: ['/tab', '/list-tabs', '/windows'],
-      category: 'Browser',
+      category: 'Essential',
       icon: AGY_ICONS.tabs,
       desc: 'List all open Chrome tabs and active page details',
       params: '',
@@ -1252,72 +1279,45 @@
     {
       name: '/status',
       aliases: ['/info', '/state'],
-      category: 'Core',
+      category: 'Essential',
       icon: AGY_ICONS.status,
-      desc: 'Show active agent status, current task ID, mode & model',
+      desc: 'Show live telemetry, active task ID, mode & model status',
       params: '',
       run: async () => renderStatusCommand()
     },
     {
       name: '/credits',
       aliases: ['/account', '/balance', '/usage'],
-      category: 'Account',
+      category: 'Essential',
       icon: AGY_ICONS.credits,
-      desc: 'Check remaining AI credits, user plan & daily usage',
+      desc: 'Check remaining AI credits, user plan & daily usage limits',
       params: '',
       run: async () => renderCreditsCommand()
     },
     {
-      name: '/mode',
-      aliases: ['/switch-mode'],
-      category: 'Settings',
-      icon: AGY_ICONS.mode,
-      desc: 'Switch or view agent execution mode (copilot vs autopilot)',
-      params: '[copilot|autopilot]',
-      run: async (args) => handleModeCommand(args)
-    },
-    {
-      name: '/copilot',
-      aliases: ['/co-pilot'],
-      category: 'Settings',
-      icon: AGY_ICONS.copilot,
-      desc: 'Set agent to Co-Pilot mode (asks for confirmation on risky steps)',
-      params: '',
-      run: async () => handleModeCommand('copilot')
-    },
-    {
-      name: '/autopilot',
-      aliases: ['/auto-pilot'],
-      category: 'Settings',
-      icon: AGY_ICONS.autopilot,
-      desc: 'Set agent to Auto-Pilot mode (executes autonomously)',
-      params: '',
-      run: async () => handleModeCommand('autopilot')
-    },
-    {
       name: '/models',
       aliases: ['/model-list', '/llms'],
-      category: 'AI Model',
+      category: 'Essential',
       icon: AGY_ICONS.models,
-      desc: 'List all available agent AI models and tiers',
+      desc: 'Browse and switch agent AI model tiers & pricing',
       params: '',
       run: async () => renderModelsCommand()
     },
     {
       name: '/model',
       aliases: ['/set-model', '/switch-model'],
-      category: 'AI Model',
+      category: 'Essential',
       icon: AGY_ICONS.model,
-      desc: 'Switch active AI model (e.g. /model sonnet, /model gemini)',
-      params: '<name_or_id>',
+      desc: 'Directly switch active AI model (e.g. /model sonnet)',
+      params: '<id>',
       run: async (args) => handleModelSwitchCommand(args)
     },
     {
       name: '/clear',
-      aliases: ['/reset', '/new', '/clean'],
-      category: 'Core',
+      aliases: ['/reset', '/new'],
+      category: 'Essential',
       icon: AGY_ICONS.clear,
-      desc: 'Clear current conversation and start a clean session',
+      desc: 'Clear current conversation and start fresh session',
       params: '',
       run: async () => {
         resetToWelcome();
@@ -1327,9 +1327,9 @@
     {
       name: '/history',
       aliases: ['/tasks', '/recent'],
-      category: 'Core',
+      category: 'Essential',
       icon: AGY_ICONS.history,
-      desc: 'Open task history sidebar to view past executions',
+      desc: 'Open task history sidebar to review and resume past runs',
       params: '',
       run: async () => {
         historySidebar.classList.add('open');
@@ -1339,43 +1339,40 @@
     {
       name: '/tools',
       aliases: ['/my-tools', '/extensions'],
-      category: 'Tools',
+      category: 'Essential',
       icon: AGY_ICONS.tools,
       desc: 'Display installed custom and built-in extension tools',
       params: '',
       run: async () => renderToolsCommand()
     },
     {
+      name: '/settings',
+      aliases: ['/config', '/options'],
+      category: 'Essential',
+      icon: AGY_ICONS.settings,
+      desc: 'Open Global Executive extension settings dashboard',
+      params: '',
+      run: async () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/settings.html') });
+      }
+    },
+
+    // ----------------------------------------------------
+    // Category 2: 10 Surprising & Highly-Sought Hidden Gems
+    // ----------------------------------------------------
+    {
       name: '/export',
       aliases: ['/copy', '/transcript', '/share'],
-      category: 'Export',
+      category: 'Surprising',
       icon: AGY_ICONS.export,
-      desc: 'Copy current session transcript / step log to clipboard',
+      desc: 'Copy current session transcript and collected data to clipboard',
       params: '',
       run: async () => exportSessionTranscript()
     },
     {
-      name: '/guide',
-      aliases: ['/tips', '/tutorial', '/prompting'],
-      category: 'Guide',
-      icon: AGY_ICONS.guide,
-      desc: 'View comprehensive agent prompt engineering & automation guide',
-      params: '',
-      run: async () => renderGuideCommand()
-    },
-    {
-      name: '/skills',
-      aliases: ['/memory', '/recipes', '/rules'],
-      category: 'AI Model',
-      icon: AGY_ICONS.skills,
-      desc: 'View learned compounding skills & procedural memories',
-      params: '',
-      run: async () => renderSkillsCommand()
-    },
-    {
       name: '/stage',
       aliases: ['/upload', '/file', '/pdf'],
-      category: 'Tools',
+      category: 'Surprising',
       icon: AGY_ICONS.stage,
       desc: 'Stage a file (PDF, CSV, image) for agent processing',
       params: '',
@@ -1384,164 +1381,336 @@
       }
     },
     {
-      name: '/settings',
-      aliases: ['/config', '/options'],
-      category: 'Settings',
-      icon: AGY_ICONS.settings,
-      desc: 'Open Global Executive extension settings',
+      name: '/copilot',
+      aliases: ['/co-pilot'],
+      category: 'Surprising',
+      icon: AGY_ICONS.copilot,
+      desc: 'Switch to Co-Pilot mode (requests confirmation before executing actions)',
       params: '',
-      run: async () => {
-        chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/settings.html') });
-      }
+      run: async () => handleModeCommand('copilot')
+    },
+    {
+      name: '/autopilot',
+      aliases: ['/auto-pilot'],
+      category: 'Surprising',
+      icon: AGY_ICONS.autopilot,
+      desc: 'Switch to Auto-Pilot mode (executes autonomously at max speed)',
+      params: '',
+      run: async () => handleModeCommand('autopilot')
+    },
+    {
+      name: '/skills',
+      aliases: ['/memory', '/recipes', '/rules'],
+      category: 'Surprising',
+      icon: AGY_ICONS.skills,
+      desc: 'View compounding procedural automation routines & recipes',
+      params: '',
+      run: async () => renderSkillsCommand()
+    },
+    {
+      name: '/sniff',
+      aliases: ['/network', '/api-sniff'],
+      category: 'Surprising',
+      icon: AGY_ICONS.sniff,
+      desc: 'Sniff background AJAX/fetch API responses on the active tab',
+      params: '',
+      run: async () => handleUserSubmit('Inspect background API network calls on this page and extract the raw JSON data payload.')
+    },
+    {
+      name: '/clean',
+      aliases: ['/strip-overlays', '/zap'],
+      category: 'Surprising',
+      icon: AGY_ICONS.clean,
+      desc: 'Instantly strip sticky banners, cookie dialogs, and paywall blurs',
+      params: '',
+      run: async () => handleUserSubmit('Clean this article of all paywall overlays, newsletter popups, and cookie walls, then present full text.')
+    },
+    {
+      name: '/storage',
+      aliases: ['/cookies', '/localstorage'],
+      category: 'Surprising',
+      icon: AGY_ICONS.storage,
+      desc: 'Inspect, edit, export, or clear cookies and LocalStorage for this site',
+      params: '',
+      run: async () => handleUserSubmit('Inspect all cookies, localStorage, and sessionStorage entries for the active site.')
+    },
+    {
+      name: '/diff',
+      aliases: ['/compare', '/dom-diff'],
+      category: 'Surprising',
+      icon: AGY_ICONS.diff,
+      desc: 'Compare visual and DOM diffs across page changes or GitHub PRs',
+      params: '',
+      run: async () => handleUserSubmit('Review the code diffs or DOM changes on this page, highlighting potential modifications.')
+    },
+    {
+      name: '/guide',
+      aliases: ['/tutorial', '/prompting'],
+      category: 'Surprising',
+      icon: AGY_ICONS.guide,
+      desc: 'View comprehensive prompt engineering & agent architecture guide',
+      params: '',
+      run: async () => renderGuideCommand()
+    },
+
+    // ----------------------------------------------------
+    // Category 3: 10 Unprecedented & Out-of-the-Box Inventions
+    // ----------------------------------------------------
+    {
+      name: '/timemachine',
+      aliases: ['/watch', '/monitor'],
+      category: 'Unprecedented',
+      icon: AGY_ICONS.timemachine,
+      desc: 'Snapshot DOM elements to monitor and alert on price/text changes',
+      params: '',
+      run: async () => handleUserSubmit('Monitor the inventory and price of this item and notify me if the availability status updates.')
+    },
+    {
+      name: '/mirror',
+      aliases: ['/sync-tabs', '/multitab'],
+      category: 'Unprecedented',
+      icon: AGY_ICONS.mirror,
+      desc: 'Broadcast scroll and click actions synchronously across open tabs',
+      params: '',
+      run: async () => handleUserSubmit('Create a multi-tab mirror that mirrors my scroll and form actions across open tabs.')
+    },
+    {
+      name: '/record',
+      aliases: ['/macro', '/bot-record'],
+      category: 'Unprecedented',
+      icon: AGY_ICONS.record,
+      desc: 'Record browser actions and compile them into an autonomous replay macro',
+      params: '',
+      run: async () => handleUserSubmit('Record my clicks and navigation on this page, generating a reusable autonomous playback script.')
+    },
+    {
+      name: '/bridge',
+      aliases: ['/transfer', '/pipe'],
+      category: 'Unprecedented',
+      icon: AGY_ICONS.bridge,
+      desc: 'Pipe selected records or fields from active tab into a target tab',
+      params: '',
+      run: async () => handleUserSubmit('Copy customer details or data from this tab and pipe them into the destination tab.')
+    },
+    {
+      name: '/hud',
+      aliases: ['/summary-hud', '/briefing'],
+      category: 'Unprecedented',
+      icon: AGY_ICONS.hud,
+      desc: 'Inject a floating executive summary HUD with metrics and key dates',
+      params: '',
+      run: async () => handleUserSubmit('Generate an executive briefing HUD from this page highlighting bottom-line figures and key takeaways.')
+    },
+    {
+      name: '/fakereview',
+      aliases: ['/bot-detector', '/reviews'],
+      category: 'Unprecedented',
+      icon: AGY_ICONS.fakereview,
+      desc: 'Scan e-commerce reviews to calculate authenticity score and flag bots',
+      params: '',
+      run: async () => handleUserSubmit('Analyze reviews on this product page to calculate authenticity score and flag suspicious bot patterns.')
+    },
+    {
+      name: '/find',
+      aliases: ['/omni-search', '/search-all'],
+      category: 'Unprecedented',
+      icon: AGY_ICONS.find,
+      desc: 'Deep-search text across all open browser tabs simultaneously',
+      params: '<query>',
+      run: async (query) => handleUserSubmit(`Search across all open browser tabs for references to "${query || 'query'}" and highlight matches.`)
+    },
+    {
+      name: '/shadow',
+      aliases: ['/iframe-pierce', '/pierce'],
+      category: 'Unprecedented',
+      icon: AGY_ICONS.shadow,
+      desc: 'Recursively pierce nested shadow roots and iframes to reveal buried elements',
+      params: '',
+      run: async () => handleUserSubmit('Locate and interact with the elements inside the embedded shadow root and payment iframe widgets.')
+    },
+    {
+      name: '/solve',
+      aliases: ['/captcha-audio', '/audio-verify'],
+      category: 'Unprecedented',
+      icon: AGY_ICONS.solve,
+      desc: 'Trigger audio fallback challenge for verification prompts and assist entry',
+      params: '',
+      run: async () => handleUserSubmit('Trigger audio challenge fallback for this captcha and assist in verifying.')
+    },
+    {
+      name: '/pricematch',
+      aliases: ['/sku-match', '/bestprice'],
+      category: 'Unprecedented',
+      icon: AGY_ICONS.pricematch,
+      desc: 'Scan competitor stores for identical SKUs to find price match savings',
+      params: '',
+      run: async () => handleUserSubmit('Find identical SKU of this product on competitor stores and calculate potential price match savings.')
+    },
+
+    // ----------------------------------------------------
+    // Category 4: 10 Wild, Polarizing & Awe-Inspiring Experiments
+    // ----------------------------------------------------
+    {
+      name: '/bionic',
+      aliases: ['/speedread', '/flow-read'],
+      category: 'Wild',
+      icon: AGY_ICONS.bionic,
+      desc: 'Convert webpage text into fixation-guided bolding for 3x speed reading',
+      params: '',
+      run: async () => handleUserSubmit('Convert all article text on this page into bionic reading format with highlighted word fixations.')
+    },
+    {
+      name: '/voice',
+      aliases: ['/speech', '/handsfree'],
+      category: 'Wild',
+      icon: AGY_ICONS.voice,
+      desc: 'Activate voice command navigation for hands-free browsing and scrolling',
+      params: '',
+      run: async () => handleUserSubmit('Enable voice navigation mode for browsing and controlling this page hands-free.')
+    },
+    {
+      name: '/focus',
+      aliases: ['/doomscroll', '/detox'],
+      category: 'Wild',
+      icon: AGY_ICONS.focus,
+      desc: 'Add progressive scroll friction and grayscale filters on social feeds',
+      params: '',
+      run: async () => handleUserSubmit('Activate dopamine friction on this social feed: add scroll resistance and grayscale after 10 mins.')
+    },
+    {
+      name: '/3d',
+      aliases: ['/wireframe', '/mesh3d'],
+      category: 'Wild',
+      icon: AGY_ICONS.mesh3d,
+      desc: 'Tilt webpage into a rotatable 3D wireframe mesh displaying z-index layers',
+      params: '',
+      run: async () => handleUserSubmit('Render this webpage in 3D wireframe perspective showing z-index stacking layers.')
+    },
+    {
+      name: '/acoustics',
+      aliases: ['/soundscape', '/mechanical'],
+      category: 'Wild',
+      icon: AGY_ICONS.acoustics,
+      desc: 'Inject mechanical keyboard acoustic clicks and harmonious UI chimes',
+      params: '',
+      run: async () => handleUserSubmit('Play mechanical keyboard click acoustics on button interactions and typing across the page.')
+    },
+    {
+      name: '/heatmap',
+      aliases: ['/attention', '/clickmap'],
+      category: 'Wild',
+      icon: AGY_ICONS.heatmap,
+      desc: 'Overlay a live thermal attention heatmap of clicks and reading dwell time',
+      params: '',
+      run: async () => handleUserSubmit('Draw a thermal attention heatmap overlay showing where clicks and reading focus landed.')
+    },
+    {
+      name: '/peek',
+      aliases: ['/linkpeek', '/hoverpreview'],
+      category: 'Wild',
+      icon: AGY_ICONS.peek,
+      desc: 'Show floating iframe preview cards on link hover without opening tabs',
+      params: '',
+      run: async () => handleUserSubmit('Preview all outbound links on this page on hover without opening new browser tabs.')
+    },
+    {
+      name: '/heal',
+      aliases: ['/rageclick', '/fixbutton'],
+      category: 'Wild',
+      icon: AGY_ICONS.heal,
+      desc: 'Detect repeated clicks on non-responsive buttons and trigger listeners',
+      params: '',
+      run: async () => handleUserSubmit('Detect broken buttons on this page and simulate click dispatching to unblock the form.')
+    },
+    {
+      name: '/jargon',
+      aliases: ['/buzzwords', '/pr-decrypt'],
+      category: 'Wild',
+      icon: AGY_ICONS.jargon,
+      desc: 'Decrypt corporate marketing buzzwords into brutally honest plain English',
+      params: '',
+      run: async () => handleUserSubmit('Decrypt all corporate buzzwords and PR spin in this announcement into plain honest English.')
+    },
+    {
+      name: '/matrix',
+      aliases: ['/terminal', '/hackermode'],
+      category: 'Wild',
+      icon: AGY_ICONS.matrix,
+      desc: 'Transform webpage into a retro phosphor green CRT terminal HUD',
+      params: '',
+      run: async () => handleUserSubmit('Transform this website layout into a retro Matrix-style green CRT terminal interface.')
     }
   ];
 
-  function renderAgentHelpCard() {
+  function renderAgentHelpCard(selectedFilter = 'all') {
+    const filtered = selectedFilter === 'all'
+      ? AGENT_SLASH_COMMANDS
+      : AGENT_SLASH_COMMANDS.filter(c => c.category.toLowerCase() === selectedFilter.toLowerCase());
+
+    const chipsHtml = filtered.map(c => `
+      <a class="command-chip" data-cmd="${c.params ? c.name + ' ' : c.name}">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="color:var(--primary);display:inline-flex;">${c.icon}</span>
+          <code>${escapeHtml(c.name)}${c.params ? ' ' + escapeHtml(c.params) : ''}</code>
+        </div>
+        <div class="command-chip-info" style="margin-top:2px;">
+          ${escapeHtml(c.desc)}
+        </div>
+      </a>
+    `).join('');
+
     const card = document.createElement('div');
     card.className = 'command-card';
     card.innerHTML = `
       <div class="command-card-header">
         <span class="command-card-icon">${AGY_ICONS.agent}</span>
         <div>
-          <h3>Global Executive · Command Center</h3>
-          <p>Click any command below or type <code>/</code> in the input for quick navigation.</p>
+          <h3>Global Executive · Command Center (${AGENT_SLASH_COMMANDS.length} Commands)</h3>
+          <p>Organized 2-by-2. Click any command or type <code>/</code> for quick navigation.</p>
         </div>
       </div>
 
-      <div class="command-section-title">Core Navigation &amp; Status</div>
-      <div class="command-grid">
-        <a class="command-chip" data-cmd="/help">
-          <code>/help</code>
-          <div class="command-chip-info">
-            <strong>Command Directory</strong>
-            Show this interactive guide &amp; shortcuts
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/tabs">
-          <code>/tabs</code>
-          <div class="command-chip-info">
-            <strong>Open Chrome Tabs</strong>
-            Inspect open tabs and current page context
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/status">
-          <code>/status</code>
-          <div class="command-chip-info">
-            <strong>Agent Status</strong>
-            View active session, task ID &amp; model
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/clear">
-          <code>/clear</code>
-          <div class="command-chip-info">
-            <strong>Reset View</strong>
-            Clear conversation &amp; start fresh
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/history">
-          <code>/history</code>
-          <div class="command-chip-info">
-            <strong>Task History</strong>
-            Open history sidebar of past sessions
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/settings">
-          <code>/settings</code>
-          <div class="command-chip-info">
-            <strong>Extension Settings</strong>
-            Open settings and agent preferences
-          </div>
-        </a>
+      <div class="template-tabs">
+        <button class="template-tab ${selectedFilter === 'all' ? 'active' : ''}" data-cmd-filter="all">All (${AGENT_SLASH_COMMANDS.length})</button>
+        <button class="template-tab ${selectedFilter === 'Essential' ? 'active' : ''}" data-cmd-filter="Essential">Expected &amp; Essential (10)</button>
+        <button class="template-tab ${selectedFilter === 'Surprising' ? 'active' : ''}" data-cmd-filter="Surprising">Surprising Gems (10)</button>
+        <button class="template-tab ${selectedFilter === 'Unprecedented' ? 'active' : ''}" data-cmd-filter="Unprecedented">New Inventions (10)</button>
+        <button class="template-tab ${selectedFilter === 'Wild' ? 'active' : ''}" data-cmd-filter="Wild">Wild &amp; Experimental (10)</button>
       </div>
 
-      <div class="command-section-title">Modes &amp; AI Brains</div>
-      <div class="command-grid">
-        <a class="command-chip" data-cmd="/mode">
-          <code>/mode</code>
-          <div class="command-chip-info">
-            <strong>Execution Mode</strong>
-            Switch Co-Pilot (guided) vs Auto-Pilot (fast)
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/copilot">
-          <code>/copilot</code>
-          <div class="command-chip-info">
-            <strong>Co-Pilot Mode</strong>
-            Ask for confirmation on sensitive actions
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/autopilot">
-          <code>/autopilot</code>
-          <div class="command-chip-info">
-            <strong>Auto-Pilot Mode</strong>
-            Run fully autonomous without waiting
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/models">
-          <code>/models</code>
-          <div class="command-chip-info">
-            <strong>AI Model List</strong>
-            Browse reasoning &amp; vision capabilities
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/model ">
-          <code>/model &lt;id&gt;</code>
-          <div class="command-chip-info">
-            <strong>Switch AI Model</strong>
-            Change brain (e.g. <code>/model sonnet</code>)
-          </div>
-        </a>
-      </div>
-
-      <div class="command-section-title">Tools, Files &amp; Account</div>
-      <div class="command-grid">
-        <a class="command-chip" data-cmd="/credits">
-          <code>/credits</code>
-          <div class="command-chip-info">
-            <strong>Balance &amp; Tier</strong>
-            Check credits, plan tier &amp; daily limits
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/tools">
-          <code>/tools</code>
-          <div class="command-chip-info">
-            <strong>Active Tools</strong>
-            List built-in &amp; custom extension tools
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/stage">
-          <code>/stage</code>
-          <div class="command-chip-info">
-            <strong>Stage Document</strong>
-            Upload PDF, CSV or image for agent to use
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/skills">
-          <code>/skills</code>
-          <div class="command-chip-info">
-            <strong>Compounding Skills</strong>
-            View learned routines &amp; memories
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/export">
-          <code>/export</code>
-          <div class="command-chip-info">
-            <strong>Export Transcript</strong>
-            Copy session steps as Markdown to clipboard
-          </div>
-        </a>
-        <a class="command-chip" data-cmd="/guide">
-          <code>/guide</code>
-          <div class="command-chip-info">
-            <strong>Agent Pro Guide</strong>
-            Formulas &amp; tips for web automation
-          </div>
-        </a>
+      <div class="two-col-grid command-grid-container">
+        ${chipsHtml}
       </div>
     `;
 
     stepLog.appendChild(card);
     scrollToBottom();
+
+    // Tab filter listeners
+    card.querySelectorAll('.template-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        e.preventDefault();
+        const filter = tab.dataset.cmdFilter;
+        card.querySelectorAll('.template-tab').forEach(t => t.classList.toggle('active', t === tab));
+        const grid = card.querySelector('.command-grid-container');
+        if (grid) {
+          const newFiltered = filter === 'all'
+            ? AGENT_SLASH_COMMANDS
+            : AGENT_SLASH_COMMANDS.filter(c => c.category.toLowerCase() === filter.toLowerCase());
+          grid.innerHTML = newFiltered.map(c => `
+            <a class="command-chip" data-cmd="${c.params ? c.name + ' ' : c.name}">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="color:var(--primary);display:inline-flex;">${c.icon}</span>
+                <code>${escapeHtml(c.name)}${c.params ? ' ' + escapeHtml(c.params) : ''}</code>
+              </div>
+              <div class="command-chip-info" style="margin-top:2px;">
+                ${escapeHtml(c.desc)}
+              </div>
+            </a>
+          `).join('');
+        }
+      });
+    });
   }
 
   async function renderTabsCommand() {
@@ -1861,26 +2030,413 @@
     scrollToBottom();
   }
 
-  function renderSkillsCommand() {
+  const AGENT_COMPOUNDING_SKILLS = [
+    // Category 1: 10 Essential & Expected Workhorses
+    {
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: AGY_ICONS.form || AGY_ICONS.tools,
+      title: 'Auto-Fill Complex Forms & Portals',
+      desc: 'Detects multi-step form fields, selects, and checkboxes, accurately completing them with memory values.',
+      prompt: 'Fill out this multi-step form using my standard profile and submit when complete.'
+    },
+    {
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: AGY_ICONS.tools,
+      title: 'Table & List Data Extraction',
+      desc: 'Navigates through pagination, extracting structured records and prices into collected key-value data.',
+      prompt: 'Extract all table records and listings on this page across the next 3 pages into collected data.'
+    },
+    {
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: AGY_ICONS.tabs,
+      title: 'Competitive Price & Spec Comparison',
+      desc: 'Opens product listings across multiple tabs, comparing warranties, delivery times, and true costs.',
+      prompt: 'Compare the price, ratings, and delivery estimates for this product across Amazon, Walmart, and BestBuy.'
+    },
+    {
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: AGY_ICONS.guide,
+      title: 'Deep Research & Document Briefing',
+      desc: 'Reads articles, whitepapers, or documentation across tabs and synthesizes an executive summary.',
+      prompt: 'Research this topic across the current open tabs and synthesize key takeaways with cited sources.'
+    },
+    {
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: AGY_ICONS.stage,
+      title: 'PDF Parsing & Key Metric Extraction',
+      desc: 'Parses staged invoices, receipts, and PDF reports, extracting financial figures into clean tables.',
+      prompt: 'Inspect the staged PDF invoice, extract itemized totals, tax, and due date into collected data.'
+    },
+    {
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: AGY_ICONS.credits,
+      title: 'Recurring Invoice & Receipt Downloader',
+      desc: 'Logs into billing portals (AWS, Stripe, Google Cloud) and downloads the latest monthly invoices.',
+      prompt: 'Navigate to billing history, download the latest 3 invoice PDFs, and summarize amounts.'
+    },
+    {
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: AGY_ICONS.tools,
+      title: 'SEO & Metadata Audit',
+      desc: 'Inspects title tags, meta descriptions, OpenGraph headers, canonical URLs, and schema JSON-LD.',
+      prompt: 'Perform a comprehensive SEO audit of this page: check meta tags, headings hierarchy, and schema markup.'
+    },
+    {
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: AGY_ICONS.clear,
+      title: 'Multi-Tab Triage & Workspace Cleanup',
+      desc: 'Clusters 30+ open tabs by domain/topic, closing duplicates and organizing your workspace.',
+      prompt: 'Inspect all open tabs, list them by topic/category, and identify duplicate or idle tabs.'
+    },
+    {
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: AGY_ICONS.settings,
+      title: 'Flight, Hotel & Travel Scraper',
+      desc: 'Searches Google Flights, Expedia, or Airbnb for specified departure dates, sorting by value score.',
+      prompt: 'Search flights from JFK to LHR for next month under $600 with max 1 layover.'
+    },
+    {
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: AGY_ICONS.models,
+      title: 'Email Draft & Inbox Triage',
+      desc: 'Inspects webmail threads (Gmail, Outlook) and drafts context-aware responses with action items.',
+      prompt: 'Summarize unread emails in the current tab and draft professional follow-ups for review.'
+    },
+
+    // Category 2: 10 Surprising & Highly-Sought Hidden Gems
+    {
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: AGY_ICONS.guide,
+      title: 'Paywall & Cookie Wall Bypass Reader',
+      desc: 'Removes anti-copy blur backdrops, dismisses cookie walls, and extracts article text directly.',
+      prompt: 'Clean this article of all paywall overlays, newsletter popups, and cookie walls, then present full text.'
+    },
+    {
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: AGY_ICONS.models,
+      title: 'GitHub PR & Code Diff Reviewer',
+      desc: 'Analyzes code diffs across pull requests, identifying security flaws, edge cases, and missing tests.',
+      prompt: 'Review the code diffs on this GitHub pull request, highlighting potential edge cases or bugs.'
+    },
+    {
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: AGY_ICONS.test,
+      title: 'Auto-Detect 2FA / OTP Verification',
+      desc: 'Detects 6-digit confirmation prompts and retrieves verification codes from open inbox tabs.',
+      prompt: 'Locate the 2FA input field on this page and help verify the login.'
+    },
+    {
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: AGY_ICONS.export,
+      title: 'Interactive PDF Form Auto-Completion',
+      desc: 'Fills flat non-interactive web PDFs and converts them into signed deliverables.',
+      prompt: 'Inspect the embedded PDF form, fill all required personal details, and verify each field.'
+    },
+    {
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: AGY_ICONS.tools,
+      title: 'Automated Job Application Submitter',
+      desc: 'Navigates job listings on LinkedIn, Greenhouse, and Lever, tailoring answers to job descriptions.',
+      prompt: 'Apply to this job posting using my resume background, customizing answers to required skills.'
+    },
+    {
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: AGY_ICONS.status,
+      title: 'Social Media Feed Sentiment Aggregator',
+      desc: 'Scrolls Twitter/X or Reddit discussions on a topic and calculates net positive/negative consensus.',
+      prompt: 'Scroll through the top 20 comments on this thread and synthesize the general sentiment and key debates.'
+    },
+    {
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: AGY_ICONS.tabs,
+      title: 'Cart Discount & Coupon Finder',
+      desc: 'Iterates through known promotional codes at e-commerce checkout, finding the lowest final total.',
+      prompt: 'At this checkout page, test available coupon codes and apply the highest discount.'
+    },
+    {
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: AGY_ICONS.stage,
+      title: 'Receipt to Expense Spreadsheet Mapper',
+      desc: 'Extracts line items, vendor names, and sales tax from receipts directly into Google Sheets.',
+      prompt: 'Extract vendor, date, category, and total amount from this receipt and structure as a spreadsheet row.'
+    },
+    {
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: AGY_ICONS.settings,
+      title: 'Restricted Copy-Paste & Right-Click Unlocker',
+      desc: 'Bypasses JavaScript preventDefault handlers and user-select restrictions on protected docs.',
+      prompt: 'Unlock right-click context menu and enable text selection on this copy-protected page.'
+    },
+    {
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: AGY_ICONS.models,
+      title: 'Terms of Service Red-Flag Scanner',
+      desc: 'Scans privacy policies and TOS agreements for mandatory arbitration, data resale, and dark patterns.',
+      prompt: 'Scan this Terms of Service agreement for sneaky clauses, data tracking permissions, and cancellation fees.'
+    },
+
+    // Category 3: 10 Unprecedented & Out-of-the-Box Inventions
+    {
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: AGY_ICONS.history,
+      title: 'DOM Time Machine & Visual Diff Alert',
+      desc: 'Monitors specific webpage elements (e.g. stock inventory, ticket drops) and alerts on changes.',
+      prompt: 'Monitor the inventory and price of this item and notify me if the availability status updates.'
+    },
+    {
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: AGY_ICONS.tabs,
+      title: 'Cross-Site Data Bridge & Auto-Pipe',
+      desc: 'Extracts data from a source tab (e.g. CRM) and autonomously inputs it into a destination tab.',
+      prompt: 'Copy customer details from this CRM tab and create a new contact card in the Notion tab.'
+    },
+    {
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: AGY_ICONS.agent,
+      title: 'Autonomous Click-Stream Macro Replayer',
+      desc: 'Replays a sequence of clicks, navigations, and file downloads with intelligent error recovery.',
+      prompt: 'Replay my daily morning sequence: open analytics dashboard, export yesterday report, and verify totals.'
+    },
+    {
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: AGY_ICONS.status,
+      title: 'Real-Time Executive Summary HUD',
+      desc: 'Extracts high-level decision points, financial metrics, and deadlines into a floating briefing.',
+      prompt: 'Generate an executive briefing HUD from this 10-page report highlighting bottom-line figures.'
+    },
+    {
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: AGY_ICONS.shield,
+      title: 'Astroturfing & Bot Review Investigator',
+      desc: 'Inspects user profiles and review velocity on products, calculating true authenticity scores.',
+      prompt: 'Analyze reviews on this product page to flag suspicious bot patterns or incentivized reviews.'
+    },
+    {
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: AGY_ICONS.models,
+      title: 'Network API Sniffer & Paywall Inspector',
+      desc: 'Inspects underlying JSON fetch responses to view unfiltered data returned from backend servers.',
+      prompt: 'Inspect background API network calls on this page and extract the raw JSON data payload.'
+    },
+    {
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: AGY_ICONS.help,
+      title: 'Universal Multi-Tab Search & Recall',
+      desc: 'Searches text across all open tabs simultaneously, jumping directly to the matching sentence.',
+      prompt: 'Search across all open tabs for references to "Q3 revenue projection" and show findings.'
+    },
+    {
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: AGY_ICONS.warning,
+      title: 'Accessible Captcha Audio Transcriber',
+      desc: 'Switches inaccessible visual puzzles to audio mode and assists in transcription.',
+      prompt: 'Trigger audio challenge fallback for this captcha and assist in entering response.'
+    },
+    {
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: AGY_ICONS.tools,
+      title: 'Shadow DOM & Nested Iframe Piercer',
+      desc: 'Recursively explores nested shadow trees and cross-domain frames to interact with deep UI components.',
+      prompt: 'Locate and click the submit button inside the embedded payment iframe widget.'
+    },
+    {
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: AGY_ICONS.credits,
+      title: 'Autonomous Multi-Store Price Matcher',
+      desc: 'Finds identical SKUs across competitor stores, generating price match claim screenshots.',
+      prompt: 'Find identical SKU of this product on competitor stores and calculate potential price match savings.'
+    },
+
+    // Category 4: 10 Wild, Polarizing & Awe-Inspiring Experiments
+    {
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: AGY_ICONS.guide,
+      title: 'Bionic Reading & Cognitive Speed Boost',
+      desc: 'Restructures all paragraphs on the page into fixation-guided bolding for 3x speed reading.',
+      prompt: 'Convert all article text on this page into bionic reading format with highlighted word fixations.'
+    },
+    {
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: AGY_ICONS.autopilot,
+      title: 'Natural Voice Command Automation',
+      desc: 'Enables hands-free voice instructions to scroll, click, submit, and research without touching a keyboard.',
+      prompt: 'Enable voice navigation mode for browsing this page hands-free.'
+    },
+    {
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: AGY_ICONS.warning,
+      title: 'Doom-Scroll Friction & Dopamine Detangler',
+      desc: 'Gradually slows down infinite scroll feeds and applies black-and-white filters after 15 minutes.',
+      prompt: 'Activate dopamine friction on this social feed: add scroll resistance and grayscale after 10 mins.'
+    },
+    {
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: AGY_ICONS.models,
+      title: '3D DOM Depth & Layer Wireframe HUD',
+      desc: 'Visualizes the page structure in an interactive 3D spatial view showing stacking contexts.',
+      prompt: 'Render this webpage in 3D wireframe perspective showing z-index stacking layers.'
+    },
+    {
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: AGY_ICONS.tools,
+      title: 'Mechanical Key Soundscape & UI Acoustics',
+      desc: 'Plays subtle acoustic clicks and harmonious chimes as the agent and user interact with the page.',
+      prompt: 'Play mechanical keyboard click acoustics on button interactions across the page.'
+    },
+    {
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: AGY_ICONS.status,
+      title: 'Personal Click & Attention Heatmap',
+      desc: 'Renders a live thermal overlay showing where your visual attention and cursor focus lingered.',
+      prompt: 'Draw a thermal attention heatmap overlay showing where my clicks and reading focus landed.'
+    },
+    {
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: AGY_ICONS.tabs,
+      title: 'Zero-Click Hover Link Peek Window',
+      desc: 'Hovering over hyperlinks opens a non-disruptive floating preview box without leaving the tab.',
+      prompt: 'Preview all outbound links on this page on hover without opening new browser tabs.'
+    },
+    {
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: AGY_ICONS.test,
+      title: 'Rage-Click & Broken Event Listener Healer',
+      desc: 'Detects repeated clicking on non-responsive buttons and triggers hidden event handlers.',
+      prompt: 'Detect broken buttons on this page and simulate click dispatching to unblock the form.'
+    },
+    {
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: AGY_ICONS.help,
+      title: 'Corporate Jargon & PR Buzzword Decryptor',
+      desc: 'Translates corporate PR releases and marketing double-speak into brutally honest plain English.',
+      prompt: 'Decrypt all corporate buzzwords and PR spin in this announcement into plain honest English.'
+    },
+    {
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: AGY_ICONS.credits,
+      title: 'Matrix Green CRT Terminal Mode',
+      desc: 'Transforms modern websites into a nostalgic green phosphor CRT terminal HUD with keyboard shortcuts.',
+      prompt: 'Transform this website layout into a retro Matrix-style green CRT terminal interface.'
+    }
+  ];
+
+  function renderSkillsCommand(selectedFilter = 'all') {
+    const filtered = selectedFilter === 'all'
+      ? AGENT_COMPOUNDING_SKILLS
+      : AGENT_COMPOUNDING_SKILLS.filter(s => s.category.toLowerCase() === selectedFilter.toLowerCase());
+
+    const cardsHtml = filtered.map(s => `
+      <div class="template-card" data-category="${escapeHtml(s.category)}">
+        <div>
+          <div class="template-card-header">
+            <span style="display:inline-flex;color:var(--primary);">${s.icon}</span>
+            <span>${escapeHtml(s.title)}</span>
+            <span class="template-card-badge">${escapeHtml(s.categoryLabel)}</span>
+          </div>
+          <div style="font-size:11px;color:var(--on-surface-muted);margin-top:6px;line-height:1.4;">${escapeHtml(s.desc)}</div>
+        </div>
+        <button class="command-chip skill-run-btn" data-skill-prompt="${escapeHtml(s.prompt)}" style="margin-top:4px;padding:6px 10px;font-size:11.5px;font-weight:700;justify-content:center;background:var(--accent-bg);color:var(--primary);border-color:var(--primary);">
+          Run Skill &rarr;
+        </button>
+      </div>
+    `).join('');
+
     const card = document.createElement('div');
     card.className = 'command-card';
     card.innerHTML = `
       <div class="command-card-header">
         <span class="command-card-icon">${AGY_ICONS.skills}</span>
         <div>
-          <h3>Compounding Skills &amp; Memory Engine</h3>
-          <p>Autonomous routines mined from successful tasks</p>
+          <h3>Compounding Skills &amp; Procedural Memory (${AGENT_COMPOUNDING_SKILLS.length} Routines)</h3>
+          <p>Curated automation routines organized 2-by-2. Click any skill to run it with the agent.</p>
         </div>
       </div>
-      <div style="font-size:12px;color:var(--on-surface-variant);line-height:1.5;">
-        <p>Global Executive automatically mines repeatable recipes from completed tasks. When you repeat similar workflows (e.g. logging into portals, extracting tables, filling recurring forms), the agent activates <strong>Fast-Path Skill Replay</strong> to execute with 0 wasted steps.</p>
-        <div style="margin-top:10px;padding:8px 10px;background:var(--surface-container-low);border-radius:8px;">
-          <strong>Memory Scope:</strong> Private per-user workspace encrypted at rest.
-        </div>
+
+      <div class="template-tabs">
+        <button class="template-tab ${selectedFilter === 'all' ? 'active' : ''}" data-skill-filter="all">All (${AGENT_COMPOUNDING_SKILLS.length})</button>
+        <button class="template-tab ${selectedFilter === 'Essential' ? 'active' : ''}" data-skill-filter="Essential">Expected &amp; Essential (10)</button>
+        <button class="template-tab ${selectedFilter === 'Surprising' ? 'active' : ''}" data-skill-filter="Surprising">Surprising Gems (10)</button>
+        <button class="template-tab ${selectedFilter === 'Unprecedented' ? 'active' : ''}" data-skill-filter="Unprecedented">New Inventions (10)</button>
+        <button class="template-tab ${selectedFilter === 'Wild' ? 'active' : ''}" data-skill-filter="Wild">Wild &amp; Experimental (10)</button>
+      </div>
+
+      <div class="two-col-grid skill-grid-container">
+        ${cardsHtml}
       </div>
     `;
+
     stepLog.appendChild(card);
     scrollToBottom();
+
+    // Attach tab filter listeners within this rendered card
+    card.querySelectorAll('.template-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        e.preventDefault();
+        const filter = tab.dataset.skillFilter;
+        card.querySelectorAll('.template-tab').forEach(t => t.classList.toggle('active', t === tab));
+        const grid = card.querySelector('.skill-grid-container');
+        if (grid) {
+          const newFiltered = filter === 'all'
+            ? AGENT_COMPOUNDING_SKILLS
+            : AGENT_COMPOUNDING_SKILLS.filter(s => s.category.toLowerCase() === filter.toLowerCase());
+          grid.innerHTML = newFiltered.map(s => `
+            <div class="template-card" data-category="${escapeHtml(s.category)}">
+              <div>
+                <div class="template-card-header">
+                  <span style="display:inline-flex;color:var(--primary);">${s.icon}</span>
+                  <span>${escapeHtml(s.title)}</span>
+                  <span class="template-card-badge">${escapeHtml(s.categoryLabel)}</span>
+                </div>
+                <div style="font-size:11px;color:var(--on-surface-muted);margin-top:6px;line-height:1.4;">${escapeHtml(s.desc)}</div>
+              </div>
+              <button class="command-chip skill-run-btn" data-skill-prompt="${escapeHtml(s.prompt)}" style="margin-top:4px;padding:6px 10px;font-size:11.5px;font-weight:700;justify-content:center;background:var(--accent-bg);color:var(--primary);border-color:var(--primary);">
+                Run Skill &rarr;
+              </button>
+            </div>
+          `).join('');
+        }
+      });
+    });
   }
 
   async function handleSlashCommand(raw) {
@@ -1939,7 +2495,7 @@
           <span class="slash-command-category">${escapeHtml(c.category)}</span>
         </div>
       `).join('');
-      popupEl.style.display = 'flex';
+      popupEl.style.display = 'grid';
     }
 
     function selectCommand(cmd) {
@@ -1955,7 +2511,7 @@
       }
     }
 
-    inputEl.addEventListener('input', () => {
+    function checkAutocomplete() {
       const val = inputEl.value;
       if (val.startsWith('/')) {
         const query = val.slice(1).toLowerCase().trim();
@@ -1969,10 +2525,14 @@
       } else {
         popupEl.style.display = 'none';
       }
-    });
+    }
+
+    inputEl.addEventListener('input', checkAutocomplete);
+    inputEl.addEventListener('keyup', checkAutocomplete);
+    inputEl.addEventListener('focus', checkAutocomplete);
 
     inputEl.addEventListener('keydown', (e) => {
-      if (popupEl.style.display !== 'flex' || !matchingCommands.length) return;
+      if (popupEl.style.display === 'none' || !matchingCommands.length) return;
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -4932,18 +5492,36 @@
     // Slash commands autocomplete
     setupSlashCommandsAutocomplete(taskInput, slashPopup, AGENT_SLASH_COMMANDS, (cmd) => handleSlashCommand(cmd));
 
-    // Delegate click on command chips
+    // Delegate click on command chips & skill prompts
     document.addEventListener('click', (e) => {
+      const skillBtn = e.target.closest('[data-skill-prompt]');
+      if (skillBtn) {
+        e.preventDefault();
+        const prompt = skillBtn.dataset.skillPrompt;
+        if (prompt) {
+          taskInput.value = prompt;
+          taskInput.style.height = 'auto';
+          taskInput.style.height = Math.min(taskInput.scrollHeight, 120) + 'px';
+          handleUserSubmit(prompt);
+        }
+        return;
+      }
+
       const chip = e.target.closest('[data-cmd]');
       if (chip) {
         e.preventDefault();
         const cmd = chip.dataset.cmd;
         if (cmd) {
-          if (cmd.includes('<') || cmd.endsWith(' ')) {
-            taskInput.value = cmd.replace(/<[^>]+>/g, '').trim() + ' ';
-            taskInput.focus();
+          if (cmd.startsWith('/')) {
+            if (cmd.includes('<') || cmd.endsWith(' ')) {
+              taskInput.value = cmd.replace(/<[^>]+>/g, '').trim() + ' ';
+              taskInput.focus();
+            } else {
+              handleSlashCommand(cmd);
+            }
           } else {
-            handleSlashCommand(cmd);
+            taskInput.value = cmd;
+            handleUserSubmit(cmd);
           }
         }
       }

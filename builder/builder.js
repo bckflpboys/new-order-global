@@ -716,7 +716,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ============================================
-  // Builder Slash Commands Engine & Autocomplete
+  // Builder Slash Commands Engine & Autocomplete (40 Commands)
   // ============================================
   const BUILDER_ICONS = {
     help: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
@@ -741,23 +741,55 @@ document.addEventListener('DOMContentLoaded', async () => {
     video: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`,
     link: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
     note: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`,
-    mail: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`
+    mail: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`,
+    sniff: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`,
+    clean: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>`,
+    storage: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>`,
+    diff: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 9v12"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>`,
+    timemachine: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 8 14"/></svg>`,
+    mirror: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="8" height="18" rx="1"/><rect x="14" y="3" width="8" height="18" rx="1"/></svg>`,
+    record: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" fill="currentColor"/></svg>`,
+    bridge: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+    hud: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h5"/><path d="M17 12h5"/><path d="M12 2v5"/><path d="M12 17v5"/><circle cx="12" cy="12" r="7"/></svg>`,
+    fakereview: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
+    find: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+    shadow: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>`,
+    solve: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>`,
+    pricematch: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>`,
+    bionic: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
+    voice: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`,
+    focus: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/></svg>`,
+    mesh3d: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
+    acoustics: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>`,
+    heatmap: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`,
+    peek: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+    heal: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+    jargon: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+    matrix: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`,
+    status: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+    stage: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`,
+    copilot: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    autopilot: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+    skills: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`
   };
 
   const BUILDER_SLASH_COMMANDS = [
+    // ----------------------------------------------------
+    // Category 1: 10 Essential & Expected Workhorses
+    // ----------------------------------------------------
     {
       name: '/help',
       aliases: ['/start', '/?', '/commands'],
-      category: 'Core',
+      category: 'Essential',
       icon: BUILDER_ICONS.help,
-      desc: 'Show all builder slash commands, tool templates & developer guide',
+      desc: 'Show all 40 builder slash commands, tool templates & guides',
       params: '',
       run: async () => renderBuilderHelpCard()
     },
     {
       name: '/tools',
       aliases: ['/my-tools', '/installed'],
-      category: 'Tools',
+      category: 'Essential',
       icon: BUILDER_ICONS.tools,
       desc: 'List all custom and built-in extension tools in your workspace',
       params: '',
@@ -769,16 +801,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     {
       name: '/templates',
       aliases: ['/presets', '/examples', '/starter'],
-      category: 'Templates',
+      category: 'Essential',
       icon: BUILDER_ICONS.templates,
-      desc: 'Browse ready-to-use tool templates (Form Fill, Scraper, Dark Mode, etc.)',
+      desc: 'Browse 40 ready-to-use extension tool starter templates',
       params: '',
       run: async () => renderTemplatesCommand()
     },
     {
       name: '/test',
       aliases: ['/run', '/preview'],
-      category: 'Testing',
+      category: 'Essential',
       icon: BUILDER_ICONS.test,
       desc: 'Test current tool code directly on the active browser tab',
       params: '',
@@ -793,7 +825,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     {
       name: '/export',
       aliases: ['/download', '/code', '/save-files'],
-      category: 'Export',
+      category: 'Essential',
       icon: BUILDER_ICONS.export,
       desc: 'Export generated tool code files (content.js, styles.css, manifest.json)',
       params: '',
@@ -802,7 +834,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     {
       name: '/models',
       aliases: ['/llms', '/model-list'],
-      category: 'AI Model',
+      category: 'Essential',
       icon: BUILDER_ICONS.models,
       desc: 'Open AI model selection modal for tool code generation',
       params: '',
@@ -811,16 +843,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     {
       name: '/model',
       aliases: ['/switch-model'],
-      category: 'AI Model',
+      category: 'Essential',
       icon: BUILDER_ICONS.model,
       desc: 'Switch AI model for tool generation (e.g. /model flash, /model sonnet)',
-      params: '<name_or_id>',
+      params: '<id>',
       run: async (args) => handleBuilderModelSwitch(args)
     },
     {
       name: '/credits',
       aliases: ['/account', '/balance', '/usage'],
-      category: 'Account',
+      category: 'Essential',
       icon: BUILDER_ICONS.credits,
       desc: 'Check your AI generation credits and subscription status',
       params: '',
@@ -829,25 +861,40 @@ document.addEventListener('DOMContentLoaded', async () => {
     {
       name: '/clear',
       aliases: ['/new', '/reset', '/clean'],
-      category: 'Core',
+      category: 'Essential',
       icon: BUILDER_ICONS.clear,
       desc: 'Start a fresh conversation and reset tool builder state',
       params: '',
       run: async () => startNewConversation()
     },
     {
+      name: '/settings',
+      aliases: ['/config', '/options'],
+      category: 'Essential',
+      icon: BUILDER_ICONS.settings,
+      desc: 'Open Extension Settings & Preferences',
+      params: '',
+      run: async () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/settings.html') });
+      }
+    },
+
+    // ----------------------------------------------------
+    // Category 2: 10 Surprising & Highly-Sought Hidden Gems
+    // ----------------------------------------------------
+    {
       name: '/guide',
       aliases: ['/docs', '/tutorial', '/selectors'],
-      category: 'Guide',
+      category: 'Surprising',
       icon: BUILDER_ICONS.guide,
-      desc: 'Chrome extension developer guide: DOM selectors, MutationObservers & safety',
+      desc: 'Extension developer guide: DOM selectors, MutationObservers & safety',
       params: '',
       run: async () => renderBuilderGuideCommand()
     },
     {
       name: '/agent',
       aliases: ['/executive', '/global-executive'],
-      category: 'Navigation',
+      category: 'Surprising',
       icon: BUILDER_ICONS.agent,
       desc: 'Open Global Executive autonomous agent in a new tab',
       params: '',
@@ -856,21 +903,369 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     },
     {
-      name: '/settings',
-      aliases: ['/config', '/options'],
-      category: 'Navigation',
-      icon: BUILDER_ICONS.settings,
-      desc: 'Open Extension Settings & Preferences',
+      name: '/sniff',
+      aliases: ['/network', '/api-sniff'],
+      category: 'Surprising',
+      icon: BUILDER_ICONS.sniff,
+      desc: 'Build tool to sniff AJAX/fetch API responses on active webpage',
       params: '',
       run: async () => {
-        chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/settings.html') });
+        chatInput.value = 'Build a tool that logs background fetch and AJAX network requests on this page and displays them in a slide-out developer panel.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/clean',
+      aliases: ['/strip-overlays', '/zap'],
+      category: 'Surprising',
+      icon: BUILDER_ICONS.clean,
+      desc: 'Build tool to strip sticky headers, cookie dialogs & newsletter popups',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a tool that identifies and removes sticky banners, floating video overlays, and newsletter popups from article pages.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/storage',
+      aliases: ['/cookies', '/localstorage'],
+      category: 'Surprising',
+      icon: BUILDER_ICONS.storage,
+      desc: 'Build tool to visually inspect and edit cookies & localStorage',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Create a slide-out developer panel that lists all cookies, localStorage, and sessionStorage entries for the active site with live editing.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/diff',
+      aliases: ['/compare', '/dom-diff'],
+      category: 'Surprising',
+      icon: BUILDER_ICONS.diff,
+      desc: 'Build tool to inspect live DOM diffs and GitHub pull request changes',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Create a tool for GitHub pull requests that adds an "Explain Diff" button to each code change hunk explaining the logic changes.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/stage',
+      aliases: ['/upload', '/file', '/pdf'],
+      category: 'Surprising',
+      icon: BUILDER_ICONS.stage,
+      desc: 'Build tool for PDF form filling and in-browser document overlays',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a tool for embedded web PDFs that highlights missing form fields and overlays interactive inputs you can fill and export.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/copilot',
+      aliases: ['/co-pilot'],
+      category: 'Surprising',
+      icon: BUILDER_ICONS.copilot,
+      desc: 'Build tool with confirmation prompts and safety guardrails',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a tool with interactive confirmation modals before submitting forms or placing orders.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/autopilot',
+      aliases: ['/auto-pilot'],
+      category: 'Surprising',
+      icon: BUILDER_ICONS.autopilot,
+      desc: 'Build autonomous background task runners for multi-page workflows',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build an autonomous multi-page automation script that navigates through pagination and processes each item.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/skills',
+      aliases: ['/memory', '/recipes'],
+      category: 'Surprising',
+      icon: BUILDER_ICONS.skills,
+      desc: 'Browse compounding procedural skill recipes in the Agent',
+      params: '',
+      run: async () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL('agent/agent.html') });
+      }
+    },
+
+    // ----------------------------------------------------
+    // Category 3: 10 Unprecedented & Out-of-the-Box Inventions
+    // ----------------------------------------------------
+    {
+      name: '/timemachine',
+      aliases: ['/watch', '/monitor'],
+      category: 'Unprecedented',
+      icon: BUILDER_ICONS.timemachine,
+      desc: 'Build DOM Time Machine tool to alert on price and text changes',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a tool that records snapshot hashes of selected webpage elements and alerts the user if the price or content changes between visits.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/mirror',
+      aliases: ['/sync-tabs'],
+      category: 'Unprecedented',
+      icon: BUILDER_ICONS.mirror,
+      desc: 'Build multi-tab action mirror tool to synchronize scroll and inputs',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Create a multi-tab mirror tool that captures scroll events and form inputs in the active tab and mirrors them in real time across open comparison tabs.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/record',
+      aliases: ['/macro', '/bot-record'],
+      category: 'Unprecedented',
+      icon: BUILDER_ICONS.record,
+      desc: 'Build in-browser click stream recorder and autonomous macro bot',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build an action recorder that logs user clicks, input entries, and delays on a page, generating a reusable autonomous playback script.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/bridge',
+      aliases: ['/transfer', '/pipe'],
+      category: 'Unprecedented',
+      icon: BUILDER_ICONS.bridge,
+      desc: 'Build cross-tab data bridge tool to transfer fields between websites',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a cross-tab data bridge that lets you select product info or tables on one webpage and automatically pipes them into fields on a target tab.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/hud',
+      aliases: ['/summary-hud'],
+      category: 'Unprecedented',
+      icon: BUILDER_ICONS.hud,
+      desc: 'Build floating executive summary HUD for articles and long reports',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Create a floating HUD widget that extracts executive bullet points, numerical metrics, and key dates from the current page text.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/fakereview',
+      aliases: ['/bot-detector'],
+      category: 'Unprecedented',
+      icon: BUILDER_ICONS.fakereview,
+      desc: 'Build fake review and bot cluster analyzer for e-commerce sites',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build an AI review scanner that analyzes customer reviews on product pages to calculate an authenticity score and flag bot clusters.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/find',
+      aliases: ['/omni-search'],
+      category: 'Unprecedented',
+      icon: BUILDER_ICONS.find,
+      desc: 'Build universal search overlay that searches across all open tabs',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a universal search overlay that queries text across all open browser tabs and highlights matches with instant 1-click tab switching.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/shadow',
+      aliases: ['/iframe-pierce'],
+      category: 'Unprecedented',
+      icon: BUILDER_ICONS.shadow,
+      desc: 'Build deep shadow DOM & iframe traversal inspector tool',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a deep DOM tree inspector that recursively pierces open/closed shadow roots and iframes to locate and manipulate buried elements.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/solve',
+      aliases: ['/captcha-audio'],
+      category: 'Unprecedented',
+      icon: BUILDER_ICONS.solve,
+      desc: 'Build accessible audio verification fallback automation tool',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build an accessibility tool that automatically detects captcha widgets, triggers the audio challenge fallback, and assists with audio verification.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/pricematch',
+      aliases: ['/sku-match'],
+      category: 'Unprecedented',
+      icon: BUILDER_ICONS.pricematch,
+      desc: 'Build competitor price matcher and SKU comparison tool',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Create a tool for Amazon and retail product pages that searches competitor stores for matching SKUs and calculates true price differences.';
+        sendMessage();
+      }
+    },
+
+    // ----------------------------------------------------
+    // Category 4: 10 Wild, Polarizing & Awe-Inspiring Experiments
+    // ----------------------------------------------------
+    {
+      name: '/bionic',
+      aliases: ['/speedread'],
+      category: 'Wild',
+      icon: BUILDER_ICONS.bionic,
+      desc: 'Build bionic reading tool to bold word fixations for 3x speed',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a typography tool that converts all webpage paragraphs into bionic reading format by bolding the initial letters of each word.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/voice',
+      aliases: ['/speech'],
+      category: 'Wild',
+      icon: BUILDER_ICONS.voice,
+      desc: 'Build Web Speech API hands-free voice command navigator',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Create a voice navigation tool that listens for speech commands ("scroll down", "click search", "zoom in") and executes them on the page.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/focus',
+      aliases: ['/doomscroll'],
+      category: 'Wild',
+      icon: BUILDER_ICONS.focus,
+      desc: 'Build doom-scroll friction tool with scroll drag & grayscale timer',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a digital wellness tool that tracks infinite scroll distance on social feeds, gradually reducing color saturation and adding scroll friction.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/3d',
+      aliases: ['/mesh3d'],
+      category: 'Wild',
+      icon: BUILDER_ICONS.mesh3d,
+      desc: 'Build 3D wireframe depth inspector displaying z-index nesting layers',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a 3D DOM inspector that applies CSS 3D transforms to all nested elements on the page, allowing rotatable 3D stacking inspection.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/acoustics',
+      aliases: ['/soundscape'],
+      category: 'Wild',
+      icon: BUILDER_ICONS.acoustics,
+      desc: 'Build ambient mechanical key soundscape tool using Web Audio API',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Create an ambient web soundscape tool that uses Web Audio API to play gentle mechanical key clicks and smooth chimes on clicks and navigation.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/heatmap',
+      aliases: ['/attention'],
+      category: 'Wild',
+      icon: BUILDER_ICONS.heatmap,
+      desc: 'Build real-time thermal click and scroll attention heatmap canvas',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a personal analytics tool that overlays a canvas on the webpage showing a real-time thermal heatmap of your clicks and reading depth.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/peek',
+      aliases: ['/linkpeek'],
+      category: 'Wild',
+      icon: BUILDER_ICONS.peek,
+      desc: 'Build floating zero-click hover iframe link preview modal tool',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Create a link previewer tool that displays a floating iframe preview modal when hovering over any hyperlink for more than 500 milliseconds.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/heal',
+      aliases: ['/rageclick'],
+      category: 'Wild',
+      icon: BUILDER_ICONS.heal,
+      desc: 'Build rage-click button unblocker and event listener dispatcher',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a rage-click detector that identifies when a user clicks a button multiple times without effect and tries to trigger the underlying handler.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/jargon',
+      aliases: ['/buzzwords'],
+      category: 'Wild',
+      icon: BUILDER_ICONS.jargon,
+      desc: 'Build corporate marketing buzzword and PR spin decryptor tool',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Create a humor/clarity tool that scans webpage text and replaces overused corporate jargon and buzzwords with clear, plain-English definitions.';
+        sendMessage();
+      }
+    },
+    {
+      name: '/matrix',
+      aliases: ['/terminal'],
+      category: 'Wild',
+      icon: BUILDER_ICONS.matrix,
+      desc: 'Build retro green-on-black CRT terminal theme with scanlines tool',
+      params: '',
+      run: async () => {
+        chatInput.value = 'Build a theme tool that transforms any website into a retro green-on-black CRT terminal with scanlines and numbered keyboard navigation shortcuts.';
+        sendMessage();
       }
     }
   ];
 
-  function renderBuilderHelpCard() {
+  function renderBuilderHelpCard(selectedFilter = 'all') {
     welcomeScreen.style.display = 'none';
     chatMessages.style.display = 'flex';
+
+    const filtered = selectedFilter === 'all'
+      ? BUILDER_SLASH_COMMANDS
+      : BUILDER_SLASH_COMMANDS.filter(c => c.category.toLowerCase() === selectedFilter.toLowerCase());
+
+    const chipsHtml = filtered.map(c => `
+      <a class="command-chip" data-cmd="${c.params ? c.name + ' ' : c.name}">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="color:var(--primary);display:inline-flex;">${c.icon}</span>
+          <code>${escapeHtml(c.name)}${c.params ? ' ' + escapeHtml(c.params) : ''}</code>
+        </div>
+        <div class="command-chip-info" style="margin-top:2px;">
+          ${escapeHtml(c.desc)}
+        </div>
+      </a>
+    `).join('');
 
     const card = document.createElement('div');
     card.className = 'message ai';
@@ -883,105 +1278,21 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="command-card-header">
             <span class="command-card-icon">${BUILDER_ICONS.tools}</span>
             <div>
-              <h3>AI Tool Builder · Command Center</h3>
-              <p>Build, test, and manage Chrome extension tools with slash commands.</p>
+              <h3>AI Tool Builder · Command Center (${BUILDER_SLASH_COMMANDS.length} Commands)</h3>
+              <p>Organized 2 side-by-side. Click any command or type <code>/</code> for quick autocomplete.</p>
             </div>
           </div>
 
-          <div class="command-section-title">Core Actions &amp; Testing</div>
-          <div class="command-grid">
-            <a class="command-chip" data-cmd="/help">
-              <code>/help</code>
-              <div class="command-chip-info">
-                <strong>Command Directory</strong>
-                Show all builder commands &amp; guides
-              </div>
-            </a>
-            <a class="command-chip" data-cmd="/test">
-              <code>/test</code>
-              <div class="command-chip-info">
-                <strong>Test Tool in Tab</strong>
-                Inject and test script on active page
-              </div>
-            </a>
-            <a class="command-chip" data-cmd="/export">
-              <code>/export</code>
-              <div class="command-chip-info">
-                <strong>Export Tool Files</strong>
-                Download content.js, styles.css &amp; manifest
-              </div>
-            </a>
-            <a class="command-chip" data-cmd="/clear">
-              <code>/clear</code>
-              <div class="command-chip-info">
-                <strong>New Session</strong>
-                Start a fresh blank builder conversation
-              </div>
-            </a>
-            <a class="command-chip" data-cmd="/settings">
-              <code>/settings</code>
-              <div class="command-chip-info">
-                <strong>Settings</strong>
-                Open extension settings &amp; options
-              </div>
-            </a>
+          <div class="template-tabs">
+            <button class="template-tab ${selectedFilter === 'all' ? 'active' : ''}" data-cmd-filter="all">All (${BUILDER_SLASH_COMMANDS.length})</button>
+            <button class="template-tab ${selectedFilter === 'Essential' ? 'active' : ''}" data-cmd-filter="Essential">Expected &amp; Essential (10)</button>
+            <button class="template-tab ${selectedFilter === 'Surprising' ? 'active' : ''}" data-cmd-filter="Surprising">Surprising Gems (10)</button>
+            <button class="template-tab ${selectedFilter === 'Unprecedented' ? 'active' : ''}" data-cmd-filter="Unprecedented">New Inventions (10)</button>
+            <button class="template-tab ${selectedFilter === 'Wild' ? 'active' : ''}" data-cmd-filter="Wild">Wild &amp; Experimental (10)</button>
           </div>
 
-          <div class="command-section-title">Templates &amp; Tool Library</div>
-          <div class="command-grid">
-            <a class="command-chip" data-cmd="/templates">
-              <code>/templates</code>
-              <div class="command-chip-info">
-                <strong>10 Ready Templates</strong>
-                Form autofill, scrapers, dark mode, adblock
-              </div>
-            </a>
-            <a class="command-chip" data-cmd="/tools">
-              <code>/tools</code>
-              <div class="command-chip-info">
-                <strong>My Tools Drawer</strong>
-                Open installed tools &amp; active scripts
-              </div>
-            </a>
-            <a class="command-chip" data-cmd="/guide">
-              <code>/guide</code>
-              <div class="command-chip-info">
-                <strong>Extension Dev Guide</strong>
-                DOM selectors, MutationObservers &amp; tips
-              </div>
-            </a>
-            <a class="command-chip" data-cmd="/agent">
-              <code>/agent</code>
-              <div class="command-chip-info">
-                <strong>Global Executive</strong>
-                Open autonomous agent in new tab
-              </div>
-            </a>
-          </div>
-
-          <div class="command-section-title">AI Brains &amp; Credits</div>
-          <div class="command-grid">
-            <a class="command-chip" data-cmd="/models">
-              <code>/models</code>
-              <div class="command-chip-info">
-                <strong>AI Model Selector</strong>
-                Switch model tier (Flash, Sonnet, Opus)
-              </div>
-            </a>
-            <a class="command-chip" data-cmd="/model ">
-              <code>/model &lt;id&gt;</code>
-              <div class="command-chip-info">
-                <strong>Switch Model</strong>
-                Change model (e.g. <code>/model sonnet</code>)
-              </div>
-            </a>
-            <a class="command-chip" data-cmd="/credits">
-              <code>/credits</code>
-              <div class="command-chip-info">
-                <strong>Account Balance</strong>
-                Check credits, user plan &amp; limits
-              </div>
-            </a>
+          <div class="two-col-grid command-grid-container">
+            ${chipsHtml}
           </div>
         </div>
       </div>
@@ -989,76 +1300,432 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     chatMessages.appendChild(card);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Tab filter listeners
+    card.querySelectorAll('.template-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        e.preventDefault();
+        const filter = tab.dataset.cmdFilter;
+        card.querySelectorAll('.template-tab').forEach(t => t.classList.toggle('active', t === tab));
+        const grid = card.querySelector('.command-grid-container');
+        if (grid) {
+          const newFiltered = filter === 'all'
+            ? BUILDER_SLASH_COMMANDS
+            : BUILDER_SLASH_COMMANDS.filter(c => c.category.toLowerCase() === filter.toLowerCase());
+          grid.innerHTML = newFiltered.map(c => `
+            <a class="command-chip" data-cmd="${c.params ? c.name + ' ' : c.name}">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="color:var(--primary);display:inline-flex;">${c.icon}</span>
+                <code>${escapeHtml(c.name)}${c.params ? ' ' + escapeHtml(c.params) : ''}</code>
+              </div>
+              <div class="command-chip-info" style="margin-top:2px;">
+                ${escapeHtml(c.desc)}
+              </div>
+            </a>
+          `).join('');
+        }
+      });
+    });
   }
 
-  function renderTemplatesCommand() {
+  const ALL_TOOL_TEMPLATES = [
+    // ----------------------------------------------------
+    // Category 1: 10 Essential & Expected Workhorses
+    // ----------------------------------------------------
+    {
+      id: 'tpl-autosave',
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: BUILDER_ICONS.form,
+      title: 'Universal Auto-Save & Recovery',
+      desc: 'Auto-saves all form inputs and textareas locally so page refresh or crash never loses typing.',
+      prompt: 'Build a tool that auto-saves form and textarea input to local storage on any webpage in case the browser crashes or refreshes.'
+    },
+    {
+      id: 'tpl-darkmode',
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: BUILDER_ICONS.moon,
+      title: 'Universal Smart Dark Mode',
+      desc: 'Injects a modern, non-inverting dark theme with contrast adjustment on any website.',
+      prompt: 'Create a dark mode toggle button that injects sleek dark styling and smooth inverted filters on any website.'
+    },
+    {
+      id: 'tpl-scraper',
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: BUILDER_ICONS.table,
+      title: 'Table & List Data Scraper',
+      desc: 'Detects tables, list items, and repeatable cards on the active page and exports CSV/JSON.',
+      prompt: 'Build a tool that detects tables and list items on the current webpage and lets me export them as CSV or JSON with one click.'
+    },
+    {
+      id: 'tpl-pricetracker',
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: BUILDER_ICONS.tag,
+      title: 'Amazon & E-Commerce Price Audit',
+      desc: 'Calculates price-per-unit, historical discounts, and flags fake markdown sales on Amazon.',
+      prompt: 'Create a tool for Amazon product pages that calculates the real price per unit and highlights true discounts.'
+    },
+    {
+      id: 'tpl-imagedownload',
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: BUILDER_ICONS.image,
+      title: 'Bulk Image & Asset Downloader',
+      desc: 'Scans page DOM for high-resolution images, SVG graphics, and video thumbnails for 1-click batch download.',
+      prompt: 'Build a tool that extracts all full-resolution images from the current webpage and allows downloading them as a batch.'
+    },
+    {
+      id: 'tpl-adblocker',
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: BUILDER_ICONS.shield,
+      title: 'Sticky Overlay & Popup Terminator',
+      desc: 'Removes floating headers, newsletter dialogs, cookie consent banners, and video overlays.',
+      prompt: 'Create a tool that identifies and removes sticky banners, floating video overlays, and newsletter popups from article pages.'
+    },
+    {
+      id: 'tpl-ytbooster',
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: BUILDER_ICONS.video,
+      title: 'YouTube Supercharger',
+      desc: 'Adds 2.5x/3x speed hotkeys, A-B loop selector, and instant full-text transcript search.',
+      prompt: 'Build a tool for YouTube that adds 2.5x and 3x playback speed buttons, transcript search, and loop segment controls.'
+    },
+    {
+      id: 'tpl-brokenlink',
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: BUILDER_ICONS.link,
+      title: 'Broken Link & Redirect Auditor',
+      desc: 'Scans all hyperlinks on the page, checking status codes and highlighting dead links in red.',
+      prompt: 'Build a tool that scans all links on the current page, checks their status codes, and highlights broken links in red.'
+    },
+    {
+      id: 'tpl-stickynotes',
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: BUILDER_ICONS.note,
+      title: 'Sticky Web Notes & Annotator',
+      desc: 'Pin draggable, persistent notes and highlights directly onto any webpage that stay on reload.',
+      prompt: 'Create a tool that allows me to pin draggable sticky notes and comments directly onto any webpage that persist on reload.'
+    },
+    {
+      id: 'tpl-emailharvester',
+      category: 'Essential',
+      categoryLabel: 'Workhorse',
+      icon: BUILDER_ICONS.mail,
+      title: 'Contact & Email Harvester',
+      desc: 'Scans DOM structures and mailto links to extract emails, social handles, and phone numbers.',
+      prompt: 'Build a tool that searches the current webpage DOM for email addresses, social handles, and phone numbers and copies them.'
+    },
+
+    // ----------------------------------------------------
+    // Category 2: 10 Surprising & Highly-Sought Hidden Gems
+    // ----------------------------------------------------
+    {
+      id: 'tpl-paywallreader',
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: BUILDER_ICONS.guide,
+      title: 'Paywall & Reader Mode Sanitizer',
+      desc: 'Strips anti-copy script locks, paywall CSS blurs, and fixed backdrop screens for clean reading.',
+      prompt: 'Build a tool that removes paywall blur layers, bypasses anti-copy JavaScript restrictions, and generates a distraction-free reader view.'
+    },
+    {
+      id: 'tpl-githubdiff',
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: BUILDER_ICONS.models,
+      title: 'GitHub PR & Diff Explainer',
+      desc: 'Adds inline AI explanation buttons next to complex code diff hunks on GitHub and GitLab.',
+      prompt: 'Create a tool for GitHub pull requests that adds an "Explain Diff" button to each code change hunk explaining the logic changes.'
+    },
+    {
+      id: 'tpl-autofillotp',
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: BUILDER_ICONS.test,
+      title: 'Auto-Detect & Fill OTP / 2FA Codes',
+      desc: 'Sniffs clipboard or open verification email tabs to auto-populate 6-digit authentication pins.',
+      prompt: 'Build a tool that detects 6-digit 2FA/OTP verification inputs on the page and provides a one-click button to paste from clipboard.'
+    },
+    {
+      id: 'tpl-pdfform',
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: BUILDER_ICONS.export,
+      title: 'In-Browser PDF Field Highlighter',
+      desc: 'Detects flat embedded web PDFs and overlays interactive typeable input boxes with autofill.',
+      prompt: 'Build a tool for embedded web PDFs that highlights missing form fields and overlays interactive inputs you can fill and export.'
+    },
+    {
+      id: 'tpl-videopip',
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: BUILDER_ICONS.video,
+      title: 'Universal PiP & 400% Audio Booster',
+      desc: 'Forces floating Picture-in-Picture on any HTML5 video player with a 4x audio gain amplifier.',
+      prompt: 'Create a floating toolbar for any HTML5 video that enables Picture-in-Picture mode and includes a 400% audio volume boost compressor.'
+    },
+    {
+      id: 'tpl-jobautofill',
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: BUILDER_ICONS.form,
+      title: 'Job Application 1-Click Auto-Fill',
+      desc: 'Auto-maps user experience & education into LinkedIn, Greenhouse, Lever, and Workday forms.',
+      prompt: 'Build a tool for job application portals (Workday, Greenhouse, Lever) that automatically maps and fills standard resume fields.'
+    },
+    {
+      id: 'tpl-tabcleaner',
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: BUILDER_ICONS.clear,
+      title: 'Duplicate Tab & Memory Cleaner',
+      desc: 'Identifies duplicate tabs across all open windows and frees memory by discarding idle background tabs.',
+      prompt: 'Create a browser manager HUD that scans all open tabs for duplicate URLs and discards idle tabs to free memory.'
+    },
+    {
+      id: 'tpl-unlockselect',
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: BUILDER_ICONS.settings,
+      title: 'Right-Click & Selection Unlocker',
+      desc: 'Re-enables right-click menus, text highlighting, and drag-and-drop on copy-protected websites.',
+      prompt: 'Build a tool that overrides preventDefault(), context-menu blockers, and user-select:none CSS rules to unlock text selection on any site.'
+    },
+    {
+      id: 'tpl-cookieinspect',
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: BUILDER_ICONS.tools,
+      title: 'Visual Cookie & Storage Inspector',
+      desc: 'Visual drawer to inspect, edit, export, or clear specific origin cookies and LocalStorage tokens.',
+      prompt: 'Create a slide-out developer panel that lists all cookies, localStorage, and sessionStorage entries for the active site with live editing.'
+    },
+    {
+      id: 'tpl-livecss',
+      category: 'Surprising',
+      categoryLabel: 'Hidden Gem',
+      icon: BUILDER_ICONS.form,
+      title: 'Live Element Visual CSS Styler',
+      desc: 'Click any element on the page to visually tweak colors, fonts, and spacing with instant copy-CSS.',
+      prompt: 'Build a visual inspector tool where clicking any element opens a floating style panel to change font size, color, and margin with 1-click CSS copy.'
+    },
+
+    // ----------------------------------------------------
+    // Category 3: 10 Unprecedented & Out-of-the-Box Inventions
+    // ----------------------------------------------------
+    {
+      id: 'tpl-domtimemachine',
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: BUILDER_ICONS.history,
+      title: 'DOM Time Machine & Price Watcher',
+      desc: 'Stores DOM & visual snapshots of dynamic pages to alert you when text, prices, or seats change.',
+      prompt: 'Build a tool that records snapshot hashes of selected webpage elements and alerts the user if the price or content changes between visits.'
+    },
+    {
+      id: 'tpl-tabmirror',
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: BUILDER_ICONS.tabs,
+      title: 'Multi-Tab Synchronized Action Mirror',
+      desc: 'Type, click, or scroll in one tab and broadcast identical actions across 4 synchronized tabs.',
+      prompt: 'Create a multi-tab mirror tool that captures scroll events and form inputs in the active tab and mirrors them in real time across open comparison tabs.'
+    },
+    {
+      id: 'tpl-botrecorder',
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: BUILDER_ICONS.agent,
+      title: 'AI Click-Stream Micro-Bot Recorder',
+      desc: 'Records your clicks, typing, and waits in the browser, then compiles them into an autonomous replay bot.',
+      prompt: 'Build an action recorder that logs user clicks, input entries, and delays on a page, generating a reusable autonomous playback script.'
+    },
+    {
+      id: 'tpl-databridge',
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: BUILDER_ICONS.export,
+      title: 'Cross-Site Data Bridge & Auto-Transfer',
+      desc: 'Select items on one site (e.g. Amazon, CRM) and auto-fill them into another tab (e.g. Sheets, Notion).',
+      prompt: 'Build a cross-tab data bridge that lets you select product info or tables on one webpage and automatically pipes them into fields on a target tab.'
+    },
+    {
+      id: 'tpl-summaryhud',
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: BUILDER_ICONS.status,
+      title: 'Executive Summary Floating HUD',
+      desc: 'Floating heads-up display that extracts key takeaway metrics, dates, and action items from long articles.',
+      prompt: 'Create a floating HUD widget that extracts executive bullet points, numerical metrics, and key dates from the current page text.'
+    },
+    {
+      id: 'tpl-fakereview',
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: BUILDER_ICONS.shield,
+      title: 'Sentiment & Fake Review Detector',
+      desc: 'Scans e-commerce review sections, identifying bot patterns, review velocity spikes, and repetitive phrases.',
+      prompt: 'Build an AI review scanner that analyzes customer reviews on product pages to calculate an authenticity score and flag bot clusters.'
+    },
+    {
+      id: 'tpl-apisniffer',
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: BUILDER_ICONS.models,
+      title: 'Live Network API Sniffer & Response Mocker',
+      desc: 'Intercepts background fetch/XHR requests made by the webpage and lets you mock or inspect JSON payloads.',
+      prompt: 'Create an in-page network sniffer that logs AJAX/fetch requests and allows editing API response JSON before the webpage renders it.'
+    },
+    {
+      id: 'tpl-tabsearchhud',
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: BUILDER_ICONS.help,
+      title: 'Universal Tab Search & Text Finder HUD',
+      desc: 'Press a hotkey to instantly search text across all 30+ open browser tabs and jump straight to the match.',
+      prompt: 'Build a universal search overlay that queries text across all open browser tabs and highlights matches with instant 1-click tab switching.'
+    },
+    {
+      id: 'tpl-captchaswitcher',
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: BUILDER_ICONS.warning,
+      title: 'Captcha Audio Fallback & Transcriber',
+      desc: 'Switches tricky image captchas to audio mode and automatically triggers transcription assistance.',
+      prompt: 'Build an accessibility tool that automatically detects captcha widgets, triggers the audio challenge fallback, and assists with audio verification.'
+    },
+    {
+      id: 'tpl-shadowdomscanner',
+      category: 'Unprecedented',
+      categoryLabel: 'New Invention',
+      icon: BUILDER_ICONS.tools,
+      title: 'Shadow DOM & Iframe Piercing Scanner',
+      desc: 'Recursively traverses nested shadow roots and iframes to extract buried inputs and elements.',
+      prompt: 'Build a deep DOM tree inspector that recursively pierces open/closed shadow roots and iframes to locate and manipulate buried elements.'
+    },
+
+    // ----------------------------------------------------
+    // Category 4: 10 Wild, Polarizing & Awe-Inspiring Experiments
+    // ----------------------------------------------------
+    {
+      id: 'tpl-bionicreading',
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: BUILDER_ICONS.guide,
+      title: 'Bionic Reading & Speedflow Typography',
+      desc: 'Converts webpage text into fixation-guided bold typography for 3x accelerated reading speed.',
+      prompt: 'Build a typography tool that converts all webpage paragraphs into bionic reading format by bolding the initial letters of each word.'
+    },
+    {
+      id: 'tpl-voicenavigator',
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: BUILDER_ICONS.agent,
+      title: 'Voice Command & Hands-Free Navigator',
+      desc: 'Speak natural voice commands ("scroll down", "click buy now", "find laptops") to browse hands-free.',
+      prompt: 'Create a voice navigation tool that listens for speech commands ("scroll down", "click search", "zoom in") and executes them on the page.'
+    },
+    {
+      id: 'tpl-doomscrollfriction',
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: BUILDER_ICONS.warning,
+      title: 'Doom-Scroll Friction & Grayscale Interceptor',
+      desc: 'Adds subtle scroll friction and turns infinite feeds grayscale after 15 minutes of scrolling.',
+      prompt: 'Build a digital wellness tool that tracks infinite scroll distance on social feeds, gradually reducing color saturation and adding scroll friction.'
+    },
+    {
+      id: 'tpl-3ddomvisualizer',
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: BUILDER_ICONS.models,
+      title: '3D DOM Depth & Stacking Mesh Visualizer',
+      desc: 'Transforms the active webpage into a rotatable 3D wireframe mesh displaying z-index nesting layers.',
+      prompt: 'Build a 3D DOM inspector that applies CSS 3D transforms to all nested elements on the page, allowing rotatable 3D stacking inspection.'
+    },
+    {
+      id: 'tpl-soundscape',
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: BUILDER_ICONS.video,
+      title: 'Universal Mechanical Soundscape & Chimes',
+      desc: 'Generates soothing mechanical keyboard acoustic clicks and UI chimes as you browse and type.',
+      prompt: 'Create an ambient web soundscape tool that uses Web Audio API to play gentle mechanical key clicks and smooth chimes on clicks and navigation.'
+    },
+    {
+      id: 'tpl-heatmaptracker',
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: BUILDER_ICONS.status,
+      title: 'Live Click Heatmap & Scroll Depth Canvas',
+      desc: 'Records where you click and how deep you read on any page, rendering a real-time thermal gradient.',
+      prompt: 'Build a personal analytics tool that overlays a canvas on the webpage showing a real-time thermal heatmap of your clicks and reading depth.'
+    },
+    {
+      id: 'tpl-floatinglinkpeek',
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: BUILDER_ICONS.link,
+      title: 'Zero-Click Floating Link Peek',
+      desc: 'Hovering over any link for 500ms pops up a live floating peek preview without opening a tab.',
+      prompt: 'Create a link previewer tool that displays a floating iframe preview modal when hovering over any hyperlink for more than 500 milliseconds.'
+    },
+    {
+      id: 'tpl-rageclickhealer',
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: BUILDER_ICONS.test,
+      title: 'Rage-Click & Broken Button Healer',
+      desc: 'Detects when you rapidly click a dead button 3+ times and auto-inspects DOM listeners to unblock it.',
+      prompt: 'Build a rage-click detector that identifies when a user clicks a button multiple times without effect and tries to trigger the underlying handler.'
+    },
+    {
+      id: 'tpl-jargonbuster',
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: BUILDER_ICONS.help,
+      title: 'Corporate Jargon & Buzzword Decryptor',
+      desc: 'Replaces corporate buzzwords ("synergy", "paradigm shift", "leverage") with honest definitions.',
+      prompt: 'Create a humor/clarity tool that scans webpage text and replaces overused corporate jargon and buzzwords with clear, plain-English definitions.'
+    },
+    {
+      id: 'tpl-matrixmode',
+      category: 'Wild',
+      categoryLabel: 'Experimental',
+      icon: BUILDER_ICONS.credits,
+      title: 'Matrix Hacker Mode (CRT Terminal HUD)',
+      desc: 'Transforms any webpage into a high-contrast phosphor green CRT terminal HUD with keyboard-only navigation.',
+      prompt: 'Build a theme tool that transforms any website into a retro green-on-black CRT terminal with scanlines and numbered keyboard navigation shortcuts.'
+    }
+  ];
+
+  function renderTemplatesCommand(selectedFilter = 'all') {
     welcomeScreen.style.display = 'none';
     chatMessages.style.display = 'flex';
 
-    const templates = [
-      {
-        icon: BUILDER_ICONS.form,
-        title: 'Universal Auto-Save Forms',
-        prompt: 'Build a tool that auto-saves form and textarea input to local storage on any webpage in case the browser crashes or refreshes.'
-      },
-      {
-        icon: BUILDER_ICONS.moon,
-        title: 'Universal Dark Mode Toggle',
-        prompt: 'Create a dark mode toggle button that injects sleek dark styling and smooth inverted filters on any website.'
-      },
-      {
-        icon: BUILDER_ICONS.table,
-        title: 'Table & List Data Scraper',
-        prompt: 'Build a tool that detects tables and list items on the current webpage and lets me export them as CSV or JSON with one click.'
-      },
-      {
-        icon: BUILDER_ICONS.tag,
-        title: 'Amazon Price & Discount Tracker',
-        prompt: 'Create a tool for Amazon product pages that calculates the real price per unit and highlights true discounts.'
-      },
-      {
-        icon: BUILDER_ICONS.image,
-        title: 'Bulk Image Downloader',
-        prompt: 'Build a tool that extracts all full-resolution images from the current webpage and allows downloading them as a batch.'
-      },
-      {
-        icon: BUILDER_ICONS.shield,
-        title: 'Distraction & Sticky Ad Blocker',
-        prompt: 'Create a tool that identifies and removes sticky banners, floating video overlays, and newsletter popups from article pages.'
-      },
-      {
-        icon: BUILDER_ICONS.video,
-        title: 'YouTube Productivity Booster',
-        prompt: 'Build a tool for YouTube that adds 2.5x and 3x playback speed buttons, transcript search, and loop segment controls.'
-      },
-      {
-        icon: BUILDER_ICONS.link,
-        title: 'Broken Link & Redirect Checker',
-        prompt: 'Build a tool that scans all links on the current page, checks their status codes, and highlights broken links in red.'
-      },
-      {
-        icon: BUILDER_ICONS.note,
-        title: 'Sticky Web Notes & Annotator',
-        prompt: 'Create a tool that allows me to pin draggable sticky notes and comments directly onto any webpage that persist on reload.'
-      },
-      {
-        icon: BUILDER_ICONS.mail,
-        title: 'Email & Contact Finder',
-        prompt: 'Build a tool that searches the current webpage DOM for email addresses, social handles, and phone numbers and copies them.'
-      }
-    ];
+    const filtered = selectedFilter === 'all' 
+      ? ALL_TOOL_TEMPLATES 
+      : ALL_TOOL_TEMPLATES.filter(t => t.category.toLowerCase() === selectedFilter.toLowerCase());
 
-    const cardsHtml = templates.map(t => `
-      <div style="background:var(--surface-container-low);padding:10px 12px;border-radius:8px;border:1px solid var(--ghost-border);display:flex;flex-direction:column;justify-content:space-between;gap:6px;">
+    const cardsHtml = filtered.map(t => `
+      <div class="template-card" data-category="${escapeHtml(t.category)}">
         <div>
-          <div style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px;color:var(--on-surface);">
+          <div class="template-card-header">
             <span style="display:inline-flex;color:var(--primary);">${t.icon}</span>
             <span>${escapeHtml(t.title)}</span>
+            <span class="template-card-badge">${escapeHtml(t.categoryLabel)}</span>
           </div>
-          <div style="font-size:11px;color:var(--on-surface-muted);margin-top:4px;line-height:1.35;">${escapeHtml(t.prompt)}</div>
+          <div style="font-size:11px;color:var(--on-surface-muted);margin-top:6px;line-height:1.4;">${escapeHtml(t.desc)}</div>
         </div>
-        <button class="command-chip" data-template-prompt="${escapeHtml(t.prompt)}" style="margin-top:4px;padding:4px 8px;font-size:11px;font-weight:700;justify-content:center;background:var(--accent-bg);color:var(--primary);border-color:var(--primary);">
-          Use This Template
+        <button class="command-chip" data-template-prompt="${escapeHtml(t.prompt)}" style="margin-top:4px;padding:6px 10px;font-size:11.5px;font-weight:700;justify-content:center;background:var(--accent-bg);color:var(--primary);border-color:var(--primary);">
+          Use This Template &rarr;
         </button>
       </div>
     `).join('');
@@ -1074,11 +1741,20 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="command-card-header">
             <span class="command-card-icon">${BUILDER_ICONS.templates}</span>
             <div>
-              <h3>Extension Tool Templates (10 Starter Presets)</h3>
-              <p>Click "Use This Template" to instantly generate and test full extension code.</p>
+              <h3>Extension Tool Templates (${ALL_TOOL_TEMPLATES.length} Presets)</h3>
+              <p>Curated starters organized 2-by-2. Click any template to build it with AI instantly.</p>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;margin-top:8px;">
+
+          <div class="template-tabs">
+            <button class="template-tab ${selectedFilter === 'all' ? 'active' : ''}" data-tpl-filter="all">All (${ALL_TOOL_TEMPLATES.length})</button>
+            <button class="template-tab ${selectedFilter === 'Essential' ? 'active' : ''}" data-tpl-filter="Essential">Expected &amp; Essential (10)</button>
+            <button class="template-tab ${selectedFilter === 'Surprising' ? 'active' : ''}" data-tpl-filter="Surprising">Surprising Gems (10)</button>
+            <button class="template-tab ${selectedFilter === 'Unprecedented' ? 'active' : ''}" data-tpl-filter="Unprecedented">New Inventions (10)</button>
+            <button class="template-tab ${selectedFilter === 'Wild' ? 'active' : ''}" data-tpl-filter="Wild">Wild &amp; Experimental (10)</button>
+          </div>
+
+          <div class="two-col-grid template-grid-container">
             ${cardsHtml}
           </div>
         </div>
@@ -1087,6 +1763,36 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     chatMessages.appendChild(card);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    // Attach tab filter listeners within this rendered card
+    card.querySelectorAll('.template-tab').forEach(tab => {
+      tab.addEventListener('click', (e) => {
+        e.preventDefault();
+        const filter = tab.dataset.tplFilter;
+        card.querySelectorAll('.template-tab').forEach(t => t.classList.toggle('active', t === tab));
+        const grid = card.querySelector('.template-grid-container');
+        if (grid) {
+          const newFiltered = filter === 'all'
+            ? ALL_TOOL_TEMPLATES
+            : ALL_TOOL_TEMPLATES.filter(t => t.category.toLowerCase() === filter.toLowerCase());
+          grid.innerHTML = newFiltered.map(t => `
+            <div class="template-card" data-category="${escapeHtml(t.category)}">
+              <div>
+                <div class="template-card-header">
+                  <span style="display:inline-flex;color:var(--primary);">${t.icon}</span>
+                  <span>${escapeHtml(t.title)}</span>
+                  <span class="template-card-badge">${escapeHtml(t.categoryLabel)}</span>
+                </div>
+                <div style="font-size:11px;color:var(--on-surface-muted);margin-top:6px;line-height:1.4;">${escapeHtml(t.desc)}</div>
+              </div>
+              <button class="command-chip" data-template-prompt="${escapeHtml(t.prompt)}" style="margin-top:4px;padding:6px 10px;font-size:11.5px;font-weight:700;justify-content:center;background:var(--accent-bg);color:var(--primary);border-color:var(--primary);">
+                Use This Template &rarr;
+              </button>
+            </div>
+          `).join('');
+        }
+      });
+    });
   }
 
   function renderBuilderGuideCommand() {
@@ -1264,7 +1970,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span class="slash-command-category">${escapeHtml(c.category)}</span>
         </div>
       `).join('');
-      popupEl.style.display = 'flex';
+      popupEl.style.display = 'grid';
     }
 
     function selectCommand(cmd) {
@@ -1280,7 +1986,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
-    inputEl.addEventListener('input', () => {
+    function checkAutocomplete() {
       const val = inputEl.value;
       if (val.startsWith('/')) {
         const query = val.slice(1).toLowerCase().trim();
@@ -1294,10 +2000,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       } else {
         popupEl.style.display = 'none';
       }
-    });
+    }
+
+    inputEl.addEventListener('input', checkAutocomplete);
+    inputEl.addEventListener('keyup', checkAutocomplete);
+    inputEl.addEventListener('focus', checkAutocomplete);
 
     inputEl.addEventListener('keydown', (e) => {
-      if (popupEl.style.display !== 'flex' || !matchingCommands.length) return;
+      if (popupEl.style.display === 'none' || !matchingCommands.length) return;
 
       if (e.key === 'ArrowDown') {
         e.preventDefault();
