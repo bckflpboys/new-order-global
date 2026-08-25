@@ -176,14 +176,15 @@
 
         <!-- Input Area -->
         <div class="chat-input-area">
-          <div class="input-wrapper">
+          <div class="input-wrapper" style="position: relative;">
+            <div class="slash-commands-popup" id="slash-commands-popup" style="display:none;"></div>
             <div class="input-context" id="input-context" style="display:none;">
               <span class="context-badge" id="context-badge"></span>
               <button class="context-remove" id="context-remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
             </div>
             
             <div class="input-container-main">
-              <textarea id="chat-input" placeholder="Type..." rows="1"></textarea>
+              <textarea id="chat-input" placeholder="Describe a Chrome extension or tool to build (send /help for templates &amp; shortcuts)..." rows="1"></textarea>
               <button class="btn-send" id="btn-send" title="Send" style="display:none;">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
                   <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
@@ -196,7 +197,8 @@
             <!-- Model selector pill will be rendered here by JS -->
           </div>
 
-          <div class="input-footer">
+          <div class="input-footer" style="display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;">
+            <div class="input-hint" style="font-size: 11px; color: var(--text-muted, #737784);"><kbd>/help</kbd> for shortcuts &amp; templates · <kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for newline</div>
             <span class="ai-credits" id="ai-credits" style="display:none;">
               <span class="credits-count" id="credits-count">0</span> AI requests remaining
             </span>

@@ -40,6 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const authModal = document.getElementById('auth-modal');
   const historySidebar = document.getElementById('chat-history-sidebar');
   const historyList = document.getElementById('history-list');
+  const slashPopup = document.getElementById('slash-commands-popup');
 
   // ============================================
   // Initialize
@@ -715,10 +716,660 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // ============================================
+  // Builder Slash Commands Engine & Autocomplete
+  // ============================================
+  const BUILDER_ICONS = {
+    help: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    tools: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+    templates: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="16.5" y1="9.4" x2="7.5" y2="4.21"/><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
+    test: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>`,
+    export: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+    models: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>`,
+    model: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04z"/></svg>`,
+    credits: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>`,
+    clear: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+    guide: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+    agent: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+    settings: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+    warning: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    form: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>`,
+    moon: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`,
+    table: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 3v18"/></svg>`,
+    tag: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
+    image: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>`,
+    shield: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+    video: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>`,
+    link: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+    note: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>`,
+    mail: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>`
+  };
+
+  const BUILDER_SLASH_COMMANDS = [
+    {
+      name: '/help',
+      aliases: ['/start', '/?', '/commands'],
+      category: 'Core',
+      icon: BUILDER_ICONS.help,
+      desc: 'Show all builder slash commands, tool templates & developer guide',
+      params: '',
+      run: async () => renderBuilderHelpCard()
+    },
+    {
+      name: '/tools',
+      aliases: ['/my-tools', '/installed'],
+      category: 'Tools',
+      icon: BUILDER_ICONS.tools,
+      desc: 'List all custom and built-in extension tools in your workspace',
+      params: '',
+      run: async () => {
+        toolsSidebar.classList.add('open');
+        await loadInstalledTools();
+      }
+    },
+    {
+      name: '/templates',
+      aliases: ['/presets', '/examples', '/starter'],
+      category: 'Templates',
+      icon: BUILDER_ICONS.templates,
+      desc: 'Browse ready-to-use tool templates (Form Fill, Scraper, Dark Mode, etc.)',
+      params: '',
+      run: async () => renderTemplatesCommand()
+    },
+    {
+      name: '/test',
+      aliases: ['/run', '/preview'],
+      category: 'Testing',
+      icon: BUILDER_ICONS.test,
+      desc: 'Test current tool code directly on the active browser tab',
+      params: '',
+      run: async () => {
+        if (currentTool) {
+          document.getElementById('btn-test-tool')?.click();
+        } else {
+          addMessage('ai', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No tool generated yet. Describe what you want to build or pick a <code>/templates</code> starter.');
+        }
+      }
+    },
+    {
+      name: '/export',
+      aliases: ['/download', '/code', '/save-files'],
+      category: 'Export',
+      icon: BUILDER_ICONS.export,
+      desc: 'Export generated tool code files (content.js, styles.css, manifest.json)',
+      params: '',
+      run: async () => exportToolCodeCommand()
+    },
+    {
+      name: '/models',
+      aliases: ['/llms', '/model-list'],
+      category: 'AI Model',
+      icon: BUILDER_ICONS.models,
+      desc: 'Open AI model selection modal for tool code generation',
+      params: '',
+      run: async () => openModelSelectorModal()
+    },
+    {
+      name: '/model',
+      aliases: ['/switch-model'],
+      category: 'AI Model',
+      icon: BUILDER_ICONS.model,
+      desc: 'Switch AI model for tool generation (e.g. /model flash, /model sonnet)',
+      params: '<name_or_id>',
+      run: async (args) => handleBuilderModelSwitch(args)
+    },
+    {
+      name: '/credits',
+      aliases: ['/account', '/balance', '/usage'],
+      category: 'Account',
+      icon: BUILDER_ICONS.credits,
+      desc: 'Check your AI generation credits and subscription status',
+      params: '',
+      run: async () => renderBuilderCreditsCommand()
+    },
+    {
+      name: '/clear',
+      aliases: ['/new', '/reset', '/clean'],
+      category: 'Core',
+      icon: BUILDER_ICONS.clear,
+      desc: 'Start a fresh conversation and reset tool builder state',
+      params: '',
+      run: async () => startNewConversation()
+    },
+    {
+      name: '/guide',
+      aliases: ['/docs', '/tutorial', '/selectors'],
+      category: 'Guide',
+      icon: BUILDER_ICONS.guide,
+      desc: 'Chrome extension developer guide: DOM selectors, MutationObservers & safety',
+      params: '',
+      run: async () => renderBuilderGuideCommand()
+    },
+    {
+      name: '/agent',
+      aliases: ['/executive', '/global-executive'],
+      category: 'Navigation',
+      icon: BUILDER_ICONS.agent,
+      desc: 'Open Global Executive autonomous agent in a new tab',
+      params: '',
+      run: async () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL('agent/agent.html') });
+      }
+    },
+    {
+      name: '/settings',
+      aliases: ['/config', '/options'],
+      category: 'Navigation',
+      icon: BUILDER_ICONS.settings,
+      desc: 'Open Extension Settings & Preferences',
+      params: '',
+      run: async () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/settings.html') });
+      }
+    }
+  ];
+
+  function renderBuilderHelpCard() {
+    welcomeScreen.style.display = 'none';
+    chatMessages.style.display = 'flex';
+
+    const card = document.createElement('div');
+    card.className = 'message ai';
+    card.innerHTML = `
+      <div class="message-avatar">
+        <img src="../icons/logo.png" alt="AI">
+      </div>
+      <div class="message-content" style="max-width: 100%; width: 100%;">
+        <div class="command-card" style="margin: 0;">
+          <div class="command-card-header">
+            <span class="command-card-icon">${BUILDER_ICONS.tools}</span>
+            <div>
+              <h3>AI Tool Builder · Command Center</h3>
+              <p>Build, test, and manage Chrome extension tools with slash commands.</p>
+            </div>
+          </div>
+
+          <div class="command-section-title">Core Actions &amp; Testing</div>
+          <div class="command-grid">
+            <a class="command-chip" data-cmd="/help">
+              <code>/help</code>
+              <div class="command-chip-info">
+                <strong>Command Directory</strong>
+                Show all builder commands &amp; guides
+              </div>
+            </a>
+            <a class="command-chip" data-cmd="/test">
+              <code>/test</code>
+              <div class="command-chip-info">
+                <strong>Test Tool in Tab</strong>
+                Inject and test script on active page
+              </div>
+            </a>
+            <a class="command-chip" data-cmd="/export">
+              <code>/export</code>
+              <div class="command-chip-info">
+                <strong>Export Tool Files</strong>
+                Download content.js, styles.css &amp; manifest
+              </div>
+            </a>
+            <a class="command-chip" data-cmd="/clear">
+              <code>/clear</code>
+              <div class="command-chip-info">
+                <strong>New Session</strong>
+                Start a fresh blank builder conversation
+              </div>
+            </a>
+            <a class="command-chip" data-cmd="/settings">
+              <code>/settings</code>
+              <div class="command-chip-info">
+                <strong>Settings</strong>
+                Open extension settings &amp; options
+              </div>
+            </a>
+          </div>
+
+          <div class="command-section-title">Templates &amp; Tool Library</div>
+          <div class="command-grid">
+            <a class="command-chip" data-cmd="/templates">
+              <code>/templates</code>
+              <div class="command-chip-info">
+                <strong>10 Ready Templates</strong>
+                Form autofill, scrapers, dark mode, adblock
+              </div>
+            </a>
+            <a class="command-chip" data-cmd="/tools">
+              <code>/tools</code>
+              <div class="command-chip-info">
+                <strong>My Tools Drawer</strong>
+                Open installed tools &amp; active scripts
+              </div>
+            </a>
+            <a class="command-chip" data-cmd="/guide">
+              <code>/guide</code>
+              <div class="command-chip-info">
+                <strong>Extension Dev Guide</strong>
+                DOM selectors, MutationObservers &amp; tips
+              </div>
+            </a>
+            <a class="command-chip" data-cmd="/agent">
+              <code>/agent</code>
+              <div class="command-chip-info">
+                <strong>Global Executive</strong>
+                Open autonomous agent in new tab
+              </div>
+            </a>
+          </div>
+
+          <div class="command-section-title">AI Brains &amp; Credits</div>
+          <div class="command-grid">
+            <a class="command-chip" data-cmd="/models">
+              <code>/models</code>
+              <div class="command-chip-info">
+                <strong>AI Model Selector</strong>
+                Switch model tier (Flash, Sonnet, Opus)
+              </div>
+            </a>
+            <a class="command-chip" data-cmd="/model ">
+              <code>/model &lt;id&gt;</code>
+              <div class="command-chip-info">
+                <strong>Switch Model</strong>
+                Change model (e.g. <code>/model sonnet</code>)
+              </div>
+            </a>
+            <a class="command-chip" data-cmd="/credits">
+              <code>/credits</code>
+              <div class="command-chip-info">
+                <strong>Account Balance</strong>
+                Check credits, user plan &amp; limits
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
+    `;
+
+    chatMessages.appendChild(card);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function renderTemplatesCommand() {
+    welcomeScreen.style.display = 'none';
+    chatMessages.style.display = 'flex';
+
+    const templates = [
+      {
+        icon: BUILDER_ICONS.form,
+        title: 'Universal Auto-Save Forms',
+        prompt: 'Build a tool that auto-saves form and textarea input to local storage on any webpage in case the browser crashes or refreshes.'
+      },
+      {
+        icon: BUILDER_ICONS.moon,
+        title: 'Universal Dark Mode Toggle',
+        prompt: 'Create a dark mode toggle button that injects sleek dark styling and smooth inverted filters on any website.'
+      },
+      {
+        icon: BUILDER_ICONS.table,
+        title: 'Table & List Data Scraper',
+        prompt: 'Build a tool that detects tables and list items on the current webpage and lets me export them as CSV or JSON with one click.'
+      },
+      {
+        icon: BUILDER_ICONS.tag,
+        title: 'Amazon Price & Discount Tracker',
+        prompt: 'Create a tool for Amazon product pages that calculates the real price per unit and highlights true discounts.'
+      },
+      {
+        icon: BUILDER_ICONS.image,
+        title: 'Bulk Image Downloader',
+        prompt: 'Build a tool that extracts all full-resolution images from the current webpage and allows downloading them as a batch.'
+      },
+      {
+        icon: BUILDER_ICONS.shield,
+        title: 'Distraction & Sticky Ad Blocker',
+        prompt: 'Create a tool that identifies and removes sticky banners, floating video overlays, and newsletter popups from article pages.'
+      },
+      {
+        icon: BUILDER_ICONS.video,
+        title: 'YouTube Productivity Booster',
+        prompt: 'Build a tool for YouTube that adds 2.5x and 3x playback speed buttons, transcript search, and loop segment controls.'
+      },
+      {
+        icon: BUILDER_ICONS.link,
+        title: 'Broken Link & Redirect Checker',
+        prompt: 'Build a tool that scans all links on the current page, checks their status codes, and highlights broken links in red.'
+      },
+      {
+        icon: BUILDER_ICONS.note,
+        title: 'Sticky Web Notes & Annotator',
+        prompt: 'Create a tool that allows me to pin draggable sticky notes and comments directly onto any webpage that persist on reload.'
+      },
+      {
+        icon: BUILDER_ICONS.mail,
+        title: 'Email & Contact Finder',
+        prompt: 'Build a tool that searches the current webpage DOM for email addresses, social handles, and phone numbers and copies them.'
+      }
+    ];
+
+    const cardsHtml = templates.map(t => `
+      <div style="background:var(--surface-container-low);padding:10px 12px;border-radius:8px;border:1px solid var(--ghost-border);display:flex;flex-direction:column;justify-content:space-between;gap:6px;">
+        <div>
+          <div style="display:flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px;color:var(--on-surface);">
+            <span style="display:inline-flex;color:var(--primary);">${t.icon}</span>
+            <span>${escapeHtml(t.title)}</span>
+          </div>
+          <div style="font-size:11px;color:var(--on-surface-muted);margin-top:4px;line-height:1.35;">${escapeHtml(t.prompt)}</div>
+        </div>
+        <button class="command-chip" data-template-prompt="${escapeHtml(t.prompt)}" style="margin-top:4px;padding:4px 8px;font-size:11px;font-weight:700;justify-content:center;background:var(--accent-bg);color:var(--primary);border-color:var(--primary);">
+          Use This Template
+        </button>
+      </div>
+    `).join('');
+
+    const card = document.createElement('div');
+    card.className = 'message ai';
+    card.innerHTML = `
+      <div class="message-avatar">
+        <img src="../icons/logo.png" alt="AI">
+      </div>
+      <div class="message-content" style="max-width: 100%; width: 100%;">
+        <div class="command-card" style="margin: 0;">
+          <div class="command-card-header">
+            <span class="command-card-icon">${BUILDER_ICONS.templates}</span>
+            <div>
+              <h3>Extension Tool Templates (10 Starter Presets)</h3>
+              <p>Click "Use This Template" to instantly generate and test full extension code.</p>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;margin-top:8px;">
+            ${cardsHtml}
+          </div>
+        </div>
+      </div>
+    `;
+
+    chatMessages.appendChild(card);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  function renderBuilderGuideCommand() {
+    welcomeScreen.style.display = 'none';
+    chatMessages.style.display = 'flex';
+
+    const card = document.createElement('div');
+    card.className = 'message ai';
+    card.innerHTML = `
+      <div class="message-avatar">
+        <img src="../icons/logo.png" alt="AI">
+      </div>
+      <div class="message-content" style="max-width: 100%; width: 100%;">
+        <div class="command-card" style="margin: 0;">
+          <div class="command-card-header">
+            <span class="command-card-icon">${BUILDER_ICONS.guide}</span>
+            <div>
+              <h3>Chrome Extension Tool Architecture &amp; Best Practices</h3>
+              <p>How New Order builds robust, isolated content scripts for any website.</p>
+            </div>
+          </div>
+          <div style="font-size:12.5px;color:var(--on-surface);line-height:1.6;display:flex;flex-direction:column;gap:10px;">
+            <div style="background:var(--surface-container-low);padding:10px 12px;border-radius:8px;">
+              <strong style="color:var(--primary);">1. MutationObserver for Dynamic SPAs</strong><br>
+              Modern web apps (React, Vue, YouTube, Twitter) render DOM dynamically. Tools use <code>MutationObserver</code> with debounce to ensure buttons and panels stay injected across route changes.
+            </div>
+            <div style="background:var(--surface-container-low);padding:10px 12px;border-radius:8px;">
+              <strong style="color:var(--primary);">2. Namespaced CSS &amp; Shadow DOM</strong><br>
+              All tool styles use unique class prefixes (e.g. <code>.no-tool-*</code>) to avoid polluting or conflicting with the host website styles.
+            </div>
+            <div style="background:var(--surface-container-low);padding:10px 12px;border-radius:8px;">
+              <strong style="color:var(--primary);">3. Chrome Storage Sync</strong><br>
+              Use <code>chrome.storage.local</code> or <code>ToolManager</code> to persist user settings and scraped data seamlessly across tabs.
+            </div>
+            <div style="background:var(--surface-container-low);padding:10px 12px;border-radius:8px;">
+              <strong style="color:var(--primary);">4. Testing &amp; Iteration</strong><br>
+              Use the <code>/test</code> command or the "Test" button above to inject and verify your tool instantly without reloading the extension.
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    chatMessages.appendChild(card);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  }
+
+  async function renderBuilderCreditsCommand() {
+    welcomeScreen.style.display = 'none';
+    chatMessages.style.display = 'flex';
+
+    try {
+      const user = NewOrderAuth.getCurrentUser();
+      const credits = Number(user?.credits || 0).toFixed(2);
+      const plan = (user?.subscription?.plan || 'Free').toUpperCase();
+
+      const card = document.createElement('div');
+      card.className = 'message ai';
+      card.innerHTML = `
+        <div class="message-avatar"><img src="../icons/logo.png" alt="AI"></div>
+        <div class="message-content" style="max-width: 100%; width: 100%;">
+          <div class="command-card" style="margin: 0;">
+            <div class="command-card-header">
+              <span class="command-card-icon">${BUILDER_ICONS.credits}</span>
+              <div>
+                <h3>Builder AI Credits &amp; Account</h3>
+                <p>${escapeHtml(user?.email || 'Logged in user')}</p>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;font-size:12px;">
+              <div style="padding:10px;background:var(--surface-container-low);border-radius:8px;">
+                <div style="color:var(--on-surface-muted);font-size:10px;font-weight:700;text-transform:uppercase;">AI Credits Remaining</div>
+                <div style="font-size:18px;font-weight:800;color:var(--primary);margin-top:2px;">${credits} <span style="font-size:11px;font-weight:600;color:var(--on-surface-muted);">cr</span></div>
+              </div>
+              <div style="padding:10px;background:var(--surface-container-low);border-radius:8px;">
+                <div style="color:var(--on-surface-muted);font-size:10px;font-weight:700;text-transform:uppercase;">Current Plan</div>
+                <div style="font-size:16px;font-weight:700;color:var(--on-surface);margin-top:2px;">${escapeHtml(plan)}</div>
+              </div>
+            </div>
+            <div style="margin-top:10px;text-align:right;">
+              <a href="https://global-order.32d.one/pricing" target="_blank" style="font-size:11px;font-weight:700;color:var(--primary);text-decoration:none;">Get More Credits &rarr;</a>
+            </div>
+          </div>
+        </div>
+      `;
+      chatMessages.appendChild(card);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    } catch (e) {
+      addMessage('ai', 'Failed to load credits info: ' + e.message);
+    }
+  }
+
+  function handleBuilderModelSwitch(args) {
+    const query = String(args || '').trim().toLowerCase();
+    if (!query) {
+      openModelSelectorModal();
+      return;
+    }
+    const match = availableModels.find(m => m.id.toLowerCase() === query || m.name.toLowerCase().includes(query) || m.id.toLowerCase().includes(query));
+    if (match) {
+      selectedModelId = match.id;
+      renderModelSelectorPill();
+      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04z"/></svg> **AI Brain switched to:** ${escapeHtml(match.name)} (\`${escapeHtml(match.id)}\`)`);
+    } else {
+      openModelSelectorModal();
+    }
+  }
+
+  function exportToolCodeCommand() {
+    if (!currentTool) {
+      addMessage('ai', '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> No generated tool active to export. Build or load a tool first.');
+      return;
+    }
+    const files = {
+      'content.js': currentTool.contentScript || '',
+      'styles.css': currentTool.styles || '',
+      'config.json': JSON.stringify(currentTool.config || {}, null, 2),
+      'manifest.json': JSON.stringify({
+        manifest_version: 3,
+        name: currentTool.name || 'New Order Tool',
+        version: '1.0.0',
+        description: currentTool.description || '',
+        content_scripts: [{
+          matches: currentTool.matches || ['<all_urls>'],
+          js: ['content.js'],
+          css: ['styles.css']
+        }]
+      }, null, 2)
+    };
+
+    const combined = Object.entries(files).map(([name, content]) => `// === File: ${name} ===\n${content}\n`).join('\n\n');
+
+    navigator.clipboard.writeText(combined).then(() => {
+      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> **Tool Code Exported!** All files for **"${escapeHtml(currentTool.name)}"** copied to clipboard in bundle format.`);
+    }).catch(() => {
+      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> **Tool Code Export:**\n\`\`\`javascript\n${combined.substring(0, 2000)}...\n\`\`\``);
+    });
+  }
+
+  async function handleBuilderSlashCommand(raw) {
+    const trimmed = raw.trim();
+    const parts = trimmed.split(/\s+/);
+    const cmdName = parts[0].toLowerCase();
+    const args = parts.slice(1).join(' ').trim();
+
+    const cmd = BUILDER_SLASH_COMMANDS.find(c => c.name.toLowerCase() === cmdName || (c.aliases || []).includes(cmdName));
+    if (cmd) {
+      await cmd.run(args);
+    } else {
+      addMessage('ai', `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> Unknown command \`${escapeHtml(cmdName)}\`. Type <a class="command-chip" data-cmd="/help" style="display:inline-flex;padding:2px 6px;"><code>/help</code></a> to view available commands.`);
+    }
+  }
+
+  function setupBuilderSlashCommandsAutocomplete(inputEl, popupEl, commands, onExecute) {
+    if (!inputEl || !popupEl) return;
+    let selectedIndex = 0;
+    let matchingCommands = [];
+
+    function renderPopup(matches) {
+      matchingCommands = matches;
+      if (!matches.length) {
+        popupEl.style.display = 'none';
+        return;
+      }
+      selectedIndex = Math.min(selectedIndex, matches.length - 1);
+      popupEl.innerHTML = matches.map((c, i) => `
+        <div class="slash-command-item ${i === selectedIndex ? 'active' : ''}" data-index="${i}">
+          <span class="slash-command-icon">${c.icon}</span>
+          <div class="slash-command-info">
+            <div class="slash-command-name">
+              ${escapeHtml(c.name)} ${c.params ? `<span class="slash-command-params">${escapeHtml(c.params)}</span>` : ''}
+            </div>
+            <div class="slash-command-desc">${escapeHtml(c.desc)}</div>
+          </div>
+          <span class="slash-command-category">${escapeHtml(c.category)}</span>
+        </div>
+      `).join('');
+      popupEl.style.display = 'flex';
+    }
+
+    function selectCommand(cmd) {
+      popupEl.style.display = 'none';
+      if (!cmd) return;
+      if (cmd.params) {
+        inputEl.value = cmd.name + ' ';
+        inputEl.focus();
+      } else {
+        inputEl.value = '';
+        inputEl.style.height = 'auto';
+        onExecute(cmd.name);
+      }
+    }
+
+    inputEl.addEventListener('input', () => {
+      const val = inputEl.value;
+      if (val.startsWith('/')) {
+        const query = val.slice(1).toLowerCase().trim();
+        const matches = commands.filter(c => {
+          const nameMatch = c.name.slice(1).toLowerCase().includes(query);
+          const aliasMatch = (c.aliases || []).some(a => a.slice(1).toLowerCase().includes(query));
+          const descMatch = (c.desc || '').toLowerCase().includes(query);
+          return nameMatch || aliasMatch || descMatch;
+        });
+        renderPopup(matches);
+      } else {
+        popupEl.style.display = 'none';
+      }
+    });
+
+    inputEl.addEventListener('keydown', (e) => {
+      if (popupEl.style.display !== 'flex' || !matchingCommands.length) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = (selectedIndex + 1) % matchingCommands.length;
+        renderPopup(matchingCommands);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = (selectedIndex - 1 + matchingCommands.length) % matchingCommands.length;
+        renderPopup(matchingCommands);
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        if (matchingCommands[selectedIndex]) {
+          e.preventDefault();
+          selectCommand(matchingCommands[selectedIndex]);
+        }
+      } else if (e.key === 'Escape') {
+        popupEl.style.display = 'none';
+      }
+    });
+
+    popupEl.addEventListener('click', (e) => {
+      const item = e.target.closest('.slash-command-item');
+      if (item) {
+        const idx = parseInt(item.dataset.index, 10);
+        if (!isNaN(idx) && matchingCommands[idx]) {
+          selectCommand(matchingCommands[idx]);
+        }
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!popupEl.contains(e.target) && e.target !== inputEl) {
+        popupEl.style.display = 'none';
+      }
+    });
+  }
+
+  // Delegate click for command chips and template chips
+  document.addEventListener('click', (e) => {
+    const chip = e.target.closest('[data-cmd]');
+    if (chip) {
+      e.preventDefault();
+      const cmd = chip.dataset.cmd;
+      if (cmd) {
+        if (cmd.includes('<') || cmd.endsWith(' ')) {
+          chatInput.value = cmd.replace(/<[^>]+>/g, '').trim() + ' ';
+          chatInput.focus();
+        } else {
+          handleBuilderSlashCommand(cmd);
+        }
+      }
+    }
+
+    const tplBtn = e.target.closest('[data-template-prompt]');
+    if (tplBtn) {
+      e.preventDefault();
+      const prompt = tplBtn.dataset.templatePrompt;
+      if (prompt) {
+        chatInput.value = prompt;
+        sendMessage();
+      }
+    }
+  });
+
+  // Setup Autocomplete
+  setupBuilderSlashCommandsAutocomplete(chatInput, slashPopup, BUILDER_SLASH_COMMANDS, (cmd) => handleBuilderSlashCommand(cmd));
+
+  // ============================================
   // Chat Input Handling
   // ============================================
   chatInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
+      if (slashPopup && slashPopup.style.display === 'flex') return;
       e.preventDefault();
       sendMessage();
     }
@@ -737,6 +1388,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function sendMessage() {
     const text = chatInput.value.trim();
     if (!text) return;
+
+    // Check for slash commands
+    if (text.startsWith('/')) {
+      chatInput.value = '';
+      chatInput.style.height = 'auto';
+      handleBuilderSlashCommand(text);
+      return;
+    }
 
     // Check auth
     if (!NewOrderAuth.isAuthenticated()) {

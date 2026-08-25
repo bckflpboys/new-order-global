@@ -9,6 +9,7 @@
   // ============================================
   let currentTaskId = null;
   let isRunning = false;
+  let isSubmitting = false; // Lock to prevent duplicate submissions on double-click/double-Enter
   let selectedModelId = null;
   let availableModels = [];
   let currentTierMaxSteps = 50;
@@ -24,6 +25,7 @@
   const welcomeScreen = document.getElementById('welcome-screen');
   const taskView = document.getElementById('task-view');
   const taskInput = document.getElementById('task-input');
+  const slashPopup = document.getElementById('slash-commands-popup');
   const btnSend = document.getElementById('btn-send');
   const stepLog = document.getElementById('step-log');
   const taskTitle = document.getElementById('task-title');
@@ -622,8 +624,9 @@
         }
         if (t.originalPrompt) renderUserPromptBubble(t.originalPrompt);
         if (t.goalLedger) renderGoalLedger(t.goalLedger);
+        const hasDoneStep = (t.steps || []).some(s => s.action === 'done');
         (t.steps || []).forEach(step => renderStep(step));
-        if (t.summary) renderDoneStep(t.summary);
+        if (t.summary && !hasDoneStep) renderDoneStep(t.summary);
       });
 
       // Use the latest task's tab tracker / stored data snapshot \u2014 it is
@@ -1202,29 +1205,851 @@
   // behaviour and lets the in-flight agent see the new instruction on its
   // next /step round (services/agentService.js consumes task.chatNudges).
   // ============================================
+  // ============================================
+  // Slash Commands & Autocomplete Engine
+  // ============================================
+  const AGY_ICONS = {
+    help: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    tabs: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="2" y1="7" x2="22" y2="7"/><polyline points="8 21 12 17 16 21"/></svg>`,
+    status: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,
+    credits: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>`,
+    mode: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`,
+    copilot: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    autopilot: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+    models: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg>`,
+    model: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 4.44-2.04z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-4.44-2.04z"/></svg>`,
+    clear: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+    history: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    tools: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+    export: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
+    guide: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+    skills: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+    stage: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>`,
+    settings: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`,
+    warning: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    agent: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/><path d="M8 15h8"/></svg>`
+  };
+
+  const AGENT_SLASH_COMMANDS = [
+    {
+      name: '/help',
+      aliases: ['/start', '/?', '/commands'],
+      category: 'Core',
+      icon: AGY_ICONS.help,
+      desc: 'Show all slash commands, shortcuts & interactive guide',
+      params: '',
+      run: async () => renderAgentHelpCard()
+    },
+    {
+      name: '/tabs',
+      aliases: ['/tab', '/list-tabs', '/windows'],
+      category: 'Browser',
+      icon: AGY_ICONS.tabs,
+      desc: 'List all open Chrome tabs and active page details',
+      params: '',
+      run: async () => renderTabsCommand()
+    },
+    {
+      name: '/status',
+      aliases: ['/info', '/state'],
+      category: 'Core',
+      icon: AGY_ICONS.status,
+      desc: 'Show active agent status, current task ID, mode & model',
+      params: '',
+      run: async () => renderStatusCommand()
+    },
+    {
+      name: '/credits',
+      aliases: ['/account', '/balance', '/usage'],
+      category: 'Account',
+      icon: AGY_ICONS.credits,
+      desc: 'Check remaining AI credits, user plan & daily usage',
+      params: '',
+      run: async () => renderCreditsCommand()
+    },
+    {
+      name: '/mode',
+      aliases: ['/switch-mode'],
+      category: 'Settings',
+      icon: AGY_ICONS.mode,
+      desc: 'Switch or view agent execution mode (copilot vs autopilot)',
+      params: '[copilot|autopilot]',
+      run: async (args) => handleModeCommand(args)
+    },
+    {
+      name: '/copilot',
+      aliases: ['/co-pilot'],
+      category: 'Settings',
+      icon: AGY_ICONS.copilot,
+      desc: 'Set agent to Co-Pilot mode (asks for confirmation on risky steps)',
+      params: '',
+      run: async () => handleModeCommand('copilot')
+    },
+    {
+      name: '/autopilot',
+      aliases: ['/auto-pilot'],
+      category: 'Settings',
+      icon: AGY_ICONS.autopilot,
+      desc: 'Set agent to Auto-Pilot mode (executes autonomously)',
+      params: '',
+      run: async () => handleModeCommand('autopilot')
+    },
+    {
+      name: '/models',
+      aliases: ['/model-list', '/llms'],
+      category: 'AI Model',
+      icon: AGY_ICONS.models,
+      desc: 'List all available agent AI models and tiers',
+      params: '',
+      run: async () => renderModelsCommand()
+    },
+    {
+      name: '/model',
+      aliases: ['/set-model', '/switch-model'],
+      category: 'AI Model',
+      icon: AGY_ICONS.model,
+      desc: 'Switch active AI model (e.g. /model sonnet, /model gemini)',
+      params: '<name_or_id>',
+      run: async (args) => handleModelSwitchCommand(args)
+    },
+    {
+      name: '/clear',
+      aliases: ['/reset', '/new', '/clean'],
+      category: 'Core',
+      icon: AGY_ICONS.clear,
+      desc: 'Clear current conversation and start a clean session',
+      params: '',
+      run: async () => {
+        resetToWelcome();
+        showInlineNotice('Reset to clean workspace', 'info');
+      }
+    },
+    {
+      name: '/history',
+      aliases: ['/tasks', '/recent'],
+      category: 'Core',
+      icon: AGY_ICONS.history,
+      desc: 'Open task history sidebar to view past executions',
+      params: '',
+      run: async () => {
+        historySidebar.classList.add('open');
+        await loadTaskHistory();
+      }
+    },
+    {
+      name: '/tools',
+      aliases: ['/my-tools', '/extensions'],
+      category: 'Tools',
+      icon: AGY_ICONS.tools,
+      desc: 'Display installed custom and built-in extension tools',
+      params: '',
+      run: async () => renderToolsCommand()
+    },
+    {
+      name: '/export',
+      aliases: ['/copy', '/transcript', '/share'],
+      category: 'Export',
+      icon: AGY_ICONS.export,
+      desc: 'Copy current session transcript / step log to clipboard',
+      params: '',
+      run: async () => exportSessionTranscript()
+    },
+    {
+      name: '/guide',
+      aliases: ['/tips', '/tutorial', '/prompting'],
+      category: 'Guide',
+      icon: AGY_ICONS.guide,
+      desc: 'View comprehensive agent prompt engineering & automation guide',
+      params: '',
+      run: async () => renderGuideCommand()
+    },
+    {
+      name: '/skills',
+      aliases: ['/memory', '/recipes', '/rules'],
+      category: 'AI Model',
+      icon: AGY_ICONS.skills,
+      desc: 'View learned compounding skills & procedural memories',
+      params: '',
+      run: async () => renderSkillsCommand()
+    },
+    {
+      name: '/stage',
+      aliases: ['/upload', '/file', '/pdf'],
+      category: 'Tools',
+      icon: AGY_ICONS.stage,
+      desc: 'Stage a file (PDF, CSV, image) for agent processing',
+      params: '',
+      run: async () => {
+        document.getElementById('stage-file-input')?.click();
+      }
+    },
+    {
+      name: '/settings',
+      aliases: ['/config', '/options'],
+      category: 'Settings',
+      icon: AGY_ICONS.settings,
+      desc: 'Open Global Executive extension settings',
+      params: '',
+      run: async () => {
+        chrome.tabs.create({ url: chrome.runtime.getURL('dashboard/settings.html') });
+      }
+    }
+  ];
+
+  function renderAgentHelpCard() {
+    const card = document.createElement('div');
+    card.className = 'command-card';
+    card.innerHTML = `
+      <div class="command-card-header">
+        <span class="command-card-icon">${AGY_ICONS.agent}</span>
+        <div>
+          <h3>Global Executive · Command Center</h3>
+          <p>Click any command below or type <code>/</code> in the input for quick navigation.</p>
+        </div>
+      </div>
+
+      <div class="command-section-title">Core Navigation &amp; Status</div>
+      <div class="command-grid">
+        <a class="command-chip" data-cmd="/help">
+          <code>/help</code>
+          <div class="command-chip-info">
+            <strong>Command Directory</strong>
+            Show this interactive guide &amp; shortcuts
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/tabs">
+          <code>/tabs</code>
+          <div class="command-chip-info">
+            <strong>Open Chrome Tabs</strong>
+            Inspect open tabs and current page context
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/status">
+          <code>/status</code>
+          <div class="command-chip-info">
+            <strong>Agent Status</strong>
+            View active session, task ID &amp; model
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/clear">
+          <code>/clear</code>
+          <div class="command-chip-info">
+            <strong>Reset View</strong>
+            Clear conversation &amp; start fresh
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/history">
+          <code>/history</code>
+          <div class="command-chip-info">
+            <strong>Task History</strong>
+            Open history sidebar of past sessions
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/settings">
+          <code>/settings</code>
+          <div class="command-chip-info">
+            <strong>Extension Settings</strong>
+            Open settings and agent preferences
+          </div>
+        </a>
+      </div>
+
+      <div class="command-section-title">Modes &amp; AI Brains</div>
+      <div class="command-grid">
+        <a class="command-chip" data-cmd="/mode">
+          <code>/mode</code>
+          <div class="command-chip-info">
+            <strong>Execution Mode</strong>
+            Switch Co-Pilot (guided) vs Auto-Pilot (fast)
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/copilot">
+          <code>/copilot</code>
+          <div class="command-chip-info">
+            <strong>Co-Pilot Mode</strong>
+            Ask for confirmation on sensitive actions
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/autopilot">
+          <code>/autopilot</code>
+          <div class="command-chip-info">
+            <strong>Auto-Pilot Mode</strong>
+            Run fully autonomous without waiting
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/models">
+          <code>/models</code>
+          <div class="command-chip-info">
+            <strong>AI Model List</strong>
+            Browse reasoning &amp; vision capabilities
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/model ">
+          <code>/model &lt;id&gt;</code>
+          <div class="command-chip-info">
+            <strong>Switch AI Model</strong>
+            Change brain (e.g. <code>/model sonnet</code>)
+          </div>
+        </a>
+      </div>
+
+      <div class="command-section-title">Tools, Files &amp; Account</div>
+      <div class="command-grid">
+        <a class="command-chip" data-cmd="/credits">
+          <code>/credits</code>
+          <div class="command-chip-info">
+            <strong>Balance &amp; Tier</strong>
+            Check credits, plan tier &amp; daily limits
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/tools">
+          <code>/tools</code>
+          <div class="command-chip-info">
+            <strong>Active Tools</strong>
+            List built-in &amp; custom extension tools
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/stage">
+          <code>/stage</code>
+          <div class="command-chip-info">
+            <strong>Stage Document</strong>
+            Upload PDF, CSV or image for agent to use
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/skills">
+          <code>/skills</code>
+          <div class="command-chip-info">
+            <strong>Compounding Skills</strong>
+            View learned routines &amp; memories
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/export">
+          <code>/export</code>
+          <div class="command-chip-info">
+            <strong>Export Transcript</strong>
+            Copy session steps as Markdown to clipboard
+          </div>
+        </a>
+        <a class="command-chip" data-cmd="/guide">
+          <code>/guide</code>
+          <div class="command-chip-info">
+            <strong>Agent Pro Guide</strong>
+            Formulas &amp; tips for web automation
+          </div>
+        </a>
+      </div>
+    `;
+
+    stepLog.appendChild(card);
+    scrollToBottom();
+  }
+
+  async function renderTabsCommand() {
+    const card = document.createElement('div');
+    card.className = 'command-card';
+    card.innerHTML = `<div class="command-card-header"><span class="command-card-icon">${AGY_ICONS.tabs}</span><h3>Open Chrome Tabs</h3></div><div style="padding:8px 0;font-size:12px;color:var(--on-surface-muted);">Fetching tabs...</div>`;
+    stepLog.appendChild(card);
+    scrollToBottom();
+
+    try {
+      const resp = await sendToBackground('ge-list-tabs', {});
+      if (resp?.success && Array.isArray(resp.tabs)) {
+        const rows = resp.tabs.map(t => {
+          let domain = 'about:blank';
+          try { if (t.url) domain = new URL(t.url).hostname; } catch (_) {}
+          return `
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:6px;background:var(--surface-container-low);margin-bottom:4px;font-size:12px;">
+              <div style="display:flex;align-items:center;gap:8px;overflow:hidden;">
+                <span style="font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--primary);background:var(--accent-bg);padding:1px 6px;border-radius:4px;">#${t.index}</span>
+                <span style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--on-surface);max-width:280px;">${escapeHtml(t.title || 'Untitled Tab')}</span>
+                <span style="font-size:10px;color:var(--on-surface-muted);">(${escapeHtml(domain)})</span>
+              </div>
+              ${t.active ? '<span style="font-size:10px;font-weight:700;color:var(--success);background:rgba(46,125,79,0.15);padding:2px 6px;border-radius:4px;">ACTIVE</span>' : ''}
+            </div>
+          `;
+        }).join('');
+        card.innerHTML = `
+          <div class="command-card-header">
+            <span class="command-card-icon">${AGY_ICONS.tabs}</span>
+            <div>
+              <h3>Open Chrome Tabs (${resp.tabs.length})</h3>
+              <p>These are the browser tabs accessible to the agent during automation.</p>
+            </div>
+          </div>
+          <div style="max-height:240px;overflow-y:auto;">${rows || '<div style="font-size:12px;color:var(--on-surface-muted);">No open tabs found.</div>'}</div>
+        `;
+      } else {
+        card.innerHTML = `<div class="command-card-header"><span class="command-card-icon">${AGY_ICONS.tabs}</span><h3>Open Chrome Tabs</h3></div><div style="color:var(--danger);font-size:12px;">Could not list tabs.</div>`;
+      }
+    } catch (e) {
+      card.innerHTML = `<div class="command-card-header"><span class="command-card-icon">${AGY_ICONS.tabs}</span><h3>Open Chrome Tabs</h3></div><div style="color:var(--danger);font-size:12px;">Error: ${escapeHtml(e.message)}</div>`;
+    }
+    scrollToBottom();
+  }
+
+  function renderStatusCommand() {
+    const card = document.createElement('div');
+    card.className = 'command-card';
+    const activeModel = availableModels.find(m => m.id === selectedModelId);
+    card.innerHTML = `
+      <div class="command-card-header">
+        <span class="command-card-icon">${AGY_ICONS.status}</span>
+        <div>
+          <h3>Agent Status &amp; Diagnostics</h3>
+          <p>Real-time runtime state of Global Executive</p>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;font-size:12px;">
+        <div style="padding:8px 10px;background:var(--surface-container-low);border-radius:8px;">
+          <div style="color:var(--on-surface-muted);font-size:10px;text-transform:uppercase;font-weight:700;">Task Status</div>
+          <div style="font-weight:700;color:var(--on-surface);margin-top:2px;">${isRunning ? 'Running' : 'Idle'} ${currentTaskId ? `(#${currentTaskId.slice(-6)})` : ''}</div>
+        </div>
+        <div style="padding:8px 10px;background:var(--surface-container-low);border-radius:8px;">
+          <div style="color:var(--on-surface-muted);font-size:10px;text-transform:uppercase;font-weight:700;">Execution Mode</div>
+          <div style="font-weight:700;color:var(--primary);margin-top:2px;display:flex;align-items:center;gap:4px;">${selectedMode === 'autopilot' ? AGY_ICONS.autopilot + ' Auto-Pilot' : AGY_ICONS.copilot + ' Co-Pilot'}</div>
+        </div>
+        <div style="padding:8px 10px;background:var(--surface-container-low);border-radius:8px;">
+          <div style="color:var(--on-surface-muted);font-size:10px;text-transform:uppercase;font-weight:700;">Active Model</div>
+          <div style="font-weight:700;color:var(--on-surface);margin-top:2px;">${escapeHtml(activeModel?.name || selectedModelId || 'Default')}</div>
+        </div>
+        <div style="padding:8px 10px;background:var(--surface-container-low);border-radius:8px;">
+          <div style="color:var(--on-surface-muted);font-size:10px;text-transform:uppercase;font-weight:700;">Max Steps / Tier</div>
+          <div style="font-weight:700;color:var(--on-surface);margin-top:2px;">Up to ${currentTierMaxSteps} steps</div>
+        </div>
+      </div>
+    `;
+    stepLog.appendChild(card);
+    scrollToBottom();
+  }
+
+  async function renderCreditsCommand() {
+    const card = document.createElement('div');
+    card.className = 'command-card';
+    card.innerHTML = `<div class="command-card-header"><span class="command-card-icon">${AGY_ICONS.credits}</span><h3>Account &amp; Credits</h3></div><div style="font-size:12px;color:var(--on-surface-muted);">Fetching balance...</div>`;
+    stepLog.appendChild(card);
+    scrollToBottom();
+
+    try {
+      const data = await NewOrderAPI.request('/api/auth/profile');
+      if (data?.user) {
+        const u = data.user;
+        const sub = u.subscription || {};
+        const plan = (sub.status === 'active' && sub.plan && sub.plan !== 'none') ? sub.plan.toUpperCase() : 'FREE';
+        const credits = Number(u.credits || 0).toFixed(2);
+        updateCreditsDisplay(u.credits);
+        card.innerHTML = `
+          <div class="command-card-header">
+            <span class="command-card-icon">${AGY_ICONS.credits}</span>
+            <div>
+              <h3>Account &amp; AI Credits</h3>
+              <p>${escapeHtml(u.email || '')}</p>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;font-size:12px;">
+            <div style="padding:10px;background:var(--surface-container-low);border-radius:8px;">
+              <div style="color:var(--on-surface-muted);font-size:10px;font-weight:700;text-transform:uppercase;">Credits Balance</div>
+              <div style="font-size:18px;font-weight:800;color:var(--primary);margin-top:2px;">${credits} <span style="font-size:11px;font-weight:600;color:var(--on-surface-muted);">cr</span></div>
+            </div>
+            <div style="padding:10px;background:var(--surface-container-low);border-radius:8px;">
+              <div style="color:var(--on-surface-muted);font-size:10px;font-weight:700;text-transform:uppercase;">Plan Tier</div>
+              <div style="font-size:16px;font-weight:700;color:var(--on-surface);margin-top:2px;">${escapeHtml(plan)}</div>
+            </div>
+          </div>
+          <div style="margin-top:10px;text-align:right;">
+            <a href="https://global-order.32d.one/pricing" target="_blank" style="font-size:11px;font-weight:700;color:var(--primary);text-decoration:none;">Upgrade or Top Up &rarr;</a>
+          </div>
+        `;
+      }
+    } catch (e) {
+      card.innerHTML = `<div class="command-card-header"><span class="command-card-icon">${AGY_ICONS.credits}</span><h3>Account &amp; Credits</h3></div><div style="color:var(--danger);font-size:12px;">Failed to load account info: ${escapeHtml(e.message)}</div>`;
+    }
+    scrollToBottom();
+  }
+
+  function handleModeCommand(args) {
+    const target = String(args || '').trim().toLowerCase();
+    if (target === 'autopilot' || target === 'auto-pilot' || target === 'auto') {
+      selectedMode = 'autopilot';
+    } else if (target === 'copilot' || target === 'co-pilot') {
+      selectedMode = 'copilot';
+    } else {
+      selectedMode = selectedMode === 'copilot' ? 'autopilot' : 'copilot';
+    }
+
+    const toggle = document.getElementById('mode-toggle');
+    if (toggle) {
+      toggle.dataset.mode = selectedMode;
+      toggle.querySelectorAll('.mode-option').forEach(b => b.classList.toggle('active', b.dataset.mode === selectedMode));
+    }
+    if (selectedMode === 'autopilot') document.body.classList.add('autopilot-mode');
+    else document.body.classList.remove('autopilot-mode');
+
+    const card = document.createElement('div');
+    card.className = 'command-card';
+    card.innerHTML = `
+      <div class="command-card-header">
+        <span class="command-card-icon">${AGY_ICONS.mode}</span>
+        <div>
+          <h3>Mode Switched to ${selectedMode === 'autopilot' ? 'Auto-Pilot' : 'Co-Pilot'}</h3>
+          <p>${selectedMode === 'autopilot' ? 'The agent will run fully autonomously without prompting for step approval.' : 'The agent will ask for your confirmation before executing sensitive or high-risk actions.'}</p>
+        </div>
+      </div>
+    `;
+    stepLog.appendChild(card);
+    scrollToBottom();
+  }
+
+  function renderModelsCommand() {
+    const card = document.createElement('div');
+    card.className = 'command-card';
+    const rows = availableModels.map(m => {
+      const isCurrent = m.id === selectedModelId;
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 10px;border-radius:8px;background:${isCurrent ? 'var(--accent-bg)' : 'var(--surface-container-low)'};margin-bottom:4px;font-size:12px;">
+          <div>
+            <span style="font-weight:700;color:var(--on-surface);">${escapeHtml(m.name)}</span>
+            <span style="font-size:10px;color:var(--on-surface-muted);font-family:var(--font-mono);margin-left:6px;">(${escapeHtml(m.id)})</span>
+          </div>
+          <button class="command-chip" data-cmd="/model ${escapeHtml(m.id)}" style="padding:3px 8px;font-size:11px;font-weight:700;">
+            ${isCurrent ? '✓ Active' : 'Select'}
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    card.innerHTML = `
+      <div class="command-card-header">
+        <span class="command-card-icon">${AGY_ICONS.models}</span>
+        <div>
+          <h3>Available Agent AI Models</h3>
+          <p>Choose the model powering the Global Executive agent reasoning loop.</p>
+        </div>
+      </div>
+      <div style="max-height:260px;overflow-y:auto;">${rows || 'No models loaded.'}</div>
+    `;
+    stepLog.appendChild(card);
+    scrollToBottom();
+  }
+
+  function handleModelSwitchCommand(args) {
+    const query = String(args || '').trim().toLowerCase();
+    if (!query) {
+      renderModelsCommand();
+      return;
+    }
+    const match = availableModels.find(m => m.id.toLowerCase() === query || m.name.toLowerCase().includes(query) || m.id.toLowerCase().includes(query));
+    if (match) {
+      selectedModelId = match.id;
+      renderModelSelector();
+      const card = document.createElement('div');
+      card.className = 'command-card';
+      card.innerHTML = `
+        <div class="command-card-header">
+          <span class="command-card-icon">${AGY_ICONS.model}</span>
+          <div>
+            <h3>Active Model Set to: ${escapeHtml(match.name)}</h3>
+            <p>Model ID: <code>${escapeHtml(match.id)}</code></p>
+          </div>
+        </div>
+      `;
+      stepLog.appendChild(card);
+      scrollToBottom();
+    } else {
+      showInlineNotice(`Model "${query}" not found. Type /models to view all.`, 'warning');
+      renderModelsCommand();
+    }
+  }
+
+  async function renderToolsCommand() {
+    const card = document.createElement('div');
+    card.className = 'command-card';
+    card.innerHTML = `<div class="command-card-header"><span class="command-card-icon">${AGY_ICONS.tools}</span><h3>Extension Tools</h3></div><div style="font-size:12px;color:var(--on-surface-muted);">Loading tools...</div>`;
+    stepLog.appendChild(card);
+    scrollToBottom();
+
+    try {
+      const tools = typeof ToolManager !== 'undefined' ? await ToolManager.getInstalledTools() : [];
+      const toolRows = (tools || []).map(t => `
+        <div style="padding:8px 10px;background:var(--surface-container-low);border-radius:8px;margin-bottom:6px;font-size:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-weight:700;color:var(--on-surface);">${escapeHtml(t.name || 'Unnamed Tool')}</span>
+            <span style="font-size:10px;font-weight:700;color:var(--success);background:rgba(46,125,79,0.15);padding:1px 6px;border-radius:4px;">${t.enabled !== false ? 'ACTIVE' : 'DISABLED'}</span>
+          </div>
+          <div style="font-size:11px;color:var(--on-surface-muted);margin-top:2px;">${escapeHtml(t.description || 'No description')}</div>
+        </div>
+      `).join('');
+
+      card.innerHTML = `
+        <div class="command-card-header">
+          <span class="command-card-icon">${AGY_ICONS.tools}</span>
+          <div>
+            <h3>Installed Extension Tools (${tools.length})</h3>
+            <p>Active custom and built-in automation tools in your browser.</p>
+          </div>
+        </div>
+        <div style="max-height:240px;overflow-y:auto;">${toolRows || '<div style="font-size:12px;color:var(--on-surface-muted);">No custom tools installed yet. Build tools with AI in the Builder page!</div>'}</div>
+      `;
+    } catch (e) {
+      card.innerHTML = `<div class="command-card-header"><span class="command-card-icon">${AGY_ICONS.tools}</span><h3>Extension Tools</h3></div><div style="color:var(--danger);font-size:12px;">Failed to load tools: ${escapeHtml(e.message)}</div>`;
+    }
+    scrollToBottom();
+  }
+
+  async function exportSessionTranscript() {
+    const bubbles = Array.from(stepLog.children);
+    let md = `# Global Executive Task Transcript\n\nGenerated: ${new Date().toLocaleString()}\nTask ID: ${currentTaskId || 'N/A'}\nMode: ${selectedMode}\n\n---\n\n`;
+
+    bubbles.forEach(b => {
+      if (b.classList.contains('user-prompt-bubble')) {
+        md += `### User\n${b.textContent.trim()}\n\n`;
+      } else if (b.classList.contains('step-message')) {
+        md += `### Assistant\n${b.innerText.trim()}\n\n`;
+      } else if (b.classList.contains('step-entry')) {
+        const action = b.querySelector('.action-name')?.textContent || '';
+        const thought = b.querySelector('.step-thought')?.textContent || '';
+        const detail = b.querySelector('.step-detail')?.textContent || '';
+        md += `**Step (${action})**\n`;
+        if (thought) md += `*Thought:* ${thought}\n`;
+        if (detail) md += `*Detail:* ${detail}\n`;
+        md += `\n`;
+      } else if (b.classList.contains('step-done')) {
+        md += `### Task Completed\n${b.innerText.trim()}\n\n`;
+      }
+    });
+
+    try {
+      await navigator.clipboard.writeText(md);
+      showInlineNotice('Session transcript copied to clipboard as Markdown!', 'info');
+    } catch (err) {
+      showInlineNotice('Could not copy to clipboard: ' + err.message, 'warning');
+    }
+  }
+
+  function renderGuideCommand() {
+    const card = document.createElement('div');
+    card.className = 'command-card';
+    card.innerHTML = `
+      <div class="command-card-header">
+        <span class="command-card-icon">${AGY_ICONS.guide}</span>
+        <div>
+          <h3>Global Executive · Automation Pro Guide</h3>
+          <p>Mastering autonomous browser workflows, prompts &amp; PDF handling</p>
+        </div>
+      </div>
+      <div style="font-size:12.5px;color:var(--on-surface);line-height:1.6;display:flex;flex-direction:column;gap:12px;">
+        <div style="background:var(--surface-container-low);padding:10px 12px;border-radius:8px;">
+          <strong style="color:var(--primary);">1. Prompt Structure for Maximum Accuracy</strong><br>
+          Specify: <em>Goal + Starting URL + Target Fields + Output format</em>.<br>
+          <code style="font-size:11px;">"Go to amazon.com, search for mechanical keyboards under $80, extract top 5 ratings and prices into collected data."</code>
+        </div>
+        <div style="background:var(--surface-container-low);padding:10px 12px;border-radius:8px;">
+          <strong style="color:var(--primary);">2. Co-Pilot vs Auto-Pilot</strong><br>
+          • <strong>Co-Pilot</strong> is ideal for purchasing, sending emails, or submitting critical forms (asks before executing).<br>
+          • <strong>Auto-Pilot</strong> runs unattended at max speed for research, scraping, and repetitive tasks.
+        </div>
+        <div style="background:var(--surface-container-low);padding:10px 12px;border-radius:8px;">
+          <strong style="color:var(--primary);">3. Document &amp; PDF Operations</strong><br>
+          Use the <code>/stage</code> command to attach PDFs/CSVs. The agent can inspect specific pages, fill out form fields, merge documents, and export deliverables.
+        </div>
+        <div style="background:var(--surface-container-low);padding:10px 12px;border-radius:8px;">
+          <strong style="color:var(--primary);">4. Multi-Turn Session Continuity</strong><br>
+          Send follow-up messages while a task is running to nudge the agent in real time, or after completion to continue refining results.
+        </div>
+      </div>
+    `;
+    stepLog.appendChild(card);
+    scrollToBottom();
+  }
+
+  function renderSkillsCommand() {
+    const card = document.createElement('div');
+    card.className = 'command-card';
+    card.innerHTML = `
+      <div class="command-card-header">
+        <span class="command-card-icon">${AGY_ICONS.skills}</span>
+        <div>
+          <h3>Compounding Skills &amp; Memory Engine</h3>
+          <p>Autonomous routines mined from successful tasks</p>
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--on-surface-variant);line-height:1.5;">
+        <p>Global Executive automatically mines repeatable recipes from completed tasks. When you repeat similar workflows (e.g. logging into portals, extracting tables, filling recurring forms), the agent activates <strong>Fast-Path Skill Replay</strong> to execute with 0 wasted steps.</p>
+        <div style="margin-top:10px;padding:8px 10px;background:var(--surface-container-low);border-radius:8px;">
+          <strong>Memory Scope:</strong> Private per-user workspace encrypted at rest.
+        </div>
+      </div>
+    `;
+    stepLog.appendChild(card);
+    scrollToBottom();
+  }
+
+  async function handleSlashCommand(raw) {
+    const trimmed = raw.trim();
+    const parts = trimmed.split(/\s+/);
+    const cmdName = parts[0].toLowerCase();
+    const args = parts.slice(1).join(' ').trim();
+
+    if (welcomeScreen.style.display !== 'none') {
+      showTaskView('Command: ' + cmdName);
+    }
+
+    renderUserPromptBubble(trimmed);
+
+    const cmd = AGENT_SLASH_COMMANDS.find(c => c.name.toLowerCase() === cmdName || (c.aliases || []).includes(cmdName));
+    if (cmd) {
+      await cmd.run(args);
+    } else {
+      const card = document.createElement('div');
+      card.className = 'command-card';
+      card.innerHTML = `
+        <div class="command-card-header">
+          <span class="command-card-icon">${AGY_ICONS.warning}</span>
+          <div>
+            <h3>Unknown Command: <code>${escapeHtml(cmdName)}</code></h3>
+            <p>Type <a class="command-chip" data-cmd="/help" style="display:inline-flex;padding:2px 6px;"><code>/help</code></a> to see all available commands.</p>
+          </div>
+        </div>
+      `;
+      stepLog.appendChild(card);
+      scrollToBottom();
+    }
+  }
+
+  function setupSlashCommandsAutocomplete(inputEl, popupEl, commands, onExecute) {
+    if (!inputEl || !popupEl) return;
+    let selectedIndex = 0;
+    let matchingCommands = [];
+
+    function renderPopup(matches) {
+      matchingCommands = matches;
+      if (!matches.length) {
+        popupEl.style.display = 'none';
+        return;
+      }
+      selectedIndex = Math.min(selectedIndex, matches.length - 1);
+      popupEl.innerHTML = matches.map((c, i) => `
+        <div class="slash-command-item ${i === selectedIndex ? 'active' : ''}" data-index="${i}">
+          <span class="slash-command-icon">${c.icon}</span>
+          <div class="slash-command-info">
+            <div class="slash-command-name">
+              ${escapeHtml(c.name)} ${c.params ? `<span class="slash-command-params">${escapeHtml(c.params)}</span>` : ''}
+            </div>
+            <div class="slash-command-desc">${escapeHtml(c.desc)}</div>
+          </div>
+          <span class="slash-command-category">${escapeHtml(c.category)}</span>
+        </div>
+      `).join('');
+      popupEl.style.display = 'flex';
+    }
+
+    function selectCommand(cmd) {
+      popupEl.style.display = 'none';
+      if (!cmd) return;
+      if (cmd.params) {
+        inputEl.value = cmd.name + ' ';
+        inputEl.focus();
+      } else {
+        inputEl.value = '';
+        inputEl.style.height = 'auto';
+        onExecute(cmd.name);
+      }
+    }
+
+    inputEl.addEventListener('input', () => {
+      const val = inputEl.value;
+      if (val.startsWith('/')) {
+        const query = val.slice(1).toLowerCase().trim();
+        const matches = commands.filter(c => {
+          const nameMatch = c.name.slice(1).toLowerCase().includes(query);
+          const aliasMatch = (c.aliases || []).some(a => a.slice(1).toLowerCase().includes(query));
+          const descMatch = (c.desc || '').toLowerCase().includes(query);
+          return nameMatch || aliasMatch || descMatch;
+        });
+        renderPopup(matches);
+      } else {
+        popupEl.style.display = 'none';
+      }
+    });
+
+    inputEl.addEventListener('keydown', (e) => {
+      if (popupEl.style.display !== 'flex' || !matchingCommands.length) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIndex = (selectedIndex + 1) % matchingCommands.length;
+        renderPopup(matchingCommands);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIndex = (selectedIndex - 1 + matchingCommands.length) % matchingCommands.length;
+        renderPopup(matchingCommands);
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        if (matchingCommands[selectedIndex]) {
+          e.preventDefault();
+          selectCommand(matchingCommands[selectedIndex]);
+        }
+      } else if (e.key === 'Escape') {
+        popupEl.style.display = 'none';
+      }
+    });
+
+    popupEl.addEventListener('click', (e) => {
+      const item = e.target.closest('.slash-command-item');
+      if (item) {
+        const idx = parseInt(item.dataset.index, 10);
+        if (!isNaN(idx) && matchingCommands[idx]) {
+          selectCommand(matchingCommands[idx]);
+        }
+      }
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!popupEl.contains(e.target) && e.target !== inputEl) {
+        popupEl.style.display = 'none';
+      }
+    });
+  }
+
+  // ============================================
+  // Conversation continuity & Submit Handling
+  // ============================================
   function handleUserSubmit(prompt) {
+    const trimmed = String(prompt || '').trim();
+    if (!trimmed) return;
+
+    // Check for slash commands
+    if (trimmed.startsWith('/')) {
+      taskInput.value = '';
+      taskInput.style.height = 'auto';
+      handleSlashCommand(trimmed);
+      return;
+    }
+
+    if (isSubmitting) return;
+
     if (isRunning && currentTaskId) {
-      // Task is live â€” deliver as chat nudge.
-      sendChatToActiveTask(prompt);
+      // Task is live — deliver as chat nudge.
+      sendChatToActiveTask(trimmed);
       return;
     }
     if (currentTaskId && !isRunning && sessionPersistenceActive) {
       // We're viewing a FINISHED task (completed / failed / cancelled)
       // AND session persistence is enabled on the user's tier + Setup.
       // Thread the new prompt onto the existing session.
-      startTask(prompt, { resumeFromTaskId: currentTaskId });
+      taskInput.value = '';
+      taskInput.style.height = 'auto';
+      startTask(trimmed, { resumeFromTaskId: currentTaskId });
       return;
     }
     // Otherwise (welcome screen, or finished task without persistence),
     // start a brand-new task.
-    startTask(prompt);
+    taskInput.value = '';
+    taskInput.style.height = 'auto';
+    startTask(trimmed);
   }
 
   async function sendChatToActiveTask(text) {
     const trimmed = String(text || '').trim();
     if (!trimmed || !currentTaskId) return;
-    // Clear the input immediately for a snappy chat feel and render the
-    // user's bubble so the conversation reads top-to-bottom.
     taskInput.value = '';
     taskInput.style.height = 'auto';
     renderUserPromptBubble(trimmed);
@@ -1239,8 +2064,6 @@
       }
     } catch (err) {
       console.error('[Global Executive] chat-nudge failed:', err);
-      // The server returns `sessionLimitReached: true` when the tier's
-      // maxSessionMessages cap is hit. Surface a clearer CTA in that case.
       const detail = err?.data || err?.body || {};
       if (detail && detail.sessionLimitReached) {
         showInlineNotice(detail.error || 'Session message limit reached.', 'warning');
@@ -1254,29 +2077,19 @@
   // Agent Loop
   // ============================================
   async function startTask(prompt, opts = {}) {
-    if (isRunning) return;
+    if (isRunning || isSubmitting) return;
 
     const trimmed = prompt.trim();
-    if (trimmed.length < 10) {
-      alert('Please describe the task in more detail.');
+    if (!trimmed) {
+      alert('Please enter a message or task description.');
       return;
     }
     const resumeFromTaskId = opts.resumeFromTaskId || null;
 
+    isSubmitting = true;
     setSendingState(true);
-    // Show the user's prompt as a chat bubble immediately so they get instant
-    // feedback that their message landed. We swap to the task view first so
-    // the bubble lands in step-log even if the welcome screen is still up.
-    // IMPORTANT: when resuming, do NOT wipe the existing step-log â€” the
-    // user is continuing an ongoing conversation, so the prior chain must
-    // stay visible. We only update the title and append a thin divider +
-    // the new user bubble.
-    const newTitle = trimmed.length > 60 ? trimmed.substring(0, 57) + 'â€¦' : trimmed;
-    // Only preserve the visible thread when the user is actually looking
-    // at the task we're resuming onto. If a Telegram inbox poll brought us
-    // here with a resume pointer for a different task than the one on
-    // screen, wipe and start a clean view so the UI doesn't misrepresent
-    // the session the server is threading into.
+
+    const newTitle = trimmed.length > 60 ? trimmed.substring(0, 57) + '…' : trimmed;
     const canPreserve =
       resumeFromTaskId &&
       taskView.style.display === 'flex' &&
@@ -1291,13 +2104,13 @@
       showTaskView(newTitle);
     }
     renderUserPromptBubble(trimmed);
-    // Show a transient "Planningâ€¦" thinking bubble while we wait for /plan.
+    // Show a transient "Planning…" thinking bubble while we wait for /plan.
     const planningBubble = document.createElement('div');
     planningBubble.className = 'step-thinking';
     planningBubble.id = 'ge-planning-bubble';
     planningBubble.innerHTML = `
       <div class="thinking-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-      <span>Planning your taskâ€¦</span>
+      <span>Planning your task…</span>
     `;
     stepLog.appendChild(planningBubble);
     scrollToBottom();
@@ -1307,9 +2120,6 @@
       const { activeTab, allTabs } = await getAgentContext();
 
       // === Phase 0: ask the planner what's needed ===
-      // When resumeFromTaskId is set, the server will (if the user's tier
-      // and Setup > Session persistence allow it) thread the new request
-      // onto the prior task's context.
       const planData = await NewOrderAPI.request('/api/agent/plan', {
         method: 'POST',
         body: JSON.stringify({
@@ -1326,20 +2136,37 @@
 
       if (planData.usage) updateCreditsDisplay(planData.usage.creditsRemaining);
 
-      // Save context for later submission
+      const isQuestion = planData.taskType === 'question' || planData.isDirectQuestion || planData.needsPlan === false || Boolean(planData.directAnswer);
+
+      // Plan / Answer ready — dismiss the planning bubble
+      const pb = document.getElementById('ge-planning-bubble');
+      if (pb) pb.remove();
+
+      if (isQuestion) {
+        // Direct Question / Greeting / General conversation:
+        // No plan & briefing modal required! Render direct answer immediately.
+        setCurrentTaskId(planData.taskId);
+        updateTaskStatus('completed');
+        isRunning = false;
+        setSendingState(false);
+        isSubmitting = false;
+
+        const answerText = planData.directAnswer || planData.plan?.summary || 'I am ready to help you.';
+        const msgEl = document.createElement('div');
+        msgEl.className = 'step-message';
+        stepLog.appendChild(msgEl);
+        scrollToBottom();
+        await streamMarkdownInto(msgEl, answerText, { wordsPerTick: 3, tickMs: 14 });
+        return;
+      }
+
+      // Save context for tasks that require execution
       pendingTaskContext = {
         taskId: planData.taskId,
         plan: planData.plan,
         taskType: planData.taskType || 'action',
         requiredInputs: planData.requiredInputs || [],
         permissionsRequested: planData.permissionsRequested || {},
-        // Phase 3 â€” skill compounding match (null if no match).
-        // mode === 'fast_path': UI shows "Replay this recipe?" banner +
-        //   pre-fills briefing fields from paramsHint. The PRIOR ART block
-        //   was also injected into the planner so the plan already
-        //   reflects the recipe.
-        // mode === 'suggest':   UI shows a small "Library match" badge.
-        //   The planner already incorporated the recipe as PRIOR ART.
         skillMatch: planData.skillMatch || null,
         mode: selectedMode,
         prompt: trimmed,
@@ -1348,9 +2175,6 @@
       };
       currentTierMaxSteps = planData.tier?.maxSteps || 50;
 
-      // Plan ready â€” dismiss the planning bubble before showing the modal.
-      const pb = document.getElementById('ge-planning-bubble');
-      if (pb) pb.remove();
       // Show plan + briefing modal; user clicks Approve or Cancel
       showPlanModal(pendingTaskContext);
     } catch (err) {
@@ -1358,10 +2182,7 @@
       const pb = document.getElementById('ge-planning-bubble');
       if (pb) pb.remove();
       setSendingState(false);
-      // Server-typed, non-retryable errors. Branch on `err.code` BEFORE the
-      // generic 502/503/504/retryable bucket â€” otherwise a 429 daily-quota
-      // response gets misclassified as "planner overloaded", which is the
-      // wrong message AND hides the upgrade CTA from the user.
+
       if (err.code === 'daily_quota_exceeded') {
         const upgrade = err.upgradeUrl || 'https://global-order.32d.one/pricing';
         showInlineNotice(
@@ -1379,27 +2200,25 @@
       } else if (err.code === 'agent_rate_limit') {
         const perMin = (err.serverBody && err.serverBody.limitPerMinute) || 60;
         showInlineNotice(
-          `You're going too fast â€” hit the per-minute rate limit (${perMin}/min). Wait about a minute, then try again.`,
+          `You're going too fast — hit the per-minute rate limit (${perMin}/min). Wait about a minute, then try again.`,
           'warning'
         );
       } else if (err.message?.includes('already have') && err.message?.includes('running')) {
         await loadTaskHistory();
         historySidebar.classList.add('open');
-        showInlineNotice('You have running tasks. Stop one in the sidebar (Ã—) before starting another.', 'warning');
+        showInlineNotice('You have running tasks. Stop one in the sidebar (×) before starting another.', 'warning');
       } else if (err.status === 504 || err.status === 502 || err.status === 503 || err.retryable) {
-        // The api-client already retried up to 3 times â€” upstream is genuinely
-        // overloaded. Tell the user it's transient and let them retry.
         showInlineNotice(
           'The planner is overloaded right now (gateway timeout). I retried a few times but the server kept timing out. Please try again in a moment, or pick a faster model.',
           'warning'
         );
       } else if (err.message?.includes('Unexpected token') || err.message?.includes('not valid JSON')) {
-        // Defensive: should no longer happen now that api-client parses
-        // non-JSON bodies safely, but keep a friendly fallback.
         showInlineNotice('The server returned an unexpected response. Please try again.', 'warning');
       } else {
         showInlineNotice('Failed to plan task: ' + err.message, 'error');
       }
+    } finally {
+      isSubmitting = false;
     }
   }
 
@@ -2586,8 +3405,70 @@
               };
             })();
 
-          } else if (action === 'think') {
+          // ============================================
+          // createSheet — build a new Excel document from scratch
+          // ============================================
+          } else if (action === 'createSheet') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') return { success: false, error: 'DocEngine not loaded.' };
+              if (!DocEngine.isXlsxReady()) return { success: false, error: 'SheetJS (xlsx) not loaded.' };
 
+              const filename = params?.filename || params?.outputFilename || 'spreadsheet.xlsx';
+              const r = await DocEngine.createSheet(params);
+              if (!r.ok) return { success: false, error: r.error };
+
+              DocEngine.downloadFile(r.xlsxBytes, filename, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+              return {
+                success: true,
+                filename,
+                xlsxSize: r.xlsxBytes.length,
+                hint: `Spreadsheet created and downloaded as "${filename}".`
+              };
+            })();
+
+          // ============================================
+          // createPptx — build a new PowerPoint presentation
+          // ============================================
+          } else if (action === 'createPptx') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') return { success: false, error: 'DocEngine not loaded.' };
+              if (!DocEngine.isPptxGenReady()) return { success: false, error: 'PptxGenJS not loaded.' };
+
+              const filename = params?.filename || params?.outputFilename || 'presentation.pptx';
+              const r = await DocEngine.createPptx(params);
+              if (!r.ok) return { success: false, error: r.error };
+
+              DocEngine.downloadFile(r.pptxBytes, filename, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+              return {
+                success: true,
+                filename,
+                pptxSize: r.pptxBytes.length,
+                hint: `PowerPoint presentation created and downloaded as "${filename}".`
+              };
+            })();
+
+          // ============================================
+          // createTextFile — build a plain text, CSV, or JSON file
+          // ============================================
+          } else if (action === 'createTextFile') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') return { success: false, error: 'DocEngine not loaded.' };
+
+              const filename = params?.filename || params?.outputFilename || 'file.txt';
+              const text = params?.text || params?.content || '';
+              const r = await DocEngine.createTextFile(text);
+              if (!r.ok) return { success: false, error: r.error };
+
+              DocEngine.downloadFile(r.textBytes, filename, DocEngine.mimeForFilename(filename));
+              return {
+                success: true,
+                filename,
+                size: r.textBytes.length,
+                hint: `File created and downloaded as "${filename}".`
+              };
+            })();
+
+          } else if (action === 'think') {
             result = { success: true };
           } else if (action === 'message') {
             result = { success: true };
@@ -4048,6 +4929,26 @@
   // Event Handlers
   // ============================================
   function setupEventHandlers() {
+    // Slash commands autocomplete
+    setupSlashCommandsAutocomplete(taskInput, slashPopup, AGENT_SLASH_COMMANDS, (cmd) => handleSlashCommand(cmd));
+
+    // Delegate click on command chips
+    document.addEventListener('click', (e) => {
+      const chip = e.target.closest('[data-cmd]');
+      if (chip) {
+        e.preventDefault();
+        const cmd = chip.dataset.cmd;
+        if (cmd) {
+          if (cmd.includes('<') || cmd.endsWith(' ')) {
+            taskInput.value = cmd.replace(/<[^>]+>/g, '').trim() + ' ';
+            taskInput.focus();
+          } else {
+            handleSlashCommand(cmd);
+          }
+        }
+      }
+    });
+
     // Send button
     btnSend.addEventListener('click', () => {
       const prompt = taskInput.value.trim();
@@ -4057,6 +4958,8 @@
     // Enter to send (Shift+Enter for newline)
     taskInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
+        // If autocomplete popup is active, keydown is handled by setupSlashCommandsAutocomplete
+        if (slashPopup && slashPopup.style.display === 'flex') return;
         e.preventDefault();
         const prompt = taskInput.value.trim();
         if (prompt) handleUserSubmit(prompt);

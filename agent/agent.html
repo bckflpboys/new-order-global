@@ -198,9 +198,10 @@
 
         <!-- Input Area -->
         <div class="input-area">
-          <div class="input-wrapper">
+          <div class="input-wrapper" style="position: relative;">
+            <div class="slash-commands-popup" id="slash-commands-popup" style="display:none;"></div>
             <div class="input-container-main">
-              <textarea id="task-input" placeholder="Describe a task to automate..." rows="1"></textarea>
+              <textarea id="task-input" placeholder="Automate browser tasks or ask questions (send /help for shortcuts &amp; commands)..." rows="1"></textarea>
               <button class="btn-send" id="btn-send" title="Start Task" aria-label="Send">
                 <span class="btn-send-icon">
                   <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
@@ -216,7 +217,7 @@
                 </span>
               </button>
             </div>
-            <div class="input-hint"><kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for newline</div>
+            <div class="input-hint"><kbd>/help</kbd> for shortcuts &amp; commands · <kbd>Enter</kbd> to send · <kbd>Shift</kbd>+<kbd>Enter</kbd> for newline</div>
           </div>
           <div class="controls-row">
             <div class="model-selector-container" id="model-selector-container">
@@ -394,6 +395,7 @@
   <script src="../libs/pizzip.min.js"></script>
   <script src="../libs/docxtemplater.js"></script>
   <script src="../libs/mammoth.browser.min.js"></script>
+  <script src="../libs/pptxgen.min.js"></script>
   <script src="../core/doc-engine.js"></script>
   <script src="../core/pdf-sandbox.js"></script>
   <script src="../core/api-client.js"></script>

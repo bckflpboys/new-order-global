@@ -574,46 +574,74 @@
             background-clip: content-box;
         }
 
-        /* === Run Controls === */
+        /* === Run Controls & Tool Cards === */
         .tool-card-enhanced {
             background: var(--surface-container-lowest);
             border: 1px solid var(--ghost-border);
             border-radius: var(--radius-lg);
-            padding: 14px 16px;
+            padding: 12px 14px;
             margin-bottom: 8px;
             box-shadow: var(--shadow-xs);
-            transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
             cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
 
         .tool-card-enhanced:hover {
             border-color: var(--primary);
             background: var(--surface-container-low);
             transform: translateY(-1px);
+            box-shadow: var(--shadow-sm);
         }
 
         .tool-card-enhanced.is-running {
-            border-color: rgba(46, 125, 79, 0.35);
-            background: rgba(46, 125, 79, 0.03);
+            border-color: rgba(46, 125, 79, 0.4);
+            background: rgba(46, 125, 79, 0.04);
         }
 
         .tool-card-top {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 10px;
+            gap: 12px;
+            min-width: 0;
         }
 
         .tool-card-info {
             flex: 1;
             min-width: 0;
+            overflow: hidden;
         }
 
         .tool-name-row {
             display: flex;
             align-items: center;
-            gap: 8px;
-            margin-bottom: 2px;
+            gap: 6px;
+            margin-bottom: 3px;
+            min-width: 0;
+        }
+
+        .tool-name {
+            font-family: var(--font-body);
+            font-weight: 600;
+            font-size: 13.5px;
+            color: var(--on-surface);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.25;
+        }
+
+        .tool-desc {
+            font-size: 11.5px;
+            color: var(--on-surface-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1.35;
+            display: block;
         }
 
         .tool-status-dot {
@@ -650,48 +678,53 @@
         }
 
         .run-btn {
-            width: 32px;
-            height: 32px;
-            border: none;
+            width: 30px;
+            height: 30px;
+            border: 1px solid transparent;
             border-radius: var(--radius-md);
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
             padding: 0;
         }
 
         .run-btn.play {
             background: var(--primary);
             color: var(--on-primary);
+            box-shadow: 0 2px 6px rgba(184, 52, 28, 0.25);
         }
 
         .run-btn.play:hover {
             background: var(--primary-container);
-            transform: scale(1.05);
+            transform: scale(1.06);
+            box-shadow: 0 4px 10px rgba(184, 52, 28, 0.35);
         }
 
         .run-btn.stop {
             background: var(--surface-container);
+            border-color: var(--ghost-border);
             color: var(--on-surface-variant);
         }
 
         .run-btn.stop:hover {
             background: var(--error-container);
             color: var(--on-error-container);
+            transform: scale(1.06);
         }
 
         .run-btn svg {
-            width: 16px;
-            height: 16px;
+            width: 14px;
+            height: 14px;
         }
 
         .run-btn:disabled {
-            opacity: 0.4;
+            opacity: 0.35;
             cursor: not-allowed;
             background: var(--surface-container-high);
             color: var(--on-surface-muted);
+            box-shadow: none;
         }
 
         .run-btn:disabled:hover {
@@ -705,8 +738,21 @@
             align-items: center;
             justify-content: space-between;
             margin-top: 8px;
-            padding-top: 8px;
+            padding-top: 7px;
             border-top: 1px solid var(--ghost-border);
+            font-size: 11px;
+            color: var(--on-surface-muted);
+            gap: 8px;
+        }
+
+        .tool-card-bottom .tool-hint {
+            font-size: 11px;
+            color: var(--on-surface-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            flex: 1;
+            min-width: 0;
         }
 
         .run-timer {
@@ -718,9 +764,10 @@
             color: var(--success);
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 4px;
             opacity: 0;
             transition: opacity 0.3s ease;
+            flex-shrink: 0;
         }
 
         .run-timer.visible {
@@ -734,12 +781,14 @@
 
         .tool-tag {
             font-family: var(--font-label);
-            font-size: 10px;
+            font-size: 9.5px;
             font-weight: 700;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.06em;
             text-transform: uppercase;
-            padding: 3px 8px;
+            padding: 2px 7px;
             border-radius: var(--radius-full);
+            flex-shrink: 0;
+            line-height: 1.4;
         }
 
         .tool-tag.built-in {

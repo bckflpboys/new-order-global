@@ -66,6 +66,14 @@ const DocEngine = (() => {
     return null;
   }
 
+  let _pptxgen = null;
+  function pptxgenLoaded() {
+    if (_pptxgen) return _pptxgen;
+    const g = typeof globalThis !== 'undefined' ? globalThis : window;
+    if (g.PptxGenJS) { _pptxgen = g.PptxGenJS; return _pptxgen; }
+    return null;
+  }
+
   // ============================================
   // Fetch helpers
   // ============================================
@@ -725,6 +733,63 @@ const DocEngine = (() => {
     }
   }
 
+  async function createSheet(data = {}) {
+    const XLSX = xlsxLoaded();
+    if (!XLSX) return { ok: false, error: 'SheetJS (xlsx) not loaded.' };
+    try {
+      const wb = XLSX.utils.book_new();
+      const sheets = Array.isArray(data.sheets) ? data.sheets : [];
+      for (const s of sheets) {
+        const name = s.name || `Sheet${sheets.indexOf(s) + 1}`;
+        const ws = XLSX.utils.aoa_to_sheet(s.rows || []);
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      }
+      if (!sheets.length) {
+        XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['']]), 'Sheet1');
+      }
+      const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      return { ok: true, xlsxBytes: new Uint8Array(out) };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  async function createPptx(data = {}) {
+    const PptxGenJS = pptxgenLoaded();
+    if (!PptxGenJS) return { ok: false, error: 'PptxGenJS not loaded. libs/pptxgen.min.js is required.' };
+    try {
+      const pres = new PptxGenJS();
+      if (data.title) pres.title = data.title;
+      const slides = Array.isArray(data.slides) ? data.slides : [];
+      for (const s of slides) {
+        const slide = pres.addSlide();
+        for (const item of (s.items || [])) {
+          if (item.type === 'text') {
+            slide.addText(String(item.text || ''), { x: item.x || 1, y: item.y || 1, w: item.w || '80%', fontSize: item.fontSize || 14, color: item.color || '000000', bold: !!item.bold });
+          } else if (item.type === 'table') {
+            slide.addTable(item.rows || [], { x: item.x || 1, y: item.y || 1, w: item.w || '80%' });
+          }
+        }
+      }
+      if (!slides.length) pres.addSlide().addText('Blank Presentation', { x: 1, y: 1, fontSize: 24 });
+      
+      const out = await pres.write({ outputType: 'arraybuffer' });
+      return { ok: true, pptxBytes: new Uint8Array(out) };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
+  async function createTextFile(text) {
+    try {
+      const encoder = new TextEncoder();
+      const bytes = encoder.encode(String(text || ''));
+      return { ok: true, textBytes: bytes };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  }
+
   // ============================================
   // File download / conversion helpers
   // ============================================
@@ -798,9 +863,13 @@ const DocEngine = (() => {
     // Spreadsheet
     loadSheet,
     editSheet,
+    createSheet,
     // PowerPoint
     readPptx,
     editPptx,
+    createPptx,
+    // Text
+    createTextFile,
     // Helpers
     downloadFile,
     bytesToBase64,
@@ -812,7 +881,8 @@ const DocEngine = (() => {
     isXlsxReady:      () => !!xlsxLoaded(),
     isMammothReady:   () => !!mammothLoaded(),
     isDocxTplReady:   () => !!(pizzipLoaded() && docxTplLoaded()),
-    isPizZipReady:    () => !!pizzipLoaded()
+    isPizZipReady:    () => !!pizzipLoaded(),
+    isPptxGenReady:   () => !!pptxgenLoaded()
   };
 })();
 

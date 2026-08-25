@@ -1,8 +1,12 @@
 document.addEventListener('DOMContentLoaded', () => {
     // Admin broadcast notifications: pop unread messages as modal
     // dialogs over the popup. Helper is loaded by core/notifications-popup.js
-    // ahead of this file. Best-effort \u2014 silent on any error.
+    // ahead of this file. Best-effort — silent on any error.
     try { window.NgoNotifications && window.NgoNotifications.pollAndShow(); } catch {}
+
+    const escapeHtml = (s) => String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
     // --- Vertical Slider (Notifications) ---
     const verticalSlider = document.getElementById('vertical-slider');
@@ -269,10 +273,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 cont.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">No conversations yet</div>';
                 return;
             }
-
-            const escapeHtml = (s) => String(s == null ? '' : s)
-                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
             cont.innerHTML = items.map(it => {
                 const date = it.sortAt ? new Date(it.sortAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Recently';
@@ -690,9 +690,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const effectiveIsActive = isDraft ? false : (tool.isActive || false);
 
         const tagHTML = isDraft
-            ? '<span class="tool-tag" style="background: var(--surface-container); color: var(--on-surface-muted); border: 1px solid var(--ghost-border);">Draft</span>'
+            ? '<span class="tool-tag manual">Draft</span>'
             : !effectiveIsActive
-                ? '<span class="tool-tag" style="background: var(--surface-container); color: var(--on-surface-muted); border: 1px solid var(--ghost-border);">Off</span>'
+                ? '<span class="tool-tag manual">Off</span>'
                 : isBuiltIn
                     ? '<span class="tool-tag built-in">Built-in</span>'
                     : isAutoRun
@@ -701,16 +701,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Run button tooltip varies by type
         const runBtnTitle = isDraft ? 'Draft tools cannot be run' : (isBuiltIn ? 'Refresh on current tab' : isAutoRun ? 'Re-inject on current tab' : 'Run on current tab');
+        const toolName = escapeHtml(tool.name || 'Untitled');
+        const toolDesc = escapeHtml(tool.description || 'No description');
+        const hintText = isAutoRun && effectiveIsActive ? 'Auto-runs · ▶ to re-inject' : isBuiltIn ? 'YouTube suite · ▶ to refresh' : 'Click ▶ to run on page';
 
         div.innerHTML = `
             <div class="tool-card-top">
                 <div class="tool-card-info">
                     <div class="tool-name-row">
                         <span class="tool-status-dot ${isAutoRun && effectiveIsActive ? 'auto' : ''}" data-dot></span>
-                        <span class="tool-name">${tool.name || 'Untitled'}</span>
+                        <span class="tool-name" title="${toolName}">${toolName}</span>
                         ${tagHTML}
                     </div>
-                    <div class="tool-desc">${tool.description || 'No description'}</div>
+                    <div class="tool-desc" title="${toolDesc}">${toolDesc}</div>
                 </div>
                 <div class="tool-card-controls">
                     <button class="run-btn play" data-run title="${runBtnTitle}">
@@ -727,7 +730,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
                     <span class="timer-value">0:00</span>
                 </div>
-                <div style="font-size: 11px; color: var(--text-muted);">${isAutoRun && effectiveIsActive ? 'Auto-runs · ▶ to re-inject now' : isBuiltIn ? 'YouTube suite · ▶ to refresh' : 'Click ▶ to run on this page'}</div>
+                <div class="tool-hint">${hintText}</div>
             </div>
         `;
 
