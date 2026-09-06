@@ -27,6 +27,20 @@
     // Handle Storage Requests
     if (data.type === 'storage-request') {
       const { requestId, action, key, value, prefix } = data;
+      const PREFIX_REGEX = /^toolData_[a-zA-Z0-9_-]+_$/;
+
+      if (!prefix || typeof prefix !== 'string' || !PREFIX_REGEX.test(prefix)) {
+        sendResponse(requestId, { error: 'Invalid tool storage prefix' });
+        return;
+      }
+
+      if (action === 'get' || action === 'set' || action === 'remove') {
+        if (!key || typeof key !== 'string' || key.length > 256) {
+          sendResponse(requestId, { error: 'Invalid storage key' });
+          return;
+        }
+      }
+
       const storageKey = prefix + key;
 
       try {
@@ -67,6 +81,8 @@
               sendResponse(requestId, { success: true });
             }
           });
+        } else {
+          sendResponse(requestId, { error: 'Unknown storage action' });
         }
       } catch (err) {
         sendResponse(requestId, { error: err.message });

@@ -371,6 +371,128 @@
                 // resume. For this background loop we surface an explicit
                 // "awaiting_user" and stop.
                 return { success: true, awaitingUser: true };
+
+            // === Debugger (CDP) coord actions ===
+            case 'clickAt':
+            case 'doubleClickAt':
+            case 'rightClickAt':
+            case 'mouseMove':
+            case 'dragAndDrop':
+            case 'typeText':
+            case 'pressKeyAt':
+            case 'scrollAt': {
+                if (!tabId) return { success: false, error: 'No active tab' };
+                if (typeof runDebuggerAction === 'function') {
+                    try {
+                        const res = await runDebuggerAction(tabId, action, p);
+                        return { success: true, result: res };
+                    } catch (e) {
+                        return { success: false, error: e.message };
+                    }
+                }
+                return { success: false, error: 'Debugger actions not available' };
+            }
+            case 'detachDebugger': {
+                if (!tabId) return { success: true };
+                if (typeof debuggerDetach === 'function') {
+                    await debuggerDetach(tabId).catch(() => {});
+                }
+                return { success: true, detached: true };
+            }
+
+            // === Background-orchestrated actions ===
+            case 'readEmail': {
+                if (!tabId) return { success: false, error: 'No active tab' };
+                if (typeof runReadEmail === 'function') {
+                    try {
+                        const res = await runReadEmail(tabId, p);
+                        return { success: true, result: res };
+                    } catch (e) {
+                        return { success: false, error: e.message };
+                    }
+                }
+                return { success: false, error: 'readEmail not available' };
+            }
+            case 'readDownloads': {
+                if (typeof runReadDownloads === 'function') {
+                    try {
+                        const res = runReadDownloads(p);
+                        return { success: true, result: res };
+                    } catch (e) {
+                        return { success: false, error: e.message };
+                    }
+                }
+                return { success: false, error: 'readDownloads not available' };
+            }
+            case 'captureFile': {
+                if (!tabId) return { success: false, error: 'No active tab' };
+                if (typeof runCaptureFile === 'function') {
+                    try {
+                        const res = await runCaptureFile(tabId, p);
+                        return { success: true, result: res };
+                    } catch (e) {
+                        return { success: false, error: e.message };
+                    }
+                }
+                return { success: false, error: 'captureFile not available' };
+            }
+
+            // === Custom AI Tool invocation ===
+            case 'useTool': {
+                const toolId = p.toolId || p.id;
+                const toolName = p.toolName || p.name;
+                if (!tabId) return { success: false, error: 'No active tab' };
+                try {
+                    const tm = (typeof ToolManager !== 'undefined' ? ToolManager : (typeof self !== 'undefined' ? self.ToolManager : null));
+                    if (!tm || !tm.getInstalledTools) {
+                        return { success: false, error: 'ToolManager not available in background' };
+                    }
+                    const tools = await tm.getInstalledTools();
+                    const tool = tools.find(t => (toolId && (t.id === toolId || t._id === toolId)) || (toolName && String(t.name || '').toLowerCase() === String(toolName).toLowerCase()));
+                    if (!tool) {
+                        return { success: false, error: `useTool: tool "${toolId || toolName}" not found in installed tools.` };
+                    }
+                    await tm.injectToolIntoTab(tabId, tool);
+                    return { success: true, toolId: tool.id, toolName: tool.name, note: `Tool "${tool.name}" injected into tab.` };
+                } catch (e) {
+                    return { success: false, error: `useTool failed: ${e.message}` };
+                }
+            }
+
+            // === Compound macros ===
+            case 'gotoAndRead': {
+                if (!p.url) return { success: false, error: 'gotoAndRead requires params.url' };
+                if (!tabId) return { success: false, error: 'No active tab' };
+                const g = await gotoUrl(tabId, p.url);
+                if (!g.success) return g;
+                await new Promise(r => setTimeout(r, 800));
+                const ps = await readPageState(tabId);
+                return {
+                    success: true,
+                    macro: 'gotoAndRead',
+                    url: g.url,
+                    title: g.title,
+                    readPage: ps,
+                    hint: 'Macro: navigated AND read page in one step.'
+                };
+            }
+            case 'clickAndWait': {
+                if (!tabId) return { success: false, error: 'No active tab' };
+                const c = await execInTab(tabId, 'click', p);
+                if (!c.success) return c;
+                const ms = Math.max(200, Math.min(p.waitMs || 1000, 5000));
+                await new Promise(r => setTimeout(r, ms));
+                return { success: true, macro: 'clickAndWait', clicked: c };
+            }
+            case 'typeAndSubmit': {
+                if (!tabId) return { success: false, error: 'No active tab' };
+                const t = await execInTab(tabId, 'type', p);
+                if (!t.success) return t;
+                await new Promise(r => setTimeout(r, 200));
+                await execInTab(tabId, 'pressKey', { key: 'Enter' });
+                return { success: true, macro: 'typeAndSubmit', typed: t };
+            }
+
             default:
                 // DOM actions run in the agent runtime content script.
                 if (!tabId) return { success: false, error: 'No active tab' };
@@ -636,6 +758,15 @@
 
             if (Array.isArray(planResp.requiredInputs) && planResp.requiredInputs.length) {
                 await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'requires_briefing' });
+                try {
+                    await api('/api/agent/notify', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            taskId,
+                            message: `⚠️ Task "${String(prompt || '').slice(0, 50)}" requires inputs: ${planResp.requiredInputs.map(i => i.label || i.name).join(', ')}. Please open the New Order Global panel to start.`
+                        })
+                    }).catch(() => {});
+                } catch (_) {}
                 return { ok: false, stage: 'requires_briefing', taskId };
             }
 
@@ -671,6 +802,69 @@
                 return { ok: false, stage: 'brief', error: 'no_first_step', taskId };
             }
 
+            return await runStepLoop({ taskId, state, currentStep: briefResp.step, maxSteps, source, prompt });
+        } finally {
+            stopKeepalive();
+            stopSwKeepalive();
+        }
+    }
+
+    // ============================================
+    // Run an already materialized pending task (from schedule or subagent)
+    // ============================================
+    async function runPendingTask(pt) {
+        try { await chrome.storage.local.set({ [BG_ABORT_KEY]: false }); } catch {}
+
+        const tabId = await pickOrOpenTargetTab();
+        const state = makeTabState(tabId);
+        startKeepalive(tabId);
+        startSwKeepalive();
+
+        const taskId = pt.id;
+        const prompt = pt.prompt || pt.title || 'Pending task';
+        const source = pt.source || 'pending';
+
+        await writeBgStatus({
+            running: true,
+            source,
+            prompt: String(prompt).slice(0, 200),
+            startedAt: Date.now(),
+            lastAction: 'briefing',
+            taskId
+        });
+        await appendBgLog({ action: 'started', summary: `Executing pending task: ${String(prompt).slice(0, 80)}`, ok: true });
+
+        try {
+            let briefResp;
+            try {
+                briefResp = await api('/api/agent/brief', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        taskId,
+                        briefing: {},
+                        permissions: BG_DEFAULT_PERMISSIONS,
+                        runMode: 'background'
+                    })
+                });
+            } catch (err) {
+                if (err.status === 403) {
+                    await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'not_eligible' });
+                    return { ok: false, stage: 'brief', error: 'not_eligible', taskId };
+                }
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'brief_failed' });
+                return { ok: false, stage: 'brief', error: err.message, taskId, status: err.status };
+            }
+
+            if (briefResp.done) {
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'done' });
+                return { ok: true, stage: 'done', taskId, summary: briefResp.summary };
+            }
+            if (!briefResp.step || !briefResp.step.action) {
+                await writeBgStatus({ running: false, lastStopAt: Date.now(), lastResult: 'no_first_step' });
+                return { ok: false, stage: 'brief', error: 'no_first_step', taskId };
+            }
+
+            const maxSteps = briefResp.tier?.maxSteps || 30;
             return await runStepLoop({ taskId, state, currentStep: briefResp.step, maxSteps, source, prompt });
         } finally {
             stopKeepalive();
@@ -802,15 +996,29 @@
                 if (e.status !== 401) console.warn('[GE bg-agent] inbox failed:', e.message);
                 return;
             }
-            if (!inbox || !inbox.queuedPrompt || !inbox.backgroundEligible) return;
+            if (inbox && inbox.queuedPrompt && inbox.backgroundEligible) {
+                console.log('[GE bg-agent] Running task from', inbox.source, ':', inbox.queuedPrompt.substring(0, 80));
+                const r = await runOneTask({
+                    prompt: inbox.queuedPrompt,
+                    source: inbox.source,
+                    resumeFromTaskId: inbox.resumeFromTaskId || null
+                });
+                console.log('[GE bg-agent] Task finished:', r);
+                return;
+            }
 
-            console.log('[GE bg-agent] Running task from', inbox.source, ':', inbox.queuedPrompt.substring(0, 80));
-            const r = await runOneTask({
-                prompt: inbox.queuedPrompt,
-                source: inbox.source,
-                resumeFromTaskId: inbox.resumeFromTaskId || null
-            });
-            console.log('[GE bg-agent] Task finished:', r);
+            // 3) Start any pending task (from scheduled tasks or subagent spawns)
+            let pendingResp;
+            try { pendingResp = await api('/api/agent/pending-task'); }
+            catch (e) {
+                if (e.status !== 401) console.warn('[GE bg-agent] pending-task failed:', e.message);
+                return;
+            }
+            if (pendingResp && pendingResp.task) {
+                console.log('[GE bg-agent] Running pending task:', pendingResp.task.id, pendingResp.task.title);
+                const pr = await runPendingTask(pendingResp.task);
+                console.log('[GE bg-agent] Pending task finished:', pr);
+            }
         } catch (e) {
             console.error('[GE bg-agent] Tick crashed:', e);
         } finally {

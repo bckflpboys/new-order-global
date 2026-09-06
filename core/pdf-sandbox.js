@@ -116,6 +116,7 @@ const PdfSandbox = (() => {
     let _filledCount  = 0;
     let _totalFields  = fields.length;
     let _objectUrl    = null;
+    let _resultUrl    = null;
 
     // ---- Internals ----
     const badge      = card.querySelector('.psb-status-badge');
@@ -181,10 +182,37 @@ const PdfSandbox = (() => {
 
     // Download button handler
     if (dlBtn) {
-      dlBtn.addEventListener('click', () => {
+      dlBtn.addEventListener('click', async () => {
         if (_pdfBytes) {
           const mime = (typeof DocEngine !== 'undefined') ? DocEngine.mimeForFilename(_filename) : 'application/octet-stream';
           DocEngine.downloadFile(_pdfBytes, _filename, mime);
+        } else if (_objectUrl) {
+          const a = document.createElement('a');
+          a.href = _objectUrl;
+          a.download = _filename || 'document.pdf';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+        } else if (_resultUrl) {
+          try {
+            dlBtn.disabled = true;
+            const originalText = dlBtn.textContent;
+            dlBtn.textContent = 'Downloading…';
+            const resp = await fetch(_resultUrl);
+            const blob = await resp.blob();
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = _filename || 'document.pdf';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+            dlBtn.textContent = 'Downloaded ✓';
+            setTimeout(() => { dlBtn.disabled = false; dlBtn.textContent = originalText; }, 2500);
+          } catch (e) {
+            dlBtn.disabled = false;
+            dlBtn.textContent = 'Download Failed';
+            setTimeout(() => { dlBtn.textContent = `Download ${_filename}`; }, 2500);
+          }
         }
       });
     }
@@ -192,7 +220,8 @@ const PdfSandbox = (() => {
     // Open button handler
     if (openBtn) {
       openBtn.addEventListener('click', () => {
-        if (_objectUrl) window.open(_objectUrl, '_blank');
+        const targetUrl = _resultUrl || _objectUrl;
+        if (targetUrl) window.open(targetUrl, '_blank');
       });
     }
 
@@ -264,6 +293,54 @@ const PdfSandbox = (() => {
             if (metaEl && !metaEl.textContent.includes('MB') && !metaEl.textContent.includes('KB')) {
               metaEl.textContent += ` · ${sizeText}`;
             }
+          }
+        }
+
+        if (dlBtn) dlBtn.querySelector('span') || (dlBtn.lastChild.textContent = ` Download ${_filename}`);
+      },
+
+      /** Show the finished PDF via a remote pre-signed URL + download button */
+      showResultUrl(url, fname, actionText = 'Done', sizeBytes = 0) {
+        _resultUrl = url;
+        if (fname) _filename = fname;
+
+        _setBadge('done');
+        if (badgeText) badgeText.textContent = actionText;
+        _updateProgress(_totalFields, _totalFields);
+
+        const embedWrap = card.querySelector('.psb-embed-wrap');
+        const mime = (typeof DocEngine !== 'undefined') ? DocEngine.mimeForFilename(_filename) : 'application/pdf';
+        if (mime === 'application/pdf' && embedEl) {
+          if (embedWrap) embedWrap.style.display = '';
+          embedEl.style.display = '';
+          // Convert remote HTTPS URL to blob URL to satisfy extension CSP and avoid "Failed to load PDF document"
+          (async () => {
+            try {
+              const resp = await fetch(url);
+              if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+              const blob = await resp.blob();
+              if (_objectUrl) { try { URL.revokeObjectURL(_objectUrl); } catch {} }
+              _objectUrl = URL.createObjectURL(blob);
+              embedEl.src = _objectUrl;
+            } catch (err) {
+              console.warn('[PdfSandbox] Failed to load remote PDF into embed:', err);
+              // Fallback: don't crash, let download/open buttons handle it
+              if (embedWrap) embedWrap.style.display = 'none';
+            }
+          })();
+        } else {
+          if (embedEl) embedEl.style.display = 'none';
+          if (embedWrap) embedWrap.style.display = 'none';
+        }
+        resultEl.style.display = '';
+
+        if (sizeBytes) {
+          const sizeText = sizeBytes > 1024 * 1024
+            ? (sizeBytes / (1024 * 1024)).toFixed(1) + ' MB'
+            : (sizeBytes / 1024).toFixed(1) + ' KB';
+          const metaEl = card.querySelector('.psb-meta');
+          if (metaEl && !metaEl.textContent.includes('MB') && !metaEl.textContent.includes('KB')) {
+            metaEl.textContent += ` · ${sizeText}`;
           }
         }
 

@@ -2227,3 +2227,7 @@ body {
   background: var(--surface-container-high, #e0dedf);
   color: var(--on-surface-variant, #434653);
 }
+
+.voxcode-footer-link:hover {
+  color: var(--primary) !important;
+}

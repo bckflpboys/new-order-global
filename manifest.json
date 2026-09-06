@@ -43,8 +43,10 @@
                 "libs/pdf-lib.min.js",
                 "libs/xlsx.mini.min.js",
                 "libs/pizzip.min.js",
+                "libs/jszip-compat.js",
                 "libs/docxtemplater.js",
-                "libs/mammoth.browser.min.js"
+                "libs/mammoth.browser.min.js",
+                "libs/pptxgen.min.js"
             ],
             "matches": [
                 "<all_urls>"

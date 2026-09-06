@@ -9,6 +9,26 @@
   window[Symbol.for('_grt')] = true;
 
   // ============================================
+  // Stealth: continuous navigator.webdriver cloaking in main world
+  // ============================================
+  try {
+    const s = document.createElement('script');
+    s.textContent = `
+      try {
+        Object.defineProperty(navigator, 'webdriver', {
+          get: () => false,
+          configurable: true
+        });
+      } catch (e) {}
+    `;
+    (document.head || document.documentElement).appendChild(s);
+    s.remove();
+  } catch (e) {}
+
+  // Global Map for in-viewport Set-of-Marks numeric grounding [1..N]
+  window.__geElementIndexMap = window.__geElementIndexMap || new Map();
+
+  // ============================================
   // DOM mutation tracker — used by readPage to flag SPAs that are still
   // rendering, and by executeClick to verify a click had ANY effect on the
   // DOM even when no navigation happened.
@@ -126,6 +146,416 @@
   }
 
   // ============================================
+  // Frontier Browser Automation (2026 Engine)
+  // Set-of-Marks (SoM) Grounding, Pruned Accessibility Tree,
+  // Overlay Bouncer, Self-Healing Grounding, and Expectation Validator
+  // ============================================
+
+  function computeAccessibleName(el) {
+    if (!el) return '';
+    try {
+      // 1. aria-labelledby
+      const labelledby = el.getAttribute('aria-labelledby');
+      if (labelledby) {
+        const ids = labelledby.split(/\s+/).filter(Boolean);
+        const parts = [];
+        for (const id of ids) {
+          const target = document.getElementById(id);
+          if (target) {
+            const t = (target.textContent || '').trim();
+            if (t) parts.push(t);
+          }
+        }
+        if (parts.length > 0) return parts.join(' ').slice(0, 100);
+      }
+      // 2. aria-label
+      const ariaLabel = el.getAttribute('aria-label');
+      if (ariaLabel && ariaLabel.trim()) return ariaLabel.trim().slice(0, 100);
+
+      // 3. input / textarea label & placeholder
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+        const lbl = getInputLabel(el);
+        if (lbl && lbl.trim()) return lbl.trim().slice(0, 100);
+        if (el.placeholder && el.placeholder.trim()) return el.placeholder.trim().slice(0, 100);
+      }
+
+      // 4. alt for img or input[type=image]
+      const alt = el.getAttribute('alt');
+      if (alt && alt.trim()) return alt.trim().slice(0, 100);
+
+      // 5. title
+      const title = el.getAttribute('title');
+      if (title && title.trim()) return title.trim().slice(0, 100);
+
+      // 6. Direct / trimmed text content for buttons, links, etc.
+      if (el.tagName === 'BUTTON' || el.tagName === 'A' || el.getAttribute('role') === 'button' || el.getAttribute('role') === 'link') {
+        const text = (el.textContent || el.value || '').trim().replace(/\s+/g, ' ');
+        if (text) return text.slice(0, 100);
+      }
+
+      const raw = (el.textContent || '').trim().replace(/\s+/g, ' ');
+      return raw.slice(0, 100);
+    } catch {
+      return '';
+    }
+  }
+
+  function getElementRole(el) {
+    if (!el) return 'element';
+    const explicitRole = el.getAttribute('role');
+    if (explicitRole) return explicitRole.toLowerCase();
+
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'a' && el.hasAttribute('href')) return 'link';
+    if (tag === 'button') return 'button';
+    if (tag === 'select') return 'combobox';
+    if (tag === 'textarea') return 'textbox';
+    if (tag === 'input') {
+      const type = (el.type || 'text').toLowerCase();
+      if (type === 'button' || type === 'submit' || type === 'reset') return 'button';
+      if (type === 'checkbox') return 'checkbox';
+      if (type === 'radio') return 'radio';
+      if (type === 'image') return 'button';
+      if (type === 'search') return 'searchbox';
+      return 'textbox';
+    }
+    if (tag === 'summary') return 'button';
+    if (/^h[1-6]$/.test(tag)) return 'heading';
+    if (tag === 'img') return 'img';
+    if (el.isContentEditable) return 'textbox';
+
+    return tag;
+  }
+
+  function isElementInViewport(el) {
+    if (!el || !el.getBoundingClientRect) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return false;
+    const vpW = (typeof window !== 'undefined' && window.innerWidth) || 1280;
+    const vpH = (typeof window !== 'undefined' && window.innerHeight) || 800;
+    return r.bottom > 0 && r.right > 0 && r.top < vpH && r.left < vpW;
+  }
+
+  // Pruned Accessibility Tree snapshot + Set-of-Marks indexing
+  function generateA11ySnapshot(options = {}) {
+    const maxNodes = options.maxNodes || 80;
+    window.__geElementIndexMap = window.__geElementIndexMap || new Map();
+    window.__geElementIndexMap.clear();
+
+    const interactiveSelector = [
+      'a[href]', 'button', 'input:not([type="hidden"])', 'select', 'textarea', 'summary',
+      '[role="button"]', '[role="link"]', '[role="checkbox"]', '[role="radio"]',
+      '[role="switch"]', '[role="combobox"]', '[role="textbox"]', '[role="searchbox"]',
+      '[role="menuitem"]', '[role="tab"]', '[contenteditable="true"]', '[tabindex="0"]'
+    ].join(', ');
+
+    let allInteractive = [];
+    try {
+      allInteractive = Array.from(document.querySelectorAll(interactiveSelector));
+    } catch {
+      allInteractive = [];
+    }
+
+    const filtered = [];
+    const seen = new Set();
+
+    for (const el of allInteractive) {
+      if (!isLikelyVisible(el) || !isElementInViewport(el)) continue;
+
+      // Skip inner child if parent is already an interactive button or anchor
+      let parent = el.parentElement;
+      let hasInteractiveParent = false;
+      while (parent && parent !== document.body) {
+        if (seen.has(parent) || parent.matches('button, a[href], [role="button"], [role="link"]')) {
+          hasInteractiveParent = true;
+          break;
+        }
+        parent = parent.parentElement;
+      }
+      if (hasInteractiveParent) continue;
+
+      seen.add(el);
+      filtered.push(el);
+      if (filtered.length >= maxNodes) break;
+    }
+
+    const lines = [];
+    filtered.forEach((el, i) => {
+      const index = i + 1;
+      const role = getElementRole(el);
+      const name = computeAccessibleName(el);
+      const rect = el.getBoundingClientRect();
+      const selector = buildSelector(el);
+
+      window.__geElementIndexMap.set(index, {
+        index,
+        el,
+        role,
+        name,
+        selector,
+        rect: { left: Math.round(rect.left), top: Math.round(rect.top), width: Math.round(rect.width), height: Math.round(rect.height) },
+        inViewport: true
+      });
+
+      const states = [];
+      if (el.disabled || el.getAttribute('aria-disabled') === 'true') states.push('disabled');
+      if (el.required || el.getAttribute('aria-required') === 'true') states.push('required');
+      if (el.checked || el.getAttribute('aria-checked') === 'true') states.push('checked');
+      if (el.selected || el.getAttribute('aria-selected') === 'true') states.push('selected');
+      if (el.readOnly) states.push('readonly');
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+        const val = el.type === 'password' ? '***' : (el.value || '');
+        if (val) states.push(`value="${val.slice(0, 30)}"`);
+      }
+
+      const stateStr = states.length > 0 ? ` (${states.join(', ')})` : '';
+      const nameStr = name ? ` "${name}"` : '';
+      lines.push(`[${index}] ${role}${nameStr}${stateStr}`);
+    });
+
+    return {
+      tree: lines.join('\n'),
+      count: filtered.length
+    };
+  }
+
+  // Self-Healing DOM Grounding: resolves numeric index to DOM element with automatic recovery
+  function resolveGroundingTarget(index) {
+    if (!window.__geElementIndexMap || !window.__geElementIndexMap.has(index)) return null;
+    const entry = window.__geElementIndexMap.get(index);
+    if (!entry) return null;
+
+    // 1. Still in DOM and connected
+    if (entry.el && entry.el.isConnected && isLikelyVisible(entry.el)) {
+      return entry.el;
+    }
+
+    // 2. Self-healing: SPA re-rendered. Try selector query
+    if (entry.selector) {
+      try {
+        const candidate = document.querySelector(entry.selector);
+        if (candidate && isLikelyVisible(candidate)) {
+          entry.el = candidate;
+          return candidate;
+        }
+      } catch {}
+    }
+
+    // 3. Self-healing: Re-query by role + accessible name
+    if (entry.role && entry.name) {
+      try {
+        const tagOrRole = entry.role === 'button'
+          ? 'button, [role="button"], input[type="submit"], input[type="button"]'
+          : (entry.role === 'link'
+            ? 'a[href], [role="link"]'
+            : (entry.role === 'textbox' ? 'input, textarea, [role="textbox"]' : '*'));
+        const candidates = document.querySelectorAll(tagOrRole);
+        for (const cand of candidates) {
+          if (!isLikelyVisible(cand)) continue;
+          const name = computeAccessibleName(cand);
+          if (name && (name === entry.name || name.toLowerCase().includes(entry.name.toLowerCase()))) {
+            entry.el = cand;
+            return cand;
+          }
+        }
+      } catch {}
+    }
+
+    return entry.el || null;
+  }
+
+  // Visual Set-of-Marks Badges: renders high-contrast badges for vision models
+  function renderSoMBadges(options = {}) {
+    removeSoMBadges();
+    if (!window.__geElementIndexMap || window.__geElementIndexMap.size === 0) {
+      generateA11ySnapshot();
+    }
+    if (!window.__geElementIndexMap || window.__geElementIndexMap.size === 0) {
+      return { success: true, count: 0 };
+    }
+
+    const layer = document.createElement('div');
+    layer.id = '__ge_som_layer__';
+    layer.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;pointer-events:none;z-index:2147483647;';
+
+    const theme = options.theme || 'yellow';
+    const badgeBg = theme === 'dark' ? '#111111' : '#ffea00';
+    const badgeColor = theme === 'dark' ? '#ffffff' : '#000000';
+    const badgeBorder = theme === 'dark' ? '1px solid #ffffff' : '1.5px solid #000000';
+
+    const vpW = (typeof window !== 'undefined' && window.innerWidth) || 1280;
+    const vpH = (typeof window !== 'undefined' && window.innerHeight) || 800;
+
+    let count = 0;
+    for (const [index, entry] of window.__geElementIndexMap.entries()) {
+      if (!entry.el || !entry.el.isConnected) continue;
+      const rect = entry.el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) continue;
+      if (rect.bottom < 0 || rect.top > vpH || rect.right < 0 || rect.left > vpW) continue;
+
+      // Element bounding highlight
+      const box = document.createElement('div');
+      box.style.cssText = `position:absolute;top:${rect.top}px;left:${rect.left}px;width:${rect.width}px;height:${rect.height}px;border:1.5px dashed rgba(255,234,0,0.85);box-sizing:border-box;pointer-events:none;`;
+      layer.appendChild(box);
+
+      // Numeric mark badge
+      const badge = document.createElement('span');
+      badge.textContent = `[${index}]`;
+      badge.style.cssText = `position:absolute;top:${Math.max(0, rect.top - 2)}px;left:${Math.max(0, rect.left - 2)}px;background:${badgeBg};color:${badgeColor};font-family:monospace,sans-serif;font-size:11px;font-weight:900;padding:1px 4px;border-radius:3px;border:${badgeBorder};box-shadow:0 1px 4px rgba(0,0,0,0.6);line-height:14px;pointer-events:none;z-index:2147483647;`;
+      layer.appendChild(badge);
+      count++;
+    }
+
+    (document.body || document.documentElement).appendChild(layer);
+    return { success: true, count };
+  }
+
+  function removeSoMBadges() {
+    const existing = document.getElementById('__ge_som_layer__');
+    if (existing) existing.remove();
+    return { success: true };
+  }
+
+  // Automated Cookie / Consent Banner and Modal Backdrop Bouncer (R3)
+  async function dismissOverlays(options = {}) {
+    const strategy = options.strategy || 'human_click_with_fallback';
+    const overlaySelectors = [
+      '#onetrust-banner-sdk', '#onetrust-consent-sdk', '#CybotCookiebotDialog',
+      '.cc-window', '.cookie-banner', '.cookie-consent', '.cmpbox',
+      '#qc-cmp2-container', '#klaro', '[aria-label*="cookie" i]',
+      '[aria-label*="consent" i]', '[id*="cookie" i]', '[id*="consent" i]',
+      '[class*="cookie" i]', '[class*="consent" i]', '.modal-backdrop',
+      '.ReactModal__Overlay', '[role="dialog"][aria-modal="true"]'
+    ];
+
+    let foundOverlay = null;
+    for (const sel of overlaySelectors) {
+      try {
+        const el = document.querySelector(sel);
+        if (el && isLikelyVisible(el)) {
+          foundOverlay = el;
+          break;
+        }
+      } catch {}
+    }
+
+    if (!foundOverlay) {
+      return { success: true, dismissed: false, note: 'No blocking overlay detected' };
+    }
+
+    const unlockScroll = () => {
+      try {
+        if (document.body) {
+          document.body.style.overflow = 'auto';
+          document.body.style.position = 'static';
+        }
+        if (document.documentElement) {
+          document.documentElement.style.overflow = 'auto';
+        }
+      } catch {}
+    };
+
+    if (strategy === 'remove_dom') {
+      foundOverlay.remove();
+      unlockScroll();
+      return { success: true, dismissed: true, method: 'dom_removal' };
+    }
+
+    // Locate consent action buttons
+    const buttons = Array.from(foundOverlay.querySelectorAll('button, a, [role="button"], input[type="button"], input[type="submit"]'));
+    const acceptRe = /accept all|agree all|allow all|accept cookies|allow cookies|accept|agree|allow|got it|i accept|ok/i;
+    const rejectRe = /reject all|decline all|reject cookies|decline|reject|disagree/i;
+    const closeRe = /close|dismiss|×/i;
+
+    let targetBtn = null;
+    if (strategy === 'click_reject') {
+      targetBtn = buttons.find(b => rejectRe.test((b.textContent || b.value || b.getAttribute('aria-label') || '').trim()));
+    }
+    if (!targetBtn && (strategy === 'human_click_with_fallback' || strategy === 'click_accept' || strategy === 'click_reject')) {
+      targetBtn = buttons.find(b => acceptRe.test((b.textContent || b.value || b.getAttribute('aria-label') || '').trim()));
+    }
+    if (!targetBtn) {
+      targetBtn = buttons.find(b => closeRe.test((b.textContent || b.value || b.getAttribute('aria-label') || '').trim()));
+    }
+
+    if (targetBtn && isLikelyVisible(targetBtn)) {
+      try {
+        targetBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const rect = targetBtn.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const opts = { bubbles: true, cancelable: true, view: window, clientX: cx, clientY: cy };
+        targetBtn.dispatchEvent(new MouseEvent('mouseover', opts));
+        targetBtn.dispatchEvent(new PointerEvent('pointerdown', { ...opts, pointerType: 'mouse' }));
+        targetBtn.dispatchEvent(new MouseEvent('mousedown', opts));
+        await new Promise(r => setTimeout(r, 50));
+        targetBtn.dispatchEvent(new PointerEvent('pointerup', { ...opts, pointerType: 'mouse' }));
+        targetBtn.dispatchEvent(new MouseEvent('mouseup', opts));
+        targetBtn.click();
+        await new Promise(r => setTimeout(r, 250));
+        if (!isLikelyVisible(foundOverlay) || !foundOverlay.isConnected) {
+          unlockScroll();
+          return { success: true, dismissed: true, method: 'button_click', buttonText: (targetBtn.textContent || '').trim().slice(0, 40) };
+        }
+      } catch {}
+    }
+
+    // Fallback: DOM purge
+    foundOverlay.remove();
+    unlockScroll();
+    return { success: true, dismissed: true, method: 'dom_removal_fallback' };
+  }
+
+  // Semantic Post-Condition Expectation Validator (R4)
+  async function validateExpectations(params = {}) {
+    const expectations = params.expectations || params;
+    const results = [];
+    let allPassed = true;
+
+    if (expectations.urlContains) {
+      const passed = location.href.includes(expectations.urlContains);
+      results.push({ check: 'urlContains', expected: expectations.urlContains, actual: location.href, passed });
+      if (!passed) allPassed = false;
+    }
+    if (expectations.urlMatches) {
+      let passed = false;
+      try { passed = new RegExp(expectations.urlMatches).test(location.href); } catch {}
+      results.push({ check: 'urlMatches', expected: expectations.urlMatches, actual: location.href, passed });
+      if (!passed) allPassed = false;
+    }
+    if (expectations.elementExists) {
+      const el = document.querySelector(expectations.elementExists);
+      const passed = !!(el && isLikelyVisible(el));
+      results.push({ check: 'elementExists', selector: expectations.elementExists, passed });
+      if (!passed) allPassed = false;
+    }
+    if (expectations.elementGone) {
+      const el = document.querySelector(expectations.elementGone);
+      const passed = !el || !isLikelyVisible(el);
+      results.push({ check: 'elementGone', selector: expectations.elementGone, passed });
+      if (!passed) allPassed = false;
+    }
+    if (expectations.textPresent) {
+      const needle = expectations.textPresent.toLowerCase();
+      const passed = (document.body?.innerText || '').toLowerCase().includes(needle);
+      results.push({ check: 'textPresent', text: expectations.textPresent, passed });
+      if (!passed) allPassed = false;
+    }
+    if (expectations.textAbsent) {
+      const needle = expectations.textAbsent.toLowerCase();
+      const passed = !(document.body?.innerText || '').toLowerCase().includes(needle);
+      results.push({ check: 'textAbsent', text: expectations.textAbsent, passed });
+      if (!passed) allPassed = false;
+    }
+
+    return {
+      success: allPassed,
+      results,
+      unmet: results.filter(r => !r.passed)
+    };
+  }
+
+  // ============================================
   // Page State Reader
   // ============================================
   function readPageState() {
@@ -159,16 +589,17 @@
     // Visible text (limited)
     const body = document.body;
     if (body) {
-      const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT, {
+      const NF = (typeof window !== 'undefined' && window.NodeFilter) || (typeof NodeFilter !== 'undefined' ? NodeFilter : { SHOW_TEXT: 4, FILTER_ACCEPT: 1, FILTER_REJECT: 2 });
+      const walker = document.createTreeWalker(body, NF.SHOW_TEXT, {
         acceptNode: (node) => {
           const parent = node.parentElement;
-          if (!parent) return NodeFilter.FILTER_REJECT;
+          if (!parent) return NF.FILTER_REJECT;
           const tag = parent.tagName;
-          if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG'].includes(tag)) return NodeFilter.FILTER_REJECT;
+          if (['SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG'].includes(tag)) return NF.FILTER_REJECT;
           const style = getComputedStyle(parent);
-          if (style.display === 'none' || style.visibility === 'hidden') return NodeFilter.FILTER_REJECT;
-          if (node.textContent.trim().length === 0) return NodeFilter.FILTER_REJECT;
-          return NodeFilter.FILTER_ACCEPT;
+          if (style.display === 'none' || style.visibility === 'hidden') return NF.FILTER_REJECT;
+          if (node.textContent.trim().length === 0) return NF.FILTER_REJECT;
+          return NF.FILTER_ACCEPT;
         }
       });
 
@@ -453,35 +884,105 @@
       };
     } catch { /* best-effort */ }
 
+    // Auto-dismiss overlays / cookie banners if blocking the viewport (R3)
+    try {
+      dismissOverlays({ strategy: 'human_click_with_fallback' });
+    } catch {}
+
+    // Generate pruned Accessibility Tree & Set-of-Marks numeric index (R1, R2)
+    try {
+      const a11ySnap = generateA11ySnapshot();
+      state.a11yTree = a11ySnap.tree;
+      state.somIndexedCount = a11ySnap.count;
+    } catch (e) {
+      state.a11yTree = '';
+      state.somIndexedCount = 0;
+    }
+
     return state;
   }
 
   // ============================================
   // Action Executors
   // ============================================
+  function getElementFormIndex(el) {
+    try {
+      const f = el && el.closest && el.closest('form');
+      if (!f) return -1;
+      const forms = Array.from(document.querySelectorAll('form')).slice(0, 10);
+      return forms.indexOf(f);
+    } catch {
+      return -1;
+    }
+  }
+
   // Multi-strategy click. Accepts any of:
   //   selector, text, href, label, role, index, clickType
   // and falls back through strategies until it finds a candidate.
   async function executeClick(params) {
-    const index = params.index || 0;
     const clickType = params.clickType || 'left';
-    const elements = resolveClickCandidates(params);
+    let el = null;
+    let candidatesFound = 0;
 
-    if (!elements || elements.length === 0) {
-      const hints = [];
-      if (params.selector) hints.push(`selector="${params.selector}"`);
-      if (params.text) hints.push(`text~="${params.text}"`);
-      if (params.href) hints.push(`href~="${params.href}"`);
-      if (params.label) hints.push(`label~="${params.label}"`);
-      if (params.role) hints.push(`role="${params.role}"`);
-      return { success: false, reason: 'no_match', error: `No clickable element found for: ${hints.join(', ') || '<no targeting params>'}`, recovery: 'Try a different targeting strategy: text, label, href, or call readPage to see what is actually on screen.' };
+    // Check Set-of-Marks numeric grounding first (R1)
+    if (Number.isInteger(params.index) && params.index > 0 && window.__geElementIndexMap && window.__geElementIndexMap.has(params.index)) {
+      el = resolveGroundingTarget(params.index);
+      candidatesFound = 1;
     }
 
-    if (index >= elements.length) {
-      return { success: false, reason: 'index_out_of_range', error: `Index ${index} out of range (found ${elements.length} candidates)`, candidatesFound: elements.length };
+    // Fall back to multi-strategy candidate search if not found via SoM
+    if (!el) {
+      const elements = resolveClickCandidates(params);
+      if (!elements || elements.length === 0) {
+        const hints = [];
+        if (params.selector) hints.push(`selector="${params.selector}"`);
+        if (params.text) hints.push(`text~="${params.text}"`);
+        if (params.href) hints.push(`href~="${params.href}"`);
+        if (params.label) hints.push(`label~="${params.label}"`);
+        if (params.role) hints.push(`role="${params.role}"`);
+        if (params.index != null) hints.push(`index=${params.index}`);
+        return {
+          success: false,
+          reason: 'no_match',
+          error: `No clickable element found for: ${hints.join(', ') || '<no targeting params>'}`,
+          recovery: 'Try targeting by numeric index [N] from the accessibility tree, text, label, href, or call readPage to see what is actually on screen.'
+        };
+      }
+      const rawIdx = (typeof params.index === 'number' && !window.__geElementIndexMap?.has(params.index)) ? params.index : 0;
+      if (rawIdx >= elements.length) {
+        return { success: false, reason: 'index_out_of_range', error: `Index ${rawIdx} out of range (found ${elements.length} candidates)`, candidatesFound: elements.length };
+      }
+      el = elements[rawIdx];
+      candidatesFound = elements.length;
     }
 
-    const el = elements[index];
+    // Form validation pre-check guard: prevent clicking submit on invalid form (R4)
+    const isSubmit = el.type === 'submit' ||
+      (el.tagName === 'INPUT' && el.type === 'submit') ||
+      (el.tagName === 'BUTTON' && (el.type === 'submit' || !el.type) && el.closest('form'));
+
+    if (isSubmit && params.formValidationGuard !== false) {
+      const form = el.closest('form');
+      if (form && !form.noValidate && typeof form.checkValidity === 'function' && !form.checkValidity()) {
+        const invalidFields = Array.from(form.querySelectorAll('input, select, textarea'))
+          .filter(f => typeof f.checkValidity === 'function' && !f.checkValidity())
+          .map(f => ({
+            name: f.name || f.id || buildSelector(f),
+            type: f.type || f.tagName.toLowerCase(),
+            label: getInputLabel(f) || f.placeholder || f.name || '',
+            message: f.validationMessage || 'Missing or invalid value'
+          }));
+        return {
+          success: false,
+          reason: 'form_validation_failed',
+          error: `Form validation pre-check failed: ${invalidFields.length} required/invalid field(s) detected.`,
+          invalidFields,
+          formIndex: getElementFormIndex(el),
+          recovery: `Please fill all required/invalid fields before submitting: ${invalidFields.map(f => `"${f.label || f.name}" (${f.message})`).join(', ')}. Do not retry clicking submit until resolved.`
+        };
+      }
+    }
+
     // Only scroll if element is not already in viewport
     const _elR = el.getBoundingClientRect();
     const _elInVP = _elR.top >= 0 && _elR.left >= 0 &&
@@ -555,7 +1056,36 @@
     const domDelta = await awaitMutations(500);
     const afterUrl = location.href;
     const navigated = beforeUrl !== afterUrl;
-    const tookEffect = navigated || targetBlank || domDelta > 0;
+    let tookEffect = navigated || targetBlank || domDelta > 0;
+    let cdpFallbackUsed = false;
+
+    // Autonomous CDP Hardware Input Fallback (R5)
+    if (!tookEffect && params.cdpFallback !== false) {
+      try {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) {
+          const cx = Math.round(r.left + r.width / 2);
+          const cy = Math.round(r.top + r.height / 2);
+          const cdpResp = await new Promise((resolve) => {
+            try {
+              chrome.runtime.sendMessage({
+                type: 'ge-debugger-action',
+                action: 'clickAt',
+                params: { x: cx, y: cy }
+              }, resolve);
+            } catch (e) { resolve({ success: false, error: e.message }); }
+          });
+          if (cdpResp && cdpResp.success) {
+            const cdpDomDelta = await awaitMutations(500);
+            const cdpNavigated = location.href !== beforeUrl;
+            if (cdpNavigated || cdpDomDelta > 0) {
+              tookEffect = true;
+              cdpFallbackUsed = true;
+            }
+          }
+        }
+      } catch (cdpErr) { /* best effort */ }
+    }
 
     return {
       success: tookEffect,
@@ -565,13 +1095,16 @@
         text: (el.textContent || '').trim().substring(0, 100),
         selector: buildSelector(el),
         href: href || undefined,
-        candidatesFound: elements.length
+        candidatesFound,
+        cdpFallbackUsed: cdpFallbackUsed || undefined,
+        somIndexUsed: Number.isInteger(params.index) ? params.index : undefined
       },
       navigated,
       beforeUrl,
       afterUrl,
       openedNewTab: !!targetBlank,
       domChangedWithin500ms: domDelta,
+      cdpFallbackUsed,
       health,
       hint: targetBlank
         ? 'target=_blank — content opened in a NEW tab. Use switchTab to interact; current tab is unchanged.'
@@ -757,28 +1290,31 @@
   }
 
   async function executeType(params) {
-    // Multi-strategy input resolution. Same philosophy as resolveClickCandidates:
-    // try the explicit `selector` first (preserves prior behaviour), then
-    // cascade through `name` / `label` / `placeholder` so the LLM can target
-    // an input the way a human reads the form (label text, placeholder
-    // ghost text, or `name="email"` from page-state recall) without having
-    // to guess a selector. The cascade only fires when `selector` returns
-    // nothing — a matched-but-disabled / hidden input is a real failure
-    // and gets reported with its structured `reason` below.
-    const candidates = resolveTypeCandidates(params);
-    const el = candidates && candidates[params.index || 0];
+    let el = null;
+
+    // Check Set-of-Marks numeric grounding first (R1)
+    if (Number.isInteger(params.index) && params.index > 0 && window.__geElementIndexMap && window.__geElementIndexMap.has(params.index)) {
+      el = resolveGroundingTarget(params.index);
+    }
+
     if (!el) {
-      const tried = [];
-      if (params.selector)    tried.push(`selector="${params.selector}"`);
-      if (params.name)        tried.push(`name="${params.name}"`);
-      if (params.label)       tried.push(`label~="${params.label}"`);
-      if (params.placeholder) tried.push(`placeholder~="${params.placeholder}"`);
-      return {
-        success: false,
-        reason: 'no_match',
-        error: `Input not found for: ${tried.join(', ') || '<no targeting params>'}`,
-        recovery: 'Use readPage to list inputs and pick a name/label-based selector. You can also target by `label`, `name`, or `placeholder` directly — e.g. `{ "label": "Email" }` or `{ "placeholder": "Search..." }`.'
-      };
+      const candidates = resolveTypeCandidates(params);
+      const rawIdx = (typeof params.index === 'number' && !window.__geElementIndexMap?.has(params.index)) ? params.index : 0;
+      el = candidates && candidates[rawIdx];
+      if (!el) {
+        const tried = [];
+        if (params.selector)    tried.push(`selector="${params.selector}"`);
+        if (params.name)        tried.push(`name="${params.name}"`);
+        if (params.label)       tried.push(`label~="${params.label}"`);
+        if (params.placeholder) tried.push(`placeholder~="${params.placeholder}"`);
+        if (params.index != null) tried.push(`index=${params.index}`);
+        return {
+          success: false,
+          reason: 'no_match',
+          error: `Input not found for: ${tried.join(', ') || '<no targeting params>'}`,
+          recovery: 'Use readPage to list inputs and pick a name/label-based selector, or target by numeric index [N] from the accessibility tree.'
+        };
+      }
     }
     const tag = el.tagName;
     if (tag !== 'INPUT' && tag !== 'TEXTAREA' && !el.isContentEditable) {
@@ -815,19 +1351,55 @@
     } catch { try { el.focus(); } catch {} }
 
     const text = params.text || '';
-    if (el.isContentEditable) {
-      if (params.clear) el.textContent = '';
-      el.textContent = (params.clear ? text : (el.textContent || '') + text);
-    } else {
-      const newValue = params.clear ? text : (el.value || '') + text;
-      // Fire beforeinput so React/Vue/lit-element listeners can intercept.
-      try { el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, data: text, inputType: 'insertText' })); } catch {}
-      setNativeValue(el, newValue);
+    const minCadence = Number.isFinite(params.cadenceMin) ? params.cadenceMin : 30;
+    const maxCadence = Number.isFinite(params.cadenceMax) ? params.cadenceMax : 90;
+    const useStealth = params.stealth !== false;
+
+    if (params.clear) {
+      if (el.isContentEditable) el.textContent = '';
+      else setNativeValue(el, '');
     }
-    el.dispatchEvent(new Event('input', { bubbles: true }));
+
+    if (useStealth && text.length > 0) {
+      // Humanized Anti-Bot Stealth typing cadence (R6)
+      if (el.isContentEditable) {
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i];
+          el.dispatchEvent(new KeyboardEvent('keydown', { key: ch, code: `Key${ch.toUpperCase()}`, bubbles: true }));
+          el.dispatchEvent(new KeyboardEvent('keypress', { key: ch, bubbles: true }));
+          el.textContent = (el.textContent || '') + ch;
+          el.dispatchEvent(new InputEvent('input', { data: ch, inputType: 'insertText', bubbles: true }));
+          el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, code: `Key${ch.toUpperCase()}`, bubbles: true }));
+          const delay = Math.floor(Math.random() * (maxCadence - minCadence + 1)) + minCadence;
+          await new Promise(r => setTimeout(r, delay));
+        }
+      } else {
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i];
+          el.dispatchEvent(new KeyboardEvent('keydown', { key: ch, code: `Key${ch.toUpperCase()}`, bubbles: true }));
+          el.dispatchEvent(new KeyboardEvent('keypress', { key: ch, bubbles: true }));
+          try { el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, data: ch, inputType: 'insertText' })); } catch {}
+          setNativeValue(el, (el.value || '') + ch);
+          el.dispatchEvent(new Event('input', { bubbles: true }));
+          el.dispatchEvent(new KeyboardEvent('keyup', { key: ch, code: `Key${ch.toUpperCase()}`, bubbles: true }));
+          const delay = Math.floor(Math.random() * (maxCadence - minCadence + 1)) + minCadence;
+          await new Promise(r => setTimeout(r, delay));
+        }
+      }
+    } else {
+      if (el.isContentEditable) {
+        el.textContent = (params.clear ? text : (el.textContent || '') + text);
+      } else {
+        const newValue = params.clear ? text : (el.value || '') + text;
+        try { el.dispatchEvent(new InputEvent('beforeinput', { bubbles: true, cancelable: true, data: text, inputType: 'insertText' })); } catch {}
+        setNativeValue(el, newValue);
+      }
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
     el.dispatchEvent(new Event('change', { bubbles: true }));
 
     if (params.pressEnter) {
+      await new Promise(r => setTimeout(r, 40 + Math.random() * 40));
       el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
       el.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, bubbles: true }));
       const form = el.closest && el.closest('form');
@@ -843,6 +1415,8 @@
       into: buildSelector(el),
       verified,
       currentValue: finalValue.substring(0, 200),
+      stealthUsed: useStealth,
+      somIndexUsed: Number.isInteger(params.index) ? params.index : undefined,
       recovery: verified ? undefined : 'The element rejected the value (custom input mask, controlled component blocking). Try clicking the input first, then pressKey for each character, OR use the keyboard simulation pattern.'
     };
   }
@@ -993,10 +1567,16 @@
   }
 
   function executeSelect(params) {
-    const els = findElements(params.selector);
-    const el = els && els[params.index || 0];
+    let el = null;
+    if (Number.isInteger(params.index) && params.index > 0 && window.__geElementIndexMap && window.__geElementIndexMap.has(params.index)) {
+      el = resolveGroundingTarget(params.index);
+    }
+    if (!el && params.selector) {
+      const els = findElements(params.selector);
+      el = els && els[params.index || 0];
+    }
     if (!el || el.tagName !== 'SELECT') {
-      return { success: false, reason: 'no_match', error: `Select element not found: ${params.selector}` };
+      return { success: false, reason: 'no_match', error: `Select element not found: ${params.selector || `index ${params.index}`}` };
     }
 
     // Try matching by value first, then by text
@@ -1015,7 +1595,7 @@
 
     el.dispatchEvent(new Event('change', { bubbles: true }));
     el.dispatchEvent(new Event('input', { bubbles: true }));
-    return { success: true, selected: params.value };
+    return { success: true, selected: params.value, somIndexUsed: Number.isInteger(params.index) ? params.index : undefined };
   }
 
   function executePressKey(params) {
@@ -1037,11 +1617,17 @@
   }
 
   function executeHover(params) {
-    const elements = findElements(params.selector, params.text);
-    if (!elements || elements.length === 0) {
-      return { success: false, error: `No element found for: ${params.selector}` };
+    let el = null;
+    if (Number.isInteger(params.index) && params.index > 0 && window.__geElementIndexMap && window.__geElementIndexMap.has(params.index)) {
+      el = resolveGroundingTarget(params.index);
     }
-    const el = elements[params.index || 0];
+    if (!el) {
+      const elements = findElements(params.selector, params.text);
+      if (!elements || elements.length === 0) {
+        return { success: false, error: `No element found for: ${params.selector || `index ${params.index}`}` };
+      }
+      el = elements[params.index || 0];
+    }
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
     const rect = el.getBoundingClientRect();
@@ -1051,7 +1637,7 @@
     el.dispatchEvent(new MouseEvent('mouseover', opts));
     el.dispatchEvent(new MouseEvent('mouseenter', opts));
     el.dispatchEvent(new MouseEvent('mousemove', opts));
-    return { success: true, hovered: buildSelector(el) };
+    return { success: true, hovered: buildSelector(el), somIndexUsed: Number.isInteger(params.index) ? params.index : undefined };
   }
 
   // Upload a file into a file input. Source priority:
@@ -1558,6 +2144,18 @@
             break;
           case 'readClipboard':
             result = await executeReadClipboard(params);
+            break;
+          case 'renderSoMBadges':
+            result = renderSoMBadges(params);
+            break;
+          case 'removeSoMBadges':
+            result = removeSoMBadges();
+            break;
+          case 'dismissOverlays':
+            result = await dismissOverlays(params);
+            break;
+          case 'validateExpectations':
+            result = await validateExpectations(params);
             break;
           default:
             // Structured failure: the agent loop's safety net SHOULD have

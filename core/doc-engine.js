@@ -79,9 +79,60 @@ const DocEngine = (() => {
   // ============================================
 
   async function fetchBytes(url) {
-    const resp = await fetch(url, { credentials: 'include', method: 'GET' });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-    return await resp.arrayBuffer();
+    if (!url) throw new Error('fetchBytes: missing URL');
+
+    // 1. If it's a file:/// URL or local file path, attempt resolution via chrome.downloads
+    if (/^file:\/\//i.test(url) || /^[a-zA-Z]:[/\\]/i.test(url)) {
+      const filename = url.replace(/^file:\/\/\/?/i, '').split(/[/\\]/).pop();
+      if (typeof chrome !== 'undefined' && chrome.downloads && chrome.downloads.search) {
+        try {
+          const items = await new Promise(res => {
+            chrome.downloads.search({ filenameRegex: filename ? filename.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : undefined, limit: 10 }, res);
+          });
+          const match = items && items.find(it => it.state === 'complete' && it.url && /^https?:\/\//i.test(it.url));
+          if (match && match.url) {
+            console.log(`[DocEngine] Resolved local file "${filename}" to download source: ${match.url}`);
+            return await fetchBytes(match.url);
+          }
+        } catch (dlErr) {
+          console.warn('[DocEngine] Download resolution failed:', dlErr);
+        }
+      }
+      throw new Error(`Cannot load local file "${url}" directly in Chrome extension sandbox. Please use the original http(s) URL or download link.`);
+    }
+
+    // 2. Direct fetch attempt
+    try {
+      const resp = await fetch(url, { credentials: 'include', method: 'GET' });
+      if (resp.ok) return await resp.arrayBuffer();
+    } catch (directErr) {
+      console.warn(`[DocEngine] Direct fetch failed for ${url} (${directErr.message}), trying background proxy...`);
+    }
+
+    // 3. Background service worker proxy fallback (bypasses CORS restrictions)
+    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
+      try {
+        const bgResp = await new Promise(res => {
+          chrome.runtime.sendMessage({ type: 'noFetchBinary', url }, res);
+        });
+        if (bgResp && bgResp.success && bgResp.base64) {
+          const binStr = atob(bgResp.base64);
+          const len = binStr.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binStr.charCodeAt(i);
+          }
+          return bytes.buffer;
+        }
+        if (bgResp && !bgResp.success) {
+          throw new Error(bgResp.error || 'Background fetch failed');
+        }
+      } catch (bgErr) {
+        console.warn('[DocEngine] Background fetch proxy failed:', bgErr);
+      }
+    }
+
+    throw new Error(`Failed to load file from ${url}`);
   }
 
   // ============================================
@@ -137,27 +188,66 @@ const DocEngine = (() => {
       const doc = await PDFDocument.load(buf, { ignoreEncryption: true, throwOnInvalidObject: false });
       const pages = doc.getPages();
 
+      // Embed standard font for form appearance rendering and text overlays
+      let helv = null;
+      try { helv = await doc.embedFont(StandardFonts.Helvetica); } catch {}
+
       const filledFields = [];
       const skippedFields = [];
+      const drawnOverlays = [];
+
+      // Consolidate form fields from edits.formFields, edits.fields
+      const formFieldsMap = {};
+      if (edits.formFields && typeof edits.formFields === 'object') {
+        Object.assign(formFieldsMap, edits.formFields);
+      }
+      if (edits.fields && typeof edits.fields === 'object') {
+        Object.assign(formFieldsMap, edits.fields);
+      }
 
       // ---- AcroForm fill ----
-      if (edits.formFields && typeof edits.formFields === 'object') {
-        let form;
-        try { form = doc.getForm(); } catch { form = null; }
+      let form = null;
+      try { form = doc.getForm(); } catch { form = null; }
+
+      if (Object.keys(formFieldsMap).length > 0) {
         if (!form) {
-          for (const k of Object.keys(edits.formFields)) skippedFields.push({ field: k, reason: 'no_form' });
+          for (const k of Object.keys(formFieldsMap)) skippedFields.push({ field: k, reason: 'no_form' });
         } else {
-          for (const [name, raw] of Object.entries(edits.formFields)) {
+          for (const [name, raw] of Object.entries(formFieldsMap)) {
             try {
               let f = null;
               try { f = form.getField(name); } catch { f = null; }
-              if (!f) { skippedFields.push({ field: name, reason: 'not_found' }); continue; }
+              // Case-insensitive / normalized fallback search
+              if (!f) {
+                const normName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+                for (const candidate of form.getFields()) {
+                  const cName = (candidate.getName() || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+                  if (cName === normName || cName.includes(normName) || normName.includes(cName)) {
+                    f = candidate;
+                    break;
+                  }
+                }
+              }
+
+              if (!f) {
+                skippedFields.push({ field: name, reason: 'not_found' });
+                continue;
+              }
+
               const ctor = f.constructor && f.constructor.name;
-              if (/TextField/i.test(ctor))       f.setText(String(raw == null ? '' : raw));
-              else if (/CheckBox/i.test(ctor))   { if (raw === true || raw === 'on' || raw === 'true' || raw === 1) f.check(); else f.uncheck(); }
-              else if (/RadioGroup/i.test(ctor)) f.select(String(raw));
-              else if (/Dropdown|OptionList/i.test(ctor)) f.select(String(raw));
-              else { skippedFields.push({ field: name, reason: `unsupported_type:${ctor}` }); continue; }
+              if (/TextField/i.test(ctor)) {
+                f.setText(String(raw == null ? '' : raw));
+              } else if (/CheckBox/i.test(ctor)) {
+                if (raw === true || raw === 'on' || raw === 'true' || raw === 1 || raw === 'yes') f.check();
+                else f.uncheck();
+              } else if (/RadioGroup/i.test(ctor)) {
+                f.select(String(raw));
+              } else if (/Dropdown|OptionList/i.test(ctor)) {
+                f.select(String(raw));
+              } else {
+                skippedFields.push({ field: name, reason: `unsupported_type:${ctor}` });
+                continue;
+              }
               filledFields.push({ field: name, type: ctor, value: String(raw).slice(0, 200) });
             } catch (e) {
               skippedFields.push({ field: name, reason: 'fill_failed', error: e.message });
@@ -167,23 +257,117 @@ const DocEngine = (() => {
         }
       }
 
+      // ---- Process fills / targetFills array ----
+      const fillsArray = Array.isArray(edits.fills) ? edits.fills : (Array.isArray(edits.targetFills) ? edits.targetFills : []);
+      for (const fill of fillsArray) {
+        if (!fill) continue;
+        const targetName = fill.name || fill.targetId || fill.field || '';
+        const targetVal = fill.value != null ? fill.value : fill.text;
+        if (targetVal == null) continue;
+
+        let handled = false;
+        if (form && targetName) {
+          try {
+            let f = null;
+            try { f = form.getField(targetName); } catch {}
+            if (f) {
+              const ctor = f.constructor && f.constructor.name;
+              if (/TextField/i.test(ctor)) f.setText(String(targetVal));
+              else if (/CheckBox/i.test(ctor)) {
+                if (targetVal === true || targetVal === 'on' || targetVal === 'true' || targetVal === 1) f.check();
+                else f.uncheck();
+              }
+              filledFields.push({ field: targetName, type: ctor || 'text', value: String(targetVal).slice(0, 200) });
+              handled = true;
+            }
+          } catch {}
+        }
+
+        // If not handled by AcroForm, draw as overlay if coordinates are present
+        if (!handled && (fill.x != null || fill.y != null)) {
+          const pn = parseInt(fill.page || fill.pageNumber || 1, 10);
+          if (pn >= 1 && pn <= pages.length) {
+            const page = pages[pn - 1];
+            const fontSize = Math.min(Math.max(Number(fill.fontSize) || 11, 4), 72);
+            const text = String(targetVal).slice(0, 1000);
+            if (text && helv) {
+              const pw = page.getWidth(), ph = page.getHeight();
+              let x = 0, y = 0;
+              // X coordinate
+              if (Number(fill.x) >= 0 && Number(fill.x) <= 1) {
+                x = Number(fill.x) * pw;
+              } else {
+                x = Number(fill.x) || 50;
+              }
+              // Y coordinate (from top-left in web standards)
+              if (Number(fill.y) >= 0 && Number(fill.y) <= 1) {
+                y = ph - (Number(fill.y) * ph) - fontSize;
+              } else if (fill.origin === 'bottom-left') {
+                y = Number(fill.y) || 0;
+              } else {
+                y = Math.max(0, ph - (Number(fill.y) || 0) - fontSize);
+              }
+              let color = rgb(0, 0, 0);
+              page.drawText(text, { x, y, size: fontSize, font: helv, color });
+              drawnOverlays.push({ page: pn, target: targetName, x, y, fontSize, chars: text.length });
+              handled = true;
+            }
+          }
+        }
+      }
+
       // ---- Text overlays ----
-      const drawnOverlays = [];
       if (Array.isArray(edits.overlays) && edits.overlays.length) {
-        const helv = await doc.embedFont(StandardFonts.Helvetica);
+        if (!helv) helv = await doc.embedFont(StandardFonts.Helvetica);
         for (const o of edits.overlays) {
-          const pn = parseInt(o.page, 10);
+          const pn = parseInt(o.page || o.pageNumber || 1, 10);
           if (!pn || pn < 1 || pn > pages.length) continue;
           const page = pages[pn - 1];
           const fontSize = Math.min(Math.max(Number(o.fontSize) || 12, 4), 72);
-          const text = String(o.text || '').slice(0, 1000);
+          const text = String(o.text || o.value || '').slice(0, 1000);
           if (!text) continue;
           const pw = page.getWidth(), ph = page.getHeight();
-          const x = (o.x > 0 && o.x <= 1) ? o.x * pw : Number(o.x) || 0;
-          const y = (o.y > 0 && o.y <= 1) ? (1 - o.y) * ph : Number(o.y) || 0;
+          
+          let x = 0;
+          if (Number(o.x) >= 0 && Number(o.x) <= 1) {
+            x = Number(o.x) * pw;
+          } else {
+            x = Number(o.x) || 50;
+          }
+
+          let y = 0;
+          if (Number(o.y) >= 0 && Number(o.y) <= 1) {
+            // Normalized 0-1 from top-left: position text baseline nicely inside the box
+            y = ph - (Number(o.y) * ph) - fontSize;
+          } else if (o.origin === 'bottom-left') {
+            y = Number(o.y) || 0;
+          } else {
+            // Point offset from top-left
+            y = Math.max(0, ph - (Number(o.y) || 0) - fontSize);
+          }
+
           let color;
-          try { const c = o.color || [0,0,0]; color = Array.isArray(c) && c.length===3 ? rgb(c[0],c[1],c[2]) : rgb(0,0,0); }
-          catch { color = rgb(0,0,0); }
+          try {
+            const c = o.color || [0, 0, 0];
+            if (typeof c === 'string') {
+              const hex = c.replace('#', '');
+              if (hex.length === 6) {
+                color = rgb(parseInt(hex.slice(0, 2), 16) / 255, parseInt(hex.slice(2, 4), 16) / 255, parseInt(hex.slice(4, 6), 16) / 255);
+              } else {
+                color = rgb(0, 0, 0);
+              }
+            } else if (Array.isArray(c) && c.length === 3) {
+              const r = c[0] > 1 ? c[0] / 255 : c[0];
+              const g = c[1] > 1 ? c[1] / 255 : c[1];
+              const b = c[2] > 1 ? c[2] / 255 : c[2];
+              color = rgb(r, g, b);
+            } else {
+              color = rgb(0, 0, 0);
+            }
+          } catch {
+            color = rgb(0, 0, 0);
+          }
+
           page.drawText(text, { x, y, size: fontSize, font: helv, color });
           drawnOverlays.push({ page: pn, x, y, fontSize, chars: text.length });
         }
@@ -760,21 +944,112 @@ const DocEngine = (() => {
     try {
       const pres = new PptxGenJS();
       if (data.title) pres.title = data.title;
+      if (data.author) pres.author = data.author;
+      if (data.subject) pres.subject = data.subject;
+
       const slides = Array.isArray(data.slides) ? data.slides : [];
       for (const s of slides) {
         const slide = pres.addSlide();
+        if (s.bgColor || s.background) {
+          const bg = (s.bgColor || s.background || '').replace('#', '');
+          if (bg) slide.background = { color: bg };
+        }
+
+        let curY = 0.6;
+        // Slide title
+        if (s.title || s.heading) {
+          slide.addText(String(s.title || s.heading), {
+            x: 0.8,
+            y: curY,
+            w: '85%',
+            h: 0.8,
+            fontSize: s.titleFontSize || 26,
+            bold: true,
+            color: (s.titleColor || '1E293B').replace('#', '')
+          });
+          curY += 0.9;
+        }
+
+        // Slide subtitle
+        if (s.subtitle) {
+          slide.addText(String(s.subtitle), {
+            x: 0.8,
+            y: curY,
+            w: '85%',
+            h: 0.5,
+            fontSize: s.subtitleFontSize || 16,
+            color: (s.subtitleColor || '64748B').replace('#', '')
+          });
+          curY += 0.6;
+        }
+
+        // Bullets / list items
+        if (Array.isArray(s.bullets) && s.bullets.length > 0) {
+          const bulletTexts = s.bullets.map(b => ({
+            text: String(typeof b === 'object' ? (b.text || '') : b),
+            options: { bullet: true, fontSize: 14, color: '334155', breakLine: true }
+          }));
+          slide.addText(bulletTexts, {
+            x: 0.8,
+            y: curY,
+            w: '85%',
+            h: Math.min(3.5, s.bullets.length * 0.45)
+          });
+          curY += Math.min(3.5, s.bullets.length * 0.45) + 0.2;
+        }
+
+        // Content / paragraphs
+        if (s.content || s.text || s.paragraph) {
+          const bodyText = String(s.content || s.text || s.paragraph);
+          slide.addText(bodyText, {
+            x: 0.8,
+            y: curY,
+            w: '85%',
+            fontSize: 14,
+            color: '334155'
+          });
+          curY += 1.0;
+        }
+
+        // Custom items array
         for (const item of (s.items || [])) {
-          if (item.type === 'text') {
-            slide.addText(String(item.text || ''), { x: item.x || 1, y: item.y || 1, w: item.w || '80%', fontSize: item.fontSize || 14, color: item.color || '000000', bold: !!item.bold });
+          if (!item) continue;
+          if (item.type === 'text' || (!item.type && item.text)) {
+            slide.addText(String(item.text || ''), {
+              x: item.x != null ? item.x : 0.8,
+              y: item.y != null ? item.y : curY,
+              w: item.w || '85%',
+              fontSize: item.fontSize || 14,
+              color: (item.color || '334155').replace('#', ''),
+              bold: !!item.bold,
+              italic: !!item.italic
+            });
           } else if (item.type === 'table') {
-            slide.addTable(item.rows || [], { x: item.x || 1, y: item.y || 1, w: item.w || '80%' });
+            slide.addTable(item.rows || [], {
+              x: item.x != null ? item.x : 0.8,
+              y: item.y != null ? item.y : curY,
+              w: item.w || '85%'
+            });
+          } else if (item.type === 'image' && (item.data || item.path)) {
+            slide.addImage({
+              data: item.data,
+              path: item.path,
+              x: item.x != null ? item.x : 0.8,
+              y: item.y != null ? item.y : curY,
+              w: item.w || 3,
+              h: item.h || 2
+            });
           }
         }
       }
-      if (!slides.length) pres.addSlide().addText('Blank Presentation', { x: 1, y: 1, fontSize: 24 });
-      
+
+      if (!slides.length) {
+        const slide = pres.addSlide();
+        slide.addText(data.title || 'Presentation', { x: 1, y: 2, w: '80%', fontSize: 32, bold: true, color: '1E293B' });
+      }
+
       const out = await pres.write({ outputType: 'arraybuffer' });
-      return { ok: true, pptxBytes: new Uint8Array(out) };
+      return { ok: true, pptxBytes: new Uint8Array(out), slideCount: Math.max(1, slides.length) };
     } catch (e) {
       return { ok: false, error: e.message };
     }

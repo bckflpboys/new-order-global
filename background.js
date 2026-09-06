@@ -141,9 +141,9 @@ async function registerContentScripts() {
 
 async function _doRegisterContentScripts() {
     try {
-        // Unregister ALL content scripts first
+        // Unregister YouTube content scripts first
         try {
-            await chrome.scripting.unregisterContentScripts();
+            await chrome.scripting.unregisterContentScripts({ ids: [CONTENT_CSS_ID, CONTENT_SCRIPT_ID] });
         } catch (e) {
             // Nothing registered — fine
         }
@@ -239,7 +239,11 @@ async function injectCustomToolsIntoTab(tabId, url) {
                                 (document.head || document.documentElement).appendChild(script);
                                 script.remove();
                             } catch (e) {
-                                console.error('[New Order] Tool execution error:', e);
+                                try {
+                                    (0, eval)(code);
+                                } catch (e2) {
+                                    console.error('[New Order] Tool execution error:', e, e2);
+                                }
                             }
                         },
                         args: [wrappedCode],
@@ -355,7 +359,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
         await registerContentScripts();
         await injectIntoExistingTabs();
     } else {
-        try { await chrome.scripting.unregisterContentScripts(); } catch {}
+        try { await chrome.scripting.unregisterContentScripts({ ids: [CONTENT_CSS_ID, CONTENT_SCRIPT_ID] }); } catch {}
     }
 });
 
@@ -472,6 +476,22 @@ async function isYtToolkitEnabled() {
     });
 }
 
+// Comprehensive check for URLs where content scripts / executeScript cannot run
+function isRestrictedUrl(url) {
+    if (!url || typeof url !== 'string') return true;
+    const u = url.trim().toLowerCase();
+    // Non-http(s) schemes: chrome://, chrome-extension://, devtools://, edge://, brave://, opera://, about:, data:, view-source:, blob:
+    if (!/^https?:\/\//i.test(u)) return true;
+    // Chrome Web Store and browser extension catalogs (Chrome strictly disallows extension scripting on these)
+    if (u.includes('chromewebstore.google.com') ||
+        u.includes('chrome.google.com/webstore') ||
+        u.includes('microsoftedge.microsoft.com/addons') ||
+        u.includes('addons.mozilla.org')) {
+        return true;
+    }
+    return false;
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // --- YouTube Toolkit enable/disable from popup ---
     if (message.type === 'ytToolkitSetEnabled') {
@@ -484,7 +504,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     await injectIntoExistingTabs();
                 } else {
                     // Stop future tabs from auto-injecting.
-                    try { await chrome.scripting.unregisterContentScripts(); } catch {}
+                    try { await chrome.scripting.unregisterContentScripts({ ids: [CONTENT_CSS_ID, CONTENT_SCRIPT_ID] }); } catch {}
                     // Tell any open YouTube tabs to tear down their UI.
                     try {
                         const tabs = await chrome.tabs.query({ url: 'https://www.youtube.com/*' });
@@ -665,6 +685,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    if (message.type === 'noFetchBinary') {
+        (async () => {
+            try {
+                const resp = await fetch(message.url, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+                        'Accept': 'application/pdf,application/octet-stream,*/*'
+                    }
+                });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+                const buf = await resp.arrayBuffer();
+                const bytes = new Uint8Array(buf);
+                let binary = '';
+                const len = bytes.byteLength;
+                const chunkSz = 0x8000;
+                for (let i = 0; i < len; i += chunkSz) {
+                    binary += String.fromCharCode.apply(null, bytes.subarray(i, Math.min(i + chunkSz, len)));
+                }
+                const base64 = btoa(binary);
+                sendResponse({ success: true, base64, contentType: resp.headers.get('content-type') });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'noLookupDownload') {
+        (async () => {
+            try {
+                const query = message.filename || message.query || '';
+                const items = await new Promise((res) => {
+                    chrome.downloads.search({ query: query ? [query] : undefined, limit: 10, orderBy: ['-startTime'] }, res);
+                });
+                sendResponse({ success: true, items: items || [] });
+            } catch (err) {
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
     if (message.type === 'noToggleTool') {
         (async () => {
             try {
@@ -750,6 +812,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Global Executive — Agent Messages
     // ============================================
 
+
     // Execute an action inside a tab's content script
     if (message.type === 'ge-execute-in-tab') {
         (async () => {
@@ -764,9 +827,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 // open http(s) tab. If nothing works, surface a directive
                 // error the LLM can act on (openTab / goto).
                 async function resolveFallbackTabId() {
-                    // Only real http(s) tabs are valid agent work targets.
-                    // Never pick chrome-extension://, devtools://, about:, etc.
-                    const isUsable = (url) => /^https?:\/\//i.test(url || '');
+                    // Only real, unrestricted http(s) tabs are valid agent work targets.
+                    // Never pick chrome-extension://, devtools://, about:, Chrome Web Store, etc.
+                    const isUsable = (url) => !isRestrictedUrl(url);
                     try {
                         const [active] = await chrome.tabs.query({ active: true, currentWindow: true });
                         if (active && typeof active.id === 'number' && isUsable(active.url)) return active.id;
@@ -795,26 +858,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         return;
                     }
                 } else {
-                    // Validate the supplied tabId is still alive AND is a real web page.
-                    // If it's an extension page (agent.html, popup.html, etc.),
+                    // Validate the supplied tabId is still alive AND is an unrestricted web page.
+                    // If it's an extension page, Chrome Web Store, internal page, etc.,
                     // the agent must not operate on it — redirect to a real tab.
                     let alive = false;
-                    let isExtensionPage = false;
+                    let isRestricted = false;
                     try {
                         const t = await chrome.tabs.get(tabId);
                         alive = true;
-                        isExtensionPage = !(/^https?:\/\//i.test(t.url || ''));
+                        isRestricted = isRestrictedUrl(t.url);
                     } catch { alive = false; }
 
-                    if (!alive || isExtensionPage) {
-                        const reason = !alive ? 'is dead' : 'is an extension/internal page — agent must not operate on it';
+                    if (!alive || isRestricted) {
+                        const reason = !alive ? 'is dead' : 'is a restricted/extension/webstore page — content scripts cannot run on it';
                         const fallback = await resolveFallbackTabId();
                         if (fallback) {
                             console.log(`[bg] ge-execute-in-tab: supplied tabId ${tabId} ${reason}; auto-recovered to`, fallback);
                             tabId = fallback;
                             tabIdRecovered = true;
                         } else {
-                            sendResponse({ success: false, error: `Tab ${tabId} no longer exists and no other http(s) tab is open. Use \`openTab\` with a url to create one, then retry.` });
+                            sendResponse({ success: false, error: `Tab ${tabId} is not accessible (restricted/closed). Use \`openTab\` or \`goto\` with a web url to continue.` });
                             return;
                         }
                     }
@@ -857,6 +920,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     sendResponse({ success: true, result });
                     return;
                 }
+                if (action === 'useTool') {
+                    const toolId = params?.toolId || params?.id;
+                    const toolName = params?.toolName || params?.name;
+                    try {
+                        const tools = await ToolManager.getInstalledTools();
+                        const tool = tools.find(t => (toolId && (t.id === toolId || t._id === toolId)) || (toolName && String(t.name || '').toLowerCase() === String(toolName).toLowerCase()));
+                        if (!tool) {
+                            sendResponse({ success: false, error: `useTool: tool "${toolId || toolName}" not found in installed tools.` });
+                            return;
+                        }
+                        await ToolManager.injectToolIntoTab(tabId, tool);
+                        sendResponse({ success: true, result: { toolId: tool.id, toolName: tool.name, note: `Tool "${tool.name}" injected into tab ${tabId}.` } });
+                        return;
+                    } catch (e) {
+                        sendResponse({ success: false, error: `useTool failed: ${e.message}` });
+                        return;
+                    }
+                }
 
                 // Ensure agent runtime is injected
                 await ensureAgentRuntime(tabId);
@@ -871,6 +952,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse(result || { success: false, error: 'No response from tab' });
             } catch (err) {
                 console.error('[Global Executive] Execute error:', err);
+                sendResponse({ success: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+
+    // Debugger action proxy (allows content scripts and agent panel to run CDP actions)
+    if (message.type === 'ge-debugger-action') {
+        (async () => {
+            try {
+                const tabId = message.tabId || sender.tab?.id;
+                if (!tabId) { sendResponse({ success: false, error: 'No tabId available for debugger action' }); return; }
+                const result = await runDebuggerAction(tabId, message.action, message.params || {});
+                sendResponse({ success: true, result });
+            } catch (err) {
                 sendResponse({ success: false, error: err.message });
             }
         })();
@@ -1328,11 +1424,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     // Capture visible tab as screenshot (returns base64 PNG data URL)
     if (message.type === 'ge-screenshot') {
         (async () => {
+            const tabId = message.tabId;
+            const withBadges = message.withBadges !== false;
             try {
-                const tab = await chrome.tabs.get(message.tabId);
+                const tab = await chrome.tabs.get(tabId);
+                // Render SoM visual badges if requested for vision models
+                if (withBadges && !isRestrictedUrl(tab.url)) {
+                    try {
+                        await sendMessageToTabWithRetry(tabId, { type: 'ge-action', action: 'renderSoMBadges', params: {} });
+                        await new Promise(r => setTimeout(r, 45));
+                    } catch {}
+                }
                 const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
+                // Clean up visual badges immediately
+                if (withBadges && !isRestrictedUrl(tab.url)) {
+                    try {
+                        await sendMessageToTabWithRetry(tabId, { type: 'ge-action', action: 'removeSoMBadges', params: {} });
+                    } catch {}
+                }
                 sendResponse({ success: true, dataUrl, url: tab.url, title: tab.title });
             } catch (err) {
+                try {
+                    await sendMessageToTabWithRetry(tabId, { type: 'ge-action', action: 'removeSoMBadges', params: {} });
+                } catch {}
                 sendResponse({ success: false, error: err.message });
             }
         })();
@@ -1528,11 +1642,10 @@ async function ensureAgentRuntime(tabId) {
 
     try {
         // Check tab is a real web page we can inject into.
-        // Block ALL non-http(s) schemes: chrome://, chrome-extension://,
-        // devtools://, edge://, about:, data:, etc.
+        // Block ALL restricted schemes and domains (Chrome Web Store, extension pages, internal schemes)
         const tab = await chrome.tabs.get(tabId);
-        if (!tab.url || !/^https?:\/\//i.test(tab.url)) {
-            throw new Error(`Cannot inject agent runtime into ${tab.url || '(no url)'}`);
+        if (isRestrictedUrl(tab.url)) {
+            throw new Error(`Cannot inject agent runtime into restricted page: ${tab.url || '(no url)'}. Navigate or switch to a real web page first.`);
         }
     } catch (e) {
         throw new Error(`Tab ${tabId} not accessible: ${e.message}`);

@@ -3381,3 +3381,7 @@ body.autopilot-mode .agent-app {
   color: var(--on-surface-variant, #434653);
 }
 
+.voxcode-footer-link:hover {
+  color: var(--primary) !important;
+}
+

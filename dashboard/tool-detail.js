@@ -476,6 +476,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     dashboardBlobUrl = URL.createObjectURL(new Blob([modifiedHTML], { type: 'text/html' }));
 
     dashboardIframe = document.createElement('iframe');
+    dashboardIframe.sandbox = 'allow-scripts';
     dashboardIframe.style.cssText = 'width:100%;min-height:520px;border:none;display:block;border-radius:0 0 10px 10px;';
     dashboardIframe.src = dashboardBlobUrl;
 
@@ -511,18 +512,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Listen for messages from the dashboard iframe
   // ============================================
   window.addEventListener('message', async (event) => {
-    // Accept messages from our dashboard iframe
-    // Use relaxed check: if we have a dashboardIframe, accept messages that look like dashboard commands
-    if (!dashboardIframe) return;
-    
-    // Try to match event.source, but also accept blob: origins and null origins
-    // (blob: URLs from our dashboard, or srcdoc fallback)
-    const isFromIframe = (event.source === dashboardIframe.contentWindow) || 
-                         (event.source === null) ||
-                         (event.origin === 'null') ||
-                         (event.origin === '') ||
-                         (event.origin && event.origin.startsWith('blob:'));
-    if (!isFromIframe) return;
+    // Strictly accept messages only from our dashboard iframe
+    if (!dashboardIframe || !dashboardIframe.contentWindow) return;
+    if (event.source !== dashboardIframe.contentWindow) return;
 
     const msg = event.data;
     if (!msg || !msg.type) return;

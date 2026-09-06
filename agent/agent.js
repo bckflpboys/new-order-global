@@ -919,6 +919,59 @@
   // inspecting, creating. Includes download button and operation stats.
   // ============================================
   function renderDocumentCard(step, doc) {
+    if (typeof PdfSandbox !== 'undefined') {
+      const fieldList = Array.isArray(doc.fields) ? doc.fields : [];
+      const sandbox = PdfSandbox.create(stepLog, {
+        filename: doc.filename || 'document.pdf',
+        pageCount: doc.pageCount || 1,
+        fields: fieldList,
+        docType: doc.docType || 'pdf'
+      });
+
+      const actionMap = {
+        editPdf: 'Edited',
+        viewPdfPages: 'Inspected',
+        pdfPages: 'Analyzed'
+      };
+      const label = actionMap[doc.action] || 'Processed';
+
+      if (doc.action === 'pdfPages') {
+        sandbox.setStatus('Inspected');
+        if (fieldList.length) {
+          sandbox.setProgress(fieldList.length, fieldList.length);
+        }
+        if (doc.signedUrl) {
+          sandbox.showResultUrl(doc.signedUrl, doc.filename, 'Analyzed', doc.size);
+        }
+      } else if (doc.action === 'editPdf') {
+        const total = (doc.filledFields || 0) + (doc.skippedFields || 0) || (fieldList.length || 1);
+        sandbox.setProgress(doc.filledFields || total, total);
+        if (doc.signedUrl) {
+          sandbox.showResultUrl(doc.signedUrl, doc.filename, 'Edited', doc.size);
+        }
+      } else if (doc.action === 'viewPdfPages') {
+        sandbox.setStatus('Inspected');
+        if (doc.signedUrl) {
+          sandbox.showResultUrl(doc.signedUrl, doc.filename, 'Inspected', doc.size);
+        }
+      } else {
+        if (doc.signedUrl) {
+          sandbox.showResultUrl(doc.signedUrl, doc.filename, label, doc.size);
+        }
+      }
+
+      const statusText = step.params?.text || '';
+      if (statusText) {
+        const descEl = document.createElement('div');
+        descEl.className = 'psb-doc-summary';
+        descEl.style.cssText = 'font-size: 11px; color: var(--on-surface-muted, #888); margin: 6px 12px 10px; line-height: 1.4;';
+        sandbox.card.appendChild(descEl);
+        streamMarkdownInto(descEl, statusText);
+      }
+      scrollToBottom();
+      return;
+    }
+
     const card = document.createElement('div');
     card.className = 'ge-doc-card';
 
@@ -3238,30 +3291,48 @@
     // The caller attaches the returned `note` to the action result so the
     // server surfaces it to the LLM on the next /step call (prevents the
     // model from blindly re-issuing switchTab / goto against a dead id).
+    function isRestrictedTabUrl(url) {
+      if (!url || typeof url !== 'string') return true;
+      const u = url.trim().toLowerCase();
+      if (!/^https?:\/\//i.test(u)) return true;
+      if (u.includes('chromewebstore.google.com') ||
+          u.includes('chrome.google.com/webstore') ||
+          u.includes('microsoftedge.microsoft.com/addons') ||
+          u.includes('addons.mozilla.org')) {
+        return true;
+      }
+      return false;
+    }
+
     async function ensureLiveTab() {
       let tabsResp = null;
       try { tabsResp = await sendToBackground('ge-list-tabs', {}); } catch { /* best effort */ }
       const rawTabs = (tabsResp?.success && Array.isArray(tabsResp.tabs)) ? tabsResp.tabs : [];
       const liveIds = new Set(rawTabs.map(t => t.tabId).filter(id => typeof id === 'number'));
 
-      // Fast path: current tab is alive â€” nothing to do.
-      if (currentTabId && liveIds.has(currentTabId)) return { healed: false };
+      // Fast path: current tab is alive AND is an unrestricted web page
+      const currentTabObj = rawTabs.find(t => t.tabId === currentTabId);
+      if (currentTabId && currentTabObj && !isRestrictedTabUrl(currentTabObj.url)) {
+        return { healed: false };
+      }
 
       const previousTabId = currentTabId;
 
       // Mark any tracked tab that no longer exists as closed so later
       // tabIndex-based actions can't pick a zombie.
       for (const tt of trackedTabs) {
-        if (tt.status !== 'closed' && !liveIds.has(tt.tabId)) tt.status = 'closed';
+        if (tt.status !== 'closed' && (!liveIds.has(tt.tabId) || isRestrictedTabUrl(tt.url))) {
+          tt.status = 'closed';
+        }
       }
 
       let chosen = null;
       let reason = '';
 
-      // (1) Most recently added tracked tab that is still alive.
+      // (1) Most recently added tracked tab that is still alive and unrestricted.
       for (let i = trackedTabs.length - 1; i >= 0; i--) {
         const tt = trackedTabs[i];
-        if (tt.status !== 'closed' && liveIds.has(tt.tabId)) {
+        if (tt.status !== 'closed' && liveIds.has(tt.tabId) && !isRestrictedTabUrl(tt.url)) {
           chosen = tt;
           reason = 'recent_tracked_tab';
           activeTabIndex = i;
@@ -3269,18 +3340,18 @@
         }
       }
 
-      // (2) Chrome's currently-active http(s) tab.
+      // (2) Chrome's currently-active unrestricted http(s) tab.
       if (!chosen) {
-        const a = rawTabs.find(t => t.active && /^https?:\/\//i.test(t.url || ''));
+        const a = rawTabs.find(t => t.active && !isRestrictedTabUrl(t.url));
         if (a && typeof a.tabId === 'number') {
           chosen = { tabId: a.tabId, url: a.url || '', title: a.title || '', status: 'active' };
           reason = 'chrome_active_tab';
         }
       }
 
-      // (3) Any open http(s) tab.
+      // (3) Any open unrestricted http(s) tab.
       if (!chosen) {
-        const a = rawTabs.find(t => /^https?:\/\//i.test(t.url || ''));
+        const a = rawTabs.find(t => !isRestrictedTabUrl(t.url));
         if (a && typeof a.tabId === 'number') {
           chosen = { tabId: a.tabId, url: a.url || '', title: a.title || '', status: 'active' };
           reason = 'any_open_tab';
@@ -3468,7 +3539,7 @@
           const SERVER_ONLY_ACTIONS = new Set([
             'setMilestones', 'completeMilestone', 'addMilestone',
             'webSearch', 'researchNote',
-            'readFile', 'createTool', 'spawnSubAgent', 'useTool'
+            'readFile', 'createTool', 'spawnSubAgent'
           ]);
           if (SERVER_ONLY_ACTIONS.has(action)) {
             result = {
@@ -3512,6 +3583,20 @@
             };
 
           // ============================================
+          // useTool — Invoke a user's installed AI tool on the active tab
+          // ============================================
+          } else if (action === 'useTool') {
+            result = await (async () => {
+              const res = await sendToBackground('ge-execute-in-tab', {
+                tabId: currentTabId,
+                action: 'useTool',
+                params: params || {}
+              });
+              if (res?.success && res.result) return res.result;
+              return res || { success: false, error: 'useTool failed' };
+            })();
+
+          // ============================================
           // pdfPages / viewPdfPages â€” extract page metadata + field list
           // from a PDF using DocEngine (pdf-lib) in the browser.
           // ============================================
@@ -3520,12 +3605,45 @@
               if (typeof DocEngine === 'undefined') {
                 return { success: false, error: 'DocEngine not loaded. pdf-lib may not have initialised yet.' };
               }
-              const fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src;
+              let fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src || (/^https?:\/\//i.test(params?.fileRef) ? params.fileRef : null);
+              if (!fileUrl && params?.fileRef && currentTask?.capturedFiles) {
+                const cap = currentTask.capturedFiles.find(f => f.id === params.fileRef);
+                if (cap?.signedUrl) fileUrl = cap.signedUrl;
+              }
+              if (!fileUrl && currentTask?.url && /\.pdf(\?|$)/i.test(currentTask.url)) {
+                fileUrl = currentTask.url;
+              }
               if (!fileUrl) {
                 return { success: false, error: 'pdfPages: provide url (the PDF URL to inspect).' };
               }
+
+              const filename = params?.filename || fileUrl.split('/').pop().split('?')[0] || 'document.pdf';
+              let sandbox = null;
+              const lastEntry = getLatestStepEntry();
+              if (lastEntry && typeof PdfSandbox !== 'undefined') {
+                sandbox = PdfSandbox.create(lastEntry.querySelector('.step-body') || lastEntry, {
+                  filename,
+                  pageCount: 0,
+                  fields: [],
+                  docType: 'pdf'
+                });
+                sandbox.setReading();
+              }
+
               const meta = await DocEngine.loadPdf(fileUrl);
-              if (!meta.ok) return { success: false, error: meta.error };
+              if (!meta.ok) {
+                if (sandbox) sandbox.setError(meta.error);
+                return { success: false, error: meta.error };
+              }
+
+              if (sandbox) {
+                if (meta.bytes) {
+                  sandbox.showResult(meta.bytes, filename, 'Analyzed');
+                } else {
+                  sandbox.setStatus('Analyzed');
+                }
+              }
+
               return {
                 success: true,
                 pageCount: meta.pageCount,
@@ -3536,7 +3654,7 @@
                 bytes: meta.bytes,
                 hint: meta.fields.length > 0
                   ? `PDF has ${meta.fields.length} AcroForm field(s). Call editPdf with formFields to fill them.`
-                  : 'PDF has no AcroForm fields â€” use overlays to draw text at coordinates.'
+                  : 'PDF has no AcroForm fields — use overlays to draw text at coordinates.'
               };
             })();
 
@@ -3550,7 +3668,14 @@
               if (typeof DocEngine === 'undefined') {
                 return { success: false, error: 'DocEngine not loaded. pdf-lib may not have initialised yet.' };
               }
-              const fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src;
+              let fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src || (/^https?:\/\//i.test(params?.fileRef) ? params.fileRef : null);
+              if (!fileUrl && params?.fileRef && currentTask?.capturedFiles) {
+                const cap = currentTask.capturedFiles.find(f => f.id === params.fileRef);
+                if (cap?.signedUrl) fileUrl = cap.signedUrl;
+              }
+              if (!fileUrl && currentTask?.url && /\.pdf(\?|$)/i.test(currentTask.url)) {
+                fileUrl = currentTask.url;
+              }
               if (!fileUrl) {
                 return { success: false, error: 'editPdf: provide url (the source PDF URL).' };
               }
@@ -3635,14 +3760,36 @@
                 drawnOverlays: editResult.drawnOverlays,
                 pageCount: editResult.pageCount,
                 filename,
-                pdfBase64: b64.slice(0, 100) + 'â€¦', // truncated for prompt â€” don't flood context
+                pdfBase64: b64.slice(0, 100) + '…', // truncated for prompt — don't flood context
                 pdfSize: editResult.pdfBytes.length,
                 hint: `PDF edited client-side and downloaded as "${filename}". ${editResult.filledFields.length} fields filled. ${editResult.skippedFields.length} skipped. If you need to upload it, tell the user to use the file from their Downloads folder.`
               };
             })();
 
           // ============================================
-          // readDocx â€” extract text, HTML, headings, and tables from a .docx
+          // createPdf — build a new PDF from scratch
+          // ============================================
+          } else if (action === 'createPdf') {
+            result = await (async () => {
+              if (typeof DocEngine === 'undefined') return { success: false, error: 'DocEngine not loaded.' };
+              if (!DocEngine.isPdfLibReady()) return { success: false, error: 'pdf-lib not loaded. Make sure libs/pdf-lib.min.js is included.' };
+
+              const filename = params?.filename || params?.outputFilename || (params?.title ? params.title.replace(/[^a-zA-Z0-9\-_ ]/g, '').trim() + '.pdf' : 'document.pdf');
+              const textBlocks = params?.textBlocks || params?.blocks || params?.paragraphs || [];
+              const r = await DocEngine.createPdf(textBlocks, params);
+              if (!r.ok) return { success: false, error: r.error };
+
+              DocEngine.downloadFile(r.pdfBytes, filename, 'application/pdf');
+              return {
+                success: true,
+                filename,
+                pdfSize: r.pdfBytes.length,
+                hint: `PDF created and downloaded as "${filename}".`
+              };
+            })();
+
+          // ============================================
+          // readDocx — extract text, HTML, headings, and tables from a .docx
           // Uses mammoth.js for faithful extraction.
           // ============================================
           } else if (action === 'readDocx') {
@@ -4148,17 +4295,26 @@
               }
             }
           } else if (action === 'download') {
+            let downloadUrl = params?.url;
+            let downloadFilename = params?.filename;
+            if (!downloadUrl && params?.fileRef && currentTask?.capturedFiles) {
+              const cap = currentTask.capturedFiles.find(f => f.id === params.fileRef);
+              if (cap?.signedUrl) {
+                downloadUrl = cap.signedUrl;
+                if (!downloadFilename && cap.filename) downloadFilename = cap.filename;
+              }
+            }
             if (params?.content) {
               // Download generated content
               await sendToBackground('ge-download-content', {
                 content: params.content,
-                filename: params.filename || 'download.txt',
+                filename: downloadFilename || 'download.txt',
                 mimeType: params.mimeType || 'text/plain'
               });
-            } else if (params?.url) {
+            } else if (downloadUrl) {
               await sendToBackground('ge-download', {
-                url: params.url,
-                filename: params.filename
+                url: downloadUrl,
+                filename: downloadFilename
               });
             }
             result = { success: true };
@@ -4708,14 +4864,15 @@
           let nextData;
           let attempt = 0;
           let lastErr = null;
-          while (attempt < 3 && !nextData) {
+          const MAX_STEP_ATTEMPTS = 4; // 1 initial + 3 retries (30s, 30s, 60s)
+          while (attempt < MAX_STEP_ATTEMPTS && !nextData) {
             attempt++;
             try {
               // Get a fresh snapshot of all browser tabs so the agent always
               // sees the current Chrome window state (not just the stale list
               // from task start). This is what `closeTab`/`switchTab` target.
               let liveTabs = [];
-              let liveTabIds = null; // Set<number> â€” null if lookup failed
+              let liveTabIds = null; // Set<number> — null if lookup failed
               let tabsResp = null;
               try {
                 tabsResp = await sendToBackground('ge-list-tabs', {});
@@ -4743,7 +4900,7 @@
                   }
                 }
                 if (currentTabId && !liveTabIds.has(currentTabId)) {
-                  // Current tab is gone â€” fall back to Chrome's active tab.
+                  // Current tab is gone — fall back to Chrome's active tab.
                   const active = liveTabs.find(t => t.active);
                   if (active) {
                     // Find or push the active tab into trackedTabs so
@@ -4800,6 +4957,7 @@
 
               nextData = await NewOrderAPI.request('/api/agent/step', {
                 method: 'POST',
+                callerHandlesRetry: true,
                 body: JSON.stringify({
                   taskId: currentTaskId,
                   stepNumber,
@@ -4818,7 +4976,7 @@
               // Server-typed, non-retryable mid-task errors (daily quota,
               // no credits, account suspended). Re-throw immediately so
               // the outer task loop terminates the run with a clear
-              // message instead of burning 3 useless retries here.
+              // message instead of burning retries here.
               if (stepErr.retryable === false || stepErr.code === 'daily_quota_exceeded'
                   || stepErr.code === 'no_credits' || stepErr.code === 'account_suspended') {
                 throw stepErr;
@@ -4832,9 +4990,10 @@
               // 429 (rate-limited): pause briefly and retry, with a friendlier label.
               // The agentLimiter window is 60s; retrying a few seconds later usually frees a slot.
               if (m.match(/\b429\b/) || /rate limit/i.test(m)) {
+                if (attempt >= MAX_STEP_ATTEMPTS) throw stepErr;
                 const errEntry = document.createElement('div');
                 errEntry.className = 'step-entry failed';
-                errEntry.innerHTML = `<div class="step-number">â³</div><div class="step-body"><div class="step-action">Rate limit reached (attempt ${attempt}/3)</div><div class="step-error">Too many steps in a short time. Pausing brieflyâ€¦</div></div>`;
+                errEntry.innerHTML = `<div class="step-number">⏳</div><div class="step-body"><div class="step-action">Rate limit reached (retry ${attempt}/3)</div><div class="step-error">Too many steps in a short time. Pausing briefly…</div></div>`;
                 stepLog.appendChild(errEntry);
                 stepLog.scrollTop = stepLog.scrollHeight;
                 // Backoff longer on 429 so we don't make it worse: 6s, 15s, 30s
@@ -4844,12 +5003,38 @@
               }
               // 4xx (other than 413/429) are not retriable
               if (m.match(/\b(400|401|403|404)\b/)) throw stepErr;
-              // 5xx / network: surface inline and retry up to 3 times
+
+              // If we reached max attempts, break out to let the error surface
+              if (attempt >= MAX_STEP_ATTEMPTS) {
+                break;
+              }
+
+              // Network disconnect / slow network / 504 gateway timeout / server 5xx:
+              // Per user requirement: retry 3 times (attempt 1: wait 30s, attempt 2: wait 30s, attempt 3: wait 60s).
+              const waitSec = attempt === 3 ? 60 : 30;
+              const isNet = stepErr.isNetworkError || !navigator.onLine || m.includes('Failed to fetch') || m.includes('Network') || m.includes('connection') || m.includes('504') || m.includes('timeout');
               const errEntry = document.createElement('div');
-              errEntry.className = 'step-entry failed';
-              errEntry.innerHTML = `<div class="step-number">!</div><div class="step-body"><div class="step-action">Server error (attempt ${attempt}/3)</div><div class="step-error">A temporary error occurred. Retryingâ€¦</div></div>`;
+              errEntry.className = 'step-entry failed network-retry-banner';
+              errEntry.innerHTML = `<div class="step-number">${isNet ? '🌐' : '!'}</div><div class="step-body"><div class="step-action">${isNet ? 'Network slow or disconnected' : 'Server temporary error'} (reconnect attempt ${attempt}/3)</div><div class="step-error">Waiting <span class="net-countdown-val">${waitSec}</span>s before reconnecting…</div></div>`;
               stepLog.appendChild(errEntry);
-              await sleep(1000 * attempt); // backoff
+              stepLog.scrollTop = stepLog.scrollHeight;
+
+              // Countdown timer loop with early break if network comes back online
+              let onlineResolved = false;
+              const onlineHandler = () => { onlineResolved = true; };
+              window.addEventListener('online', onlineHandler);
+
+              for (let remaining = waitSec; remaining > 0; remaining--) {
+                if (!isRunning || onlineResolved) break;
+                const span = errEntry.querySelector('.net-countdown-val');
+                if (span) span.textContent = remaining;
+                await sleep(1000);
+              }
+              window.removeEventListener('online', onlineHandler);
+
+              if (errEntry && errEntry.parentNode) {
+                errEntry.remove();
+              }
             }
           }
           if (!nextData) throw lastErr || new Error('Failed to get next step after retries');
@@ -5368,17 +5553,22 @@
     });
   }
 
+  function isRestrictedContextUrl(url) {
+    if (!url || typeof url !== 'string') return true;
+    const u = url.trim().toLowerCase();
+    if (!/^https?:\/\//i.test(u)) return true;
+    if (u.includes('chromewebstore.google.com') ||
+        u.includes('chrome.google.com/webstore') ||
+        u.includes('microsoftedge.microsoft.com/addons') ||
+        u.includes('addons.mozilla.org')) {
+      return true;
+    }
+    return false;
+  }
+
   async function getAgentContext() {
     const allTabs = await chrome.tabs.query({});
-    const webTabs = allTabs.filter(t =>
-      t.url &&
-      !t.url.startsWith('chrome-extension://') &&
-      !t.url.startsWith('chrome://') &&
-      !t.url.startsWith('devtools://') &&
-      !t.url.startsWith('edge://') &&
-      !t.url.startsWith('brave://') &&
-      !t.url.startsWith('about:')
-    );
+    const webTabs = allTabs.filter(t => t.url && !isRestrictedContextUrl(t.url));
 
     // Prefer any active web tab, then the first available web tab.
     const activeTab =

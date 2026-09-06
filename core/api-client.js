@@ -182,6 +182,7 @@ const NewOrderAPI = (() => {
           err.status = response.status;
           err.code = (json && json.code) || null;
           err.retryable = RETRYABLE_STATUS.has(response.status);
+          err.isNetworkError = RETRYABLE_STATUS.has(response.status);
           err.upgradeUrl = (json && json.upgradeUrl) || null;
           err.purchaseRequired = !!(json && json.purchaseRequired);
           err.serverBody = json || null;
@@ -195,15 +196,18 @@ const NewOrderAPI = (() => {
         return json;
       } catch (error) {
         lastError = error;
-        const isNetwork = error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.name === 'TypeError');
-        // Retry network errors too
-        if (isNetwork && attempt < maxAttempts) {
+        const isNetwork = !navigator.onLine || (error.message && (error.message.includes('Failed to fetch') || error.message.includes('NetworkError') || error.message.includes('ERR_CONNECTION') || error.name === 'TypeError'));
+        if (isNetwork) {
+          error.isNetworkError = true;
+        }
+        // Retry network errors if maxAttempts > 1
+        if (isNetwork && attempt < maxAttempts && !options.callerHandlesRetry) {
           const delay = Math.min(8000, 800 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 300);
           console.warn(`[NewOrderAPI] Network error, retrying (${attempt}/${maxAttempts})…`);
           await sleep(delay);
           continue;
         }
-        if (isNetwork) {
+        if (isNetwork && !options.callerHandlesRetry) {
           throw new Error('Cannot reach server. Please check your internet connection.');
         }
         throw error;

@@ -766,6 +766,129 @@
       </div>
     </div>
 
+    <!-- ===== Frontier Browser Automation Engine (2026 Engine) ===== -->
+    <div class="integration-card" id="card-frontier-engine">
+      <h3>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Frontier Browser Automation (2026 Engine)
+        <span class="status-pill connected" style="margin-left: auto;"><span class="lbl">Active</span></span>
+      </h3>
+      <p>Cutting-edge browser agent capabilities inspired by 2026 benchmarks (Stagehand, Browser-Use, Skyvern). All features run strictly inside your Chrome browser via client-side DOM/CDP without server-side headless browsers.</p>
+
+      <div class="pref-grid" style="margin-top: 12px;">
+        <label class="pref-row">
+          <input type="checkbox" id="fe-som-grounding">
+          <span class="pref-text">
+            <span class="pref-name">Set-of-Marks (SoM) Numeric Grounding</span>
+            <span class="pref-desc">Assigns sequential numeric indices [1..N] to interactive elements in viewport with self-healing DOM recovery.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="fe-som-visual-badges">
+          <span class="pref-text">
+            <span class="pref-name">Visual Numeric Badges for Screenshots</span>
+            <span class="pref-desc">Renders high-contrast numbered tags directly over elements during screenshot capture for multimodal vision models.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="fe-a11y-tree">
+          <span class="pref-text">
+            <span class="pref-name">Pruned Accessibility Tree (~450 tokens)</span>
+            <span class="pref-desc">Replaces 4,500+ tokens of raw HTML text with semantic W3C accessible names and roles, slashing token usage by 80%+.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="fe-overlay-bouncer">
+          <span class="pref-text">
+            <span class="pref-name">Automated Cookie & Overlay Bouncer</span>
+            <span class="pref-desc">Automatically dismisses GDPR consent banners, newsletter popups, and blocking modal backdrops.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="fe-form-validation-guard">
+          <span class="pref-text">
+            <span class="pref-name">Form Validation Pre-Check Guard</span>
+            <span class="pref-desc">Inspects form validity (checkValidity()) before clicking submit, diagnosing invalid fields immediately instead of infinite loops.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="fe-cdp-fallback">
+          <span class="pref-text">
+            <span class="pref-name">Autonomous CDP Hardware Input Fallback</span>
+            <span class="pref-desc">Dispatches physical hardware mouse and keyboard events via Chrome DevTools Protocol when JavaScript synthetic clicks have no effect.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="fe-expectation-validator">
+          <span class="pref-text">
+            <span class="pref-name">Semantic Expectation Validator</span>
+            <span class="pref-desc">Verifies post-conditions (URL transitions, alert banners, DOM deltas) after each step before progressing.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="fe-stealth-enabled">
+          <span class="pref-text">
+            <span class="pref-name">Anti-Bot Stealth & Humanized Cadence</span>
+            <span class="pref-desc">Simulates human typing rhythm (30–90ms/char) and realistic mouse press-to-release hold durations with micro-jitter.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="fe-mouse-jitter">
+          <span class="pref-text">
+            <span class="pref-name">Mouse Coordinate Micro-Jitter</span>
+            <span class="pref-desc">Adds randomized organic variance to click coordinates and hold-down durations to evade bot detection.</span>
+          </span>
+        </label>
+
+        <label class="pref-row">
+          <input type="checkbox" id="fe-webdriver-masking">
+          <span class="pref-text">
+            <span class="pref-name">Continuous Webdriver Cloaking</span>
+            <span class="pref-desc">Masks navigator.webdriver across all page scripts and CDP sessions so anti-bot scripts see a natural browser.</span>
+          </span>
+        </label>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 14px;">
+        <div class="field">
+          <label for="fe-overlay-action">Cookie Bouncer Strategy</label>
+          <select id="fe-overlay-action" class="input-text">
+            <option value="human_click_with_fallback">Human Click with DOM Purge Fallback (Recommended)</option>
+            <option value="remove_dom">Direct DOM Backdrop Removal</option>
+            <option value="click_accept">Click Accept / Allow</option>
+            <option value="click_reject">Click Reject / Decline</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="fe-a11y-max-tokens">Accessibility Tree Token Budget</label>
+          <input type="number" id="fe-a11y-max-tokens" class="input-text" min="100" max="2000" step="50" placeholder="450">
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px;">
+        <div class="field">
+          <label for="fe-typing-min">Human Typing Min Delay (ms)</label>
+          <input type="number" id="fe-typing-min" class="input-text" min="10" max="500" placeholder="30">
+        </div>
+        <div class="field">
+          <label for="fe-typing-max">Human Typing Max Delay (ms)</label>
+          <input type="number" id="fe-typing-max" class="input-text" min="20" max="1000" placeholder="90">
+        </div>
+      </div>
+
+      <div class="actions" style="margin-top: 14px;">
+        <button class="btn-primary" id="btn-save-frontier-settings">Save Frontier Automation Settings</button>
+      </div>
+    </div>
+
     <!-- ===== Skill Compounding (Phase 3) — its own card, all tiers ===== -->
     <!--
       The agent learns from every successful task: it mines the steps

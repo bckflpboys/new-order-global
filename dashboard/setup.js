@@ -508,6 +508,23 @@
       // list populate while the rest of the page finishes loading.
       try { loadMinedSkills(); } catch { /* no-op if function not ready yet */ }
 
+      // ---- Frontier Browser Automation (2026 Engine) ----
+      const fe = s.frontierEngine || {};
+      setIf('fe-som-grounding',          fe.somGroundingEnabled !== false);
+      setIf('fe-som-visual-badges',     fe.somVisualBadgesEnabled !== false);
+      setIf('fe-a11y-tree',              fe.a11yTreeEnabled !== false);
+      setIf('fe-overlay-bouncer',        fe.overlayBouncerEnabled !== false);
+      setIf('fe-form-validation-guard',  fe.formValidationPrecheckEnabled !== false);
+      setIf('fe-cdp-fallback',           fe.cdpHardwareFallbackEnabled !== false);
+      setIf('fe-expectation-validator',  fe.expectationValidatorEnabled !== false);
+      setIf('fe-stealth-enabled',        fe.stealthEnabled !== false);
+      setIf('fe-mouse-jitter',           fe.mouseJitterEnabled !== false);
+      setIf('fe-webdriver-masking',      fe.webdriverMaskingEnabled !== false);
+      if ($('fe-overlay-action')) $('fe-overlay-action').value = fe.overlayBouncerAction || 'human_click_with_fallback';
+      if ($('fe-a11y-max-tokens')) $('fe-a11y-max-tokens').value = fe.a11yMaxTokens || 450;
+      if ($('fe-typing-min')) $('fe-typing-min').value = fe.humanTypingCadenceMinMs || 30;
+      if ($('fe-typing-max')) $('fe-typing-max').value = fe.humanTypingCadenceMaxMs || 90;
+
       // Multi-Agent Council — only meaningful for tiers with the council
       // prompt (Super Agent). Otherwise hide the whole block.
       const councilBlock = document.getElementById('as-council-block');
@@ -751,6 +768,54 @@
       try {
         await NewOrderAPI.request('/api/agent-settings', { method: 'PUT', body: JSON.stringify(body) });
         toast('Skill settings saved.');
+        loadAgentSettings();
+      } catch (e) {
+        toast('Save failed: ' + e.message, 'error');
+      }
+    });
+  }
+
+  // ============================================
+  // Frontier Browser Automation Engine (2026 Engine) — dedicated save button
+  // Hits the same /api/agent-settings PUT endpoint but sends ONLY the
+  // frontierEngine subdocument. Caches settings in chrome.storage.local.
+  // ============================================
+  const btnSaveFrontier = $('btn-save-frontier-settings');
+  if (btnSaveFrontier) {
+    btnSaveFrontier.addEventListener('click', async () => {
+      const getVal = (id, def) => {
+        const el = $(id);
+        if (!el) return def;
+        const n = parseInt(el.value, 10);
+        return Number.isFinite(n) ? n : def;
+      };
+      const frontierEngine = {
+        somGroundingEnabled:           $('fe-som-grounding') ? !!$('fe-som-grounding').checked : true,
+        somVisualBadgesEnabled:        $('fe-som-visual-badges') ? !!$('fe-som-visual-badges').checked : true,
+        a11yTreeEnabled:               $('fe-a11y-tree') ? !!$('fe-a11y-tree').checked : true,
+        a11yMaxTokens:                 getVal('fe-a11y-max-tokens', 450),
+        overlayBouncerEnabled:         $('fe-overlay-bouncer') ? !!$('fe-overlay-bouncer').checked : true,
+        overlayBouncerAction:          $('fe-overlay-action') ? $('fe-overlay-action').value : 'human_click_with_fallback',
+        expectationValidatorEnabled:   $('fe-expectation-validator') ? !!$('fe-expectation-validator').checked : true,
+        formValidationPrecheckEnabled: $('fe-form-validation-guard') ? !!$('fe-form-validation-guard').checked : true,
+        cdpHardwareFallbackEnabled:    $('fe-cdp-fallback') ? !!$('fe-cdp-fallback').checked : true,
+        stealthEnabled:                $('fe-stealth-enabled') ? !!$('fe-stealth-enabled').checked : true,
+        humanTypingCadenceMinMs:       getVal('fe-typing-min', 30),
+        humanTypingCadenceMaxMs:       getVal('fe-typing-max', 90),
+        mouseJitterEnabled:            $('fe-mouse-jitter') ? !!$('fe-mouse-jitter').checked : true,
+        webdriverMaskingEnabled:       $('fe-webdriver-masking') ? !!$('fe-webdriver-masking').checked : true
+      };
+      try {
+        await NewOrderAPI.request('/api/agent-settings', {
+          method: 'PUT',
+          body: JSON.stringify({ frontierEngine })
+        });
+        try {
+          if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            await chrome.storage.local.set({ ge_frontier_settings: frontierEngine });
+          }
+        } catch {}
+        toast('Frontier Automation settings saved.');
         loadAgentSettings();
       } catch (e) {
         toast('Save failed: ' + e.message, 'error');
