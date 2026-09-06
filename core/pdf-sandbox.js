@@ -253,9 +253,43 @@ const PdfSandbox = (() => {
         _setBadge('working');
       },
 
+      /** Update page count and fields list dynamically after reading */
+      updateMeta(pageCount, fieldsList) {
+        if (Array.isArray(fieldsList)) {
+          _totalFields = fieldsList.length;
+          const fieldsWrap = card.querySelector('.psb-fields');
+          const progressWrap = card.querySelector('.psb-progress-wrap');
+          if (fieldsWrap && fieldsList.length > 0) {
+            fieldsWrap.innerHTML = fieldsList.slice(0, 20).map(f => `
+              <div class="psb-field" data-field-name="${escHtml(f.name)}">
+                <span class="psb-field-icon psb-pending">◦</span>
+                <span class="psb-field-name">${escHtml(truncate(f.name, 36))}</span>
+                <span class="psb-field-value"></span>
+              </div>
+            `).join('') + (fieldsList.length > 20 ? `<div class="psb-field psb-more-fields">… and ${fieldsList.length - 20} more</div>` : '');
+            fieldsWrap.style.display = '';
+            if (progressWrap) {
+              progressWrap.style.display = '';
+              const progressLbl = card.querySelector('.psb-progress-label');
+              if (progressLbl) progressLbl.textContent = `0 / ${fieldsList.length} fields filled`;
+            }
+          }
+        } else if (typeof fieldsList === 'number') {
+          _totalFields = fieldsList;
+        }
+        const metaEl = card.querySelector('.psb-meta');
+        if (metaEl) {
+          const pc = pageCount != null ? pageCount : 1;
+          metaEl.textContent = `${pc} page${pc !== 1 ? 's' : ''} · ${_totalFields} field${_totalFields !== 1 ? 's' : ''}`;
+        }
+      },
+
       /** Show the finished PDF embed + download button */
       showResult(pdfBytes, fname, actionText = 'Done') {
-        _pdfBytes = pdfBytes;
+        const isBinary = (pdfBytes instanceof Uint8Array || pdfBytes instanceof ArrayBuffer || pdfBytes instanceof Blob);
+        if (isBinary) {
+          _pdfBytes = pdfBytes;
+        }
         if (fname) _filename = fname;
 
         _setBadge('done');
@@ -266,7 +300,7 @@ const PdfSandbox = (() => {
         // Revoke any previous object URL
         if (_objectUrl) { try { URL.revokeObjectURL(_objectUrl); } catch {} }
 
-        if (pdfBytes && typeof DocEngine !== 'undefined') {
+        if (isBinary && typeof DocEngine !== 'undefined') {
           const mime = DocEngine.mimeForFilename(_filename);
           _objectUrl = DocEngine.bytesToObjectUrl(pdfBytes, mime);
           
@@ -284,7 +318,7 @@ const PdfSandbox = (() => {
           resultEl.style.display = '';
 
           // Calculate and append file size
-          const sizeBytes = pdfBytes.length || pdfBytes.byteLength;
+          const sizeBytes = pdfBytes.length || pdfBytes.byteLength || (pdfBytes.size || 0);
           if (sizeBytes) {
             const sizeText = sizeBytes > 1024 * 1024 
               ? (sizeBytes / (1024 * 1024)).toFixed(1) + ' MB'
@@ -294,6 +328,10 @@ const PdfSandbox = (() => {
               metaEl.textContent += ` · ${sizeText}`;
             }
           }
+        } else {
+          resultEl.style.display = '';
+          const embedWrap = card.querySelector('.psb-embed-wrap');
+          if (embedWrap) embedWrap.style.display = 'none';
         }
 
         if (dlBtn) dlBtn.querySelector('span') || (dlBtn.lastChild.textContent = ` Download ${_filename}`);

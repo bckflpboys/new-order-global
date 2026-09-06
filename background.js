@@ -2196,11 +2196,18 @@ async function runCaptureFile(tabId, params) {
     const tok = await new Promise(r => chrome.storage.local.get(['noAuthToken'], (d) => r(d.noAuthToken || '')));
     if (!tok) return { success: false, error: 'Not signed in.' };
 
-    // Fetch with cookies. Service workers CAN do cross-origin credentialed
-    // fetches when host_permissions cover the URL (we have <all_urls>).
+    // Fetch with cookies and standard browser headers. Service workers CAN do cross-origin
+    // credentialed fetches when host_permissions cover the URL (we have <all_urls>).
     let blob, contentType, contentDispositionFilename = '';
     try {
-        const resp = await fetch(url, { credentials: 'include', method: 'GET' });
+        const resp = await fetch(url, {
+            credentials: 'include',
+            method: 'GET',
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+                'Accept': 'application/pdf,application/octet-stream,*/*'
+            }
+        });
         if (!resp.ok) return { success: false, error: `Source fetch failed: HTTP ${resp.status}`, recovery: 'The URL may be auth-walled with a session the extension can\'t reach, or expired. Try `goto`-ing the page first to refresh cookies, then retry.' };
         contentType = (resp.headers.get('content-type') || '').split(';')[0].trim() || 'application/octet-stream';
         const cd = resp.headers.get('content-disposition') || '';
@@ -2228,6 +2235,22 @@ async function runCaptureFile(tabId, params) {
 
     // POST raw bytes to server with metadata headers.
     const buf = await blob.arrayBuffer();
+
+    // If file is expected to be a PDF, validate magic bytes (%PDF-) to prevent uploading HTML error pages
+    const isPdf = /\.pdf(\?|$)/i.test(url) || /\.pdf$/i.test(filename) || /pdf/i.test(contentType);
+    if (isPdf) {
+        if (buf.byteLength < 5) {
+            return { success: false, error: 'Fetched PDF is invalid (less than 5 bytes).' };
+        }
+        const magic = String.fromCharCode(...new Uint8Array(buf.slice(0, 5)));
+        if (magic !== '%PDF-') {
+            return {
+                success: false,
+                error: `Remote URL did not return a valid PDF (received "${magic.slice(0, 5)}..."). The site may have blocked the download or returned an HTML error/challenge page.`,
+                recovery: 'Use `goto` to open the PDF URL in a browser tab to view it directly.'
+            };
+        }
+    }
     const b64enc = (s) => btoa(unescape(encodeURIComponent(s || '')));
     try {
         const resp = await fetch(GE_API_BASE + '/api/agent/capture-file', {

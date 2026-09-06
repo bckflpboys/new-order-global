@@ -156,12 +156,23 @@ const DocEngine = (() => {
           hasAcroForm = true;
           const ctor = f.constructor && f.constructor.name;
           let type = 'unknown', value = '';
+          let options = [];
           if (/TextField/i.test(ctor))  { type = 'text';     try { value = f.getText() || ''; } catch {} }
           if (/CheckBox/i.test(ctor))   { type = 'checkbox'; try { value = f.isChecked() ? 'on' : 'off'; } catch {} }
-          if (/RadioGroup/i.test(ctor)) { type = 'radio';    try { value = f.getSelected() || ''; } catch {} }
-          if (/Dropdown|OptionList/i.test(ctor)) { type = 'choice'; try { value = (f.getSelected && f.getSelected().join(',')) || ''; } catch {} }
+          if (/RadioGroup/i.test(ctor)) {
+            type = 'radio';
+            try { value = f.getSelected() || ''; } catch {}
+            try { if (typeof f.getOptions === 'function') options = f.getOptions(); } catch {}
+          }
+          if (/Dropdown|OptionList/i.test(ctor)) {
+            type = 'choice';
+            try { value = (f.getSelected && f.getSelected().join(',')) || ''; } catch {}
+            try { if (typeof f.getOptions === 'function') options = f.getOptions(); } catch {}
+          }
           if (/Signature/i.test(ctor))  { type = 'signature'; }
-          fields.push({ name: f.getName(), type, value: String(value).slice(0, 300) });
+          const fieldObj = { name: f.getName(), type, value: String(value).slice(0, 300) };
+          if (options && options.length > 0) fieldObj.options = options;
+          fields.push(fieldObj);
         }
       } catch { /* no AcroForm — fine */ }
 
@@ -172,7 +183,8 @@ const DocEngine = (() => {
         hasAcroForm,
         title: doc.getTitle() || '',
         author: doc.getAuthor() || '',
-        bytes: buf.byteLength
+        bytes: buf.byteLength,
+        rawBytes: new Uint8Array(buf)
       };
     } catch (e) {
       return { ok: false, error: e.message };

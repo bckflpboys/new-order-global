@@ -20,6 +20,7 @@
   let selectedMode = 'copilot'; // 'copilot' | 'autopilot'
   let pendingTaskContext = null; // { taskId, plan, requiredInputs, permissionsRequested, allTabs, activeTab }
   let pendingUserReplyResolver = null; // Promise resolver for askUser/confirmAction modals
+  let activeCapturedFiles = []; // Array of { id, filename, signedUrl, size, mime } for active session
 
   // DOM References
   const welcomeScreen = document.getElementById('welcome-screen');
@@ -636,7 +637,10 @@
         showStoredData(tail.storedData);
       }
       if (tail.capturedFiles && tail.capturedFiles.length > 0) {
+        activeCapturedFiles = [...tail.capturedFiles];
         showCapturedFiles(tail.capturedFiles);
+      } else {
+        activeCapturedFiles = [];
       }
 
       historySidebar.classList.remove('open');
@@ -654,6 +658,7 @@
     taskTitle.textContent = title;
     stepLog.innerHTML = '';
     storedDataPanel.style.display = 'none';
+    activeCapturedFiles = [];
     if (capturedFilesPanel) capturedFilesPanel.style.display = 'none';
     tabTracker.innerHTML = '';
     hideMilestonesPanel();
@@ -3566,7 +3571,21 @@
                 action: 'captureFile',
                 params: { ...params, taskId: currentTaskId }
               });
-              if (cf?.success && cf.result) return cf.result;
+              if (cf?.success && cf.result) {
+                if (cf.result.fileId) {
+                  activeCapturedFiles.push({
+                    id: cf.result.fileId,
+                    filename: cf.result.filename,
+                    signedUrl: cf.result.signedUrl,
+                    size: cf.result.size,
+                    mime: cf.result.mime
+                  });
+                  if (typeof showCapturedFiles === 'function') {
+                    showCapturedFiles(activeCapturedFiles);
+                  }
+                }
+                return cf.result;
+              }
               return cf?.result || cf || { success: false, error: 'captureFile failed' };
             })();
 
@@ -3606,12 +3625,15 @@
                 return { success: false, error: 'DocEngine not loaded. pdf-lib may not have initialised yet.' };
               }
               let fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src || (/^https?:\/\//i.test(params?.fileRef) ? params.fileRef : null);
-              if (!fileUrl && params?.fileRef && currentTask?.capturedFiles) {
-                const cap = currentTask.capturedFiles.find(f => f.id === params.fileRef);
+              if (!fileUrl && params?.fileRef && activeCapturedFiles.length > 0) {
+                const cap = activeCapturedFiles.find(f => f.id === params.fileRef);
                 if (cap?.signedUrl) fileUrl = cap.signedUrl;
               }
-              if (!fileUrl && currentTask?.url && /\.pdf(\?|$)/i.test(currentTask.url)) {
-                fileUrl = currentTask.url;
+              if (!fileUrl) {
+                const activeTabUrl = (trackedTabs[activeTabIndex]?.url || '');
+                if (activeTabUrl && /\.pdf(\?|$)/i.test(activeTabUrl)) {
+                  fileUrl = activeTabUrl;
+                }
               }
               if (!fileUrl) {
                 return { success: false, error: 'pdfPages: provide url (the PDF URL to inspect).' };
@@ -3637,8 +3659,9 @@
               }
 
               if (sandbox) {
-                if (meta.bytes) {
-                  sandbox.showResult(meta.bytes, filename, 'Analyzed');
+                sandbox.updateMeta(meta.pageCount, meta.fields);
+                if (meta.rawBytes) {
+                  sandbox.showResult(meta.rawBytes, filename, 'Analyzed');
                 } else {
                   sandbox.setStatus('Analyzed');
                 }
@@ -3653,7 +3676,7 @@
                 author: meta.author,
                 bytes: meta.bytes,
                 hint: meta.fields.length > 0
-                  ? `PDF has ${meta.fields.length} AcroForm field(s). Call editPdf with formFields to fill them.`
+                  ? `Found ${meta.fields.length} AcroForm field(s): ${meta.fields.map(f => `"${f.name}" (${f.type}${f.options ? `: [${f.options.join(', ')}]` : ''})`).join(', ')}. Call editPdf directly with { url: "${fileUrl}", formFields: { ... }, flattenForm: true, outputFilename: "filled.pdf" } to fill them now. Do NOT call captureFile or viewPdfPages.`
                   : 'PDF has no AcroForm fields — use overlays to draw text at coordinates.'
               };
             })();
@@ -3669,12 +3692,15 @@
                 return { success: false, error: 'DocEngine not loaded. pdf-lib may not have initialised yet.' };
               }
               let fileUrl = params?.url || params?.fileUrl || params?.signedUrl || params?.src || (/^https?:\/\//i.test(params?.fileRef) ? params.fileRef : null);
-              if (!fileUrl && params?.fileRef && currentTask?.capturedFiles) {
-                const cap = currentTask.capturedFiles.find(f => f.id === params.fileRef);
+              if (!fileUrl && params?.fileRef && activeCapturedFiles.length > 0) {
+                const cap = activeCapturedFiles.find(f => f.id === params.fileRef);
                 if (cap?.signedUrl) fileUrl = cap.signedUrl;
               }
-              if (!fileUrl && currentTask?.url && /\.pdf(\?|$)/i.test(currentTask.url)) {
-                fileUrl = currentTask.url;
+              if (!fileUrl) {
+                const activeTabUrl = (trackedTabs[activeTabIndex]?.url || '');
+                if (activeTabUrl && /\.pdf(\?|$)/i.test(activeTabUrl)) {
+                  fileUrl = activeTabUrl;
+                }
               }
               if (!fileUrl) {
                 return { success: false, error: 'editPdf: provide url (the source PDF URL).' };
@@ -4297,8 +4323,8 @@
           } else if (action === 'download') {
             let downloadUrl = params?.url;
             let downloadFilename = params?.filename;
-            if (!downloadUrl && params?.fileRef && currentTask?.capturedFiles) {
-              const cap = currentTask.capturedFiles.find(f => f.id === params.fileRef);
+            if (!downloadUrl && params?.fileRef && activeCapturedFiles.length > 0) {
+              const cap = activeCapturedFiles.find(f => f.id === params.fileRef);
               if (cap?.signedUrl) {
                 downloadUrl = cap.signedUrl;
                 if (!downloadFilename && cap.filename) downloadFilename = cap.filename;
@@ -5059,6 +5085,14 @@
 
           // Refresh the milestones panel from the authoritative server state.
           if (nextData.goalLedger) renderGoalLedger(nextData.goalLedger);
+
+          // Keep activeCapturedFiles synchronized with server
+          if (Array.isArray(nextData.capturedFiles)) {
+            activeCapturedFiles = [...nextData.capturedFiles];
+            if (activeCapturedFiles.length > 0 && typeof showCapturedFiles === 'function') {
+              showCapturedFiles(activeCapturedFiles);
+            }
+          }
 
           if (nextData.done) {
             renderDoneStep(nextData.summary || 'Task completed');
