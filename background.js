@@ -1616,6 +1616,382 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })();
         return true;
     }
+
+    // --- VoxCode Bridge Messages (via content script or internal send) ---
+    if (message.type === 'VOXCODE_BRIDGE_MESSAGE' || message.source === 'voxcode') {
+        (async () => {
+            try {
+                await handleVoxCodeBridgeMessage(message, sender, sendResponse);
+            } catch (err) {
+                sendResponse({ ok: false, error: err.message });
+            }
+        })();
+        return true;
+    }
+});
+
+// ============================================
+// VoxCode ↔ New Order Global Integration Bridge
+// ============================================
+
+// Connected external ports from VoxCode web application
+const _voxcodeConnectedPorts = new Set();
+
+// External port connection listener (for live streaming via chrome.runtime.connect)
+if (chrome.runtime.onConnectExternal) {
+    chrome.runtime.onConnectExternal.addListener((port) => {
+        _voxcodeConnectedPorts.add(port);
+        port.onDisconnect.addListener(() => {
+            _voxcodeConnectedPorts.delete(port);
+        });
+
+        port.onMessage.addListener(async (msg) => {
+            try {
+                await handleVoxCodeBridgeMessage(msg, { port }, (res) => {
+                    try {
+                        port.postMessage({
+                            type: 'EXTENSION_TO_VOXCODE',
+                            messageId: msg.messageId,
+                            action: msg.action,
+                            response: res,
+                            data: res
+                        });
+                    } catch (_) {}
+                });
+            } catch (err) {
+                try {
+                    port.postMessage({
+                        type: 'EXTENSION_TO_VOXCODE',
+                        messageId: msg.messageId,
+                        action: msg.action,
+                        response: { ok: false, error: err.message },
+                        data: { ok: false, error: err.message }
+                    });
+                } catch (_) {}
+            }
+        });
+    });
+}
+
+// Broadcast live events to all connected VoxCode tabs and streaming ports
+async function broadcastVoxCodeLiveEvent(eventName, eventData) {
+    const msg = {
+        type: 'VOXCODE_LIVE_EVENT',
+        event: eventName,
+        data: eventData,
+        timestamp: Date.now()
+    };
+
+    // 1. Send directly to active external streaming ports
+    for (const port of _voxcodeConnectedPorts) {
+        try {
+            port.postMessage(msg);
+        } catch (_) {
+            _voxcodeConnectedPorts.delete(port);
+        }
+    }
+
+    // 2. Broadcast via content script bridge to open tabs
+    try {
+        const tabs = await chrome.tabs.query({});
+        for (const tab of tabs) {
+            if (!tab.id || !tab.url) continue;
+            const u = tab.url.toLowerCase();
+            if (
+                u.includes('localhost') ||
+                u.includes('127.0.0.1') ||
+                u.includes('voxcode.app') ||
+                u.includes('voxcode.space') ||
+                u.includes('vercel.app')
+            ) {
+                chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
+            }
+        }
+    } catch (_) {}
+}
+
+// Storage watcher for real-time background agent status and step log updates
+chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local') return;
+
+    if (changes.ge_bg_agent_status) {
+        const newStatus = changes.ge_bg_agent_status.newValue || {};
+        broadcastVoxCodeLiveEvent('status_change', newStatus);
+    }
+
+    if (changes.ge_bg_agent_log) {
+        const newLogs = changes.ge_bg_agent_log.newValue || [];
+        const latest = Array.isArray(newLogs) && newLogs.length > 0 ? newLogs[0] : null;
+        if (latest) {
+            broadcastVoxCodeLiveEvent('step_log', latest);
+        }
+    }
+});
+
+// Centralized message router for VoxCode bridge requests
+async function handleVoxCodeBridgeMessage(message, sender, sendResponse) {
+    if (!message || typeof message !== 'object') {
+        sendResponse({ ok: false, error: 'Invalid message format' });
+        return;
+    }
+
+    const action = message.action || message.command
+        || (message.data && (message.data.action || message.data.command))
+        || (message.payload && (message.payload.action || message.payload.command))
+        || (message.type !== 'VOXCODE_BRIDGE_MESSAGE' ? message.type : null)
+        || 'GET_STATUS';
+
+    // Shallow-merge all potential payload locations so no argument is lost
+    const payload = {
+        ...(typeof message === 'object' ? message : {}),
+        ...((message.payload && typeof message.payload === 'object') ? message.payload : {}),
+        ...((message.data && typeof message.data === 'object') ? message.data : {})
+    };
+
+    try {
+        switch (action) {
+            case 'GET_STATUS':
+            case 'STATUS': {
+                const storageData = await chrome.storage.local.get(['noAuthToken', 'noUser', 'voxcodeUserId', 'ge_bg_agent_status']);
+                const token = storageData.noAuthToken || null;
+                let user = storageData.noUser || null;
+                if (!user && typeof NewOrderAuth !== 'undefined' && typeof NewOrderAuth.getCurrentUser === 'function') {
+                    user = NewOrderAuth.getCurrentUser();
+                }
+
+                let installedTools = [];
+                let activeToolIds = [];
+                if (typeof ToolManager !== 'undefined') {
+                    if (typeof ToolManager.getInstalledTools === 'function') {
+                        installedTools = await ToolManager.getInstalledTools();
+                    }
+                    if (typeof ToolManager.getActiveToolIds === 'function') {
+                        activeToolIds = await ToolManager.getActiveToolIds();
+                    }
+                }
+
+                const bgStatus = storageData.ge_bg_agent_status || {};
+                const isRunning = (typeof globalThis.GE_BG_AGENT !== 'undefined' && typeof globalThis.GE_BG_AGENT.isRunning === 'function')
+                    ? globalThis.GE_BG_AGENT.isRunning()
+                    : !!bgStatus.running;
+
+                sendResponse({
+                    ok: true,
+                    version: chrome.runtime.getManifest()?.version || '1.0.0',
+                    extensionId: chrome.runtime.id,
+                    installed: true,
+                    authenticated: !!token,
+                    user: user ? {
+                        id: user.id || user._id,
+                        email: user.email,
+                        name: user.name || user.displayName,
+                        plan: user.plan || (user.subscription && user.subscription.plan) || 'free',
+                        credits: user.credits ?? 0,
+                        voxcodeUserId: storageData.voxcodeUserId || user.voxcodeUserId || null
+                    } : null,
+                    tools: installedTools,
+                    activeToolIds: activeToolIds,
+                    taskStatus: {
+                        running: isRunning,
+                        taskId: bgStatus.taskId || null,
+                        prompt: bgStatus.prompt || null,
+                        startedAt: bgStatus.startedAt || null,
+                        lastAction: bgStatus.lastAction || null,
+                        lastResult: bgStatus.lastResult || null
+                    }
+                });
+                return;
+            }
+
+            case 'PING': {
+                sendResponse({
+                    ok: true,
+                    pong: true,
+                    version: chrome.runtime.getManifest()?.version || '1.0.0',
+                    extensionId: chrome.runtime.id
+                });
+                return;
+            }
+
+            case 'EXECUTE_TASK': {
+                const prompt = payload.prompt || payload.query || payload.text;
+                if (!prompt) {
+                    sendResponse({ ok: false, error: 'Prompt is required for EXECUTE_TASK' });
+                    return;
+                }
+
+                broadcastVoxCodeLiveEvent('task_started', {
+                    prompt,
+                    source: 'voxcode',
+                    startedAt: Date.now()
+                });
+
+                if (typeof globalThis.GE_BG_AGENT !== 'undefined' && typeof globalThis.GE_BG_AGENT.runOneTask === 'function') {
+                    const taskPromise = globalThis.GE_BG_AGENT.runOneTask({
+                        prompt,
+                        source: 'voxcode',
+                        resumeFromTaskId: payload.resumeFromTaskId || null
+                    });
+
+                    taskPromise.then((result) => {
+                        if (result && result.ok === false) {
+                            broadcastVoxCodeLiveEvent('task_failed', {
+                                prompt,
+                                error: result.error || result.stage || 'Task failed',
+                                result
+                            });
+                        } else {
+                            broadcastVoxCodeLiveEvent('task_completed', {
+                                prompt,
+                                result: result || { ok: true }
+                            });
+                        }
+                    }).catch((err) => {
+                        broadcastVoxCodeLiveEvent('task_failed', {
+                            prompt,
+                            error: err.message
+                        });
+                    });
+
+                    if (payload.waitForResult) {
+                        taskPromise.then((res) => {
+                            sendResponse(res || { ok: true });
+                        }).catch((err) => {
+                            sendResponse({ ok: false, error: err.message });
+                        });
+                    } else {
+                        sendResponse({
+                            ok: true,
+                            started: true,
+                            prompt
+                        });
+                    }
+                } else {
+                    sendResponse({ ok: false, error: 'GE_BG_AGENT is not available in background worker' });
+                }
+                return;
+            }
+
+            case 'RUN_TOOL': {
+                let tabId = payload.tabId || (sender && sender.tab && sender.tab.id);
+                if (!tabId) {
+                    const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+                    tabId = tabs[0]?.id;
+                }
+
+                if (!tabId && payload.url) {
+                    try {
+                        const targetTabs = await chrome.tabs.query({ url: payload.url });
+                        if (targetTabs.length > 0) {
+                            tabId = targetTabs[0].id;
+                        } else {
+                            const newTab = await chrome.tabs.create({ url: payload.url });
+                            tabId = newTab.id;
+                        }
+                    } catch (_) {}
+                }
+
+                if (!tabId) {
+                    sendResponse({ ok: false, error: 'No target tab found to inject tool into' });
+                    return;
+                }
+
+                let tool = payload.tool || payload.toolId || payload.id || payload.name;
+                if (typeof tool === 'string' && typeof ToolManager !== 'undefined') {
+                    const installed = await ToolManager.getInstalledTools();
+                    const found = installed.find(t => t.id === tool || t.name === tool);
+                    if (found) tool = found;
+                }
+
+                if (!tool || typeof tool !== 'object') {
+                    sendResponse({ ok: false, error: 'Tool not found or tool specification is missing' });
+                    return;
+                }
+
+                if (typeof ToolManager !== 'undefined' && typeof ToolManager.injectToolIntoTab === 'function') {
+                    await ToolManager.injectToolIntoTab(tabId, tool);
+                    broadcastVoxCodeLiveEvent('tool_injected', {
+                        tabId,
+                        toolId: tool.id || null,
+                        toolName: tool.name || null
+                    });
+                    sendResponse({ ok: true, tabId, toolId: tool.id || null, injected: true });
+                } else {
+                    sendResponse({ ok: false, error: 'ToolManager is not available in background worker' });
+                }
+                return;
+            }
+
+            case 'ABORT_TASK': {
+                await chrome.storage.local.set({ ge_bg_agent_abort: true });
+                try {
+                    const statusData = await chrome.storage.local.get(['ge_bg_agent_status']);
+                    const current = statusData.ge_bg_agent_status || {};
+                    await chrome.storage.local.set({
+                        ge_bg_agent_status: {
+                            ...current,
+                            running: false,
+                            lastStopAt: Date.now(),
+                            lastResult: 'aborted'
+                        }
+                    });
+                } catch (_) {}
+
+                broadcastVoxCodeLiveEvent('task_aborted', {
+                    abortedAt: Date.now()
+                });
+
+                sendResponse({ ok: true, aborted: true });
+                return;
+            }
+
+            case 'LINK_USER': {
+                const token = payload.token || payload.authToken || payload.noAuthToken;
+                const user = payload.user || payload.noUser;
+                const voxcodeUserId = payload.voxcodeUserId;
+
+                const updates = {};
+                if (token) updates.noAuthToken = token;
+                if (user) updates.noUser = user;
+                if (voxcodeUserId) {
+                    updates.voxcodeUserId = voxcodeUserId;
+                    updates.voxcodeLinkedAt = Date.now();
+                }
+
+                if (Object.keys(updates).length > 0) {
+                    await chrome.storage.local.set(updates);
+                    if (typeof NewOrderAuth !== 'undefined' && typeof NewOrderAuth.init === 'function') {
+                        try { await NewOrderAuth.init(); } catch (_) {}
+                    }
+                }
+
+                broadcastVoxCodeLiveEvent('user_linked', {
+                    linkedAt: Date.now(),
+                    voxcodeUserId: voxcodeUserId || null,
+                    hasToken: !!token
+                });
+
+                sendResponse({
+                    ok: true,
+                    linked: true,
+                    user: user || null
+                });
+                return;
+            }
+
+            default:
+                sendResponse({ ok: false, error: `Unknown bridge action: ${action}` });
+        }
+    } catch (err) {
+        sendResponse({ ok: false, error: err.message });
+    }
+}
+
+// External message listener (from web pages via externally_connectable)
+chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
+    handleVoxCodeBridgeMessage(message, sender, sendResponse)
+        .catch(err => sendResponse({ ok: false, error: err.message }));
+    return true; // Keep channel open for async response
 });
 
 // ============================================
